@@ -406,7 +406,10 @@ void Material::DrawInspector() {
 PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
     Material(name, TEXT("PostProcessCommon"), ps)
 {
-
+    RasterState rs;
+    rs.depthWrite = false;
+    rs.depthFunc = CompareFunc::kAlways;
+    pso_ = GfxDriver::Get()->CreatePipelineState(rs);
 }
 
 Material* MaterialManager::Create(const char* name) {

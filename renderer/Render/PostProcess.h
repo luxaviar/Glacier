@@ -11,11 +11,11 @@ class Renderer;
 
 struct PostProcessBuilder {
     PostProcessBuilder() {
-        rs.depthWrite = false;
-        rs.depthFunc = CompareFunc::kAlways;
+        //rs.depthWrite = false;
+        //rs.depthFunc = CompareFunc::kAlways;
     }
 
-    PostProcessBuilder& SetPipelineState(const RasterState& state) { rs = state; return *this; }
+    //PostProcessBuilder& SetPipelineState(const RasterState& state) { rs = state; return *this; }
 
     PostProcessBuilder& SetSrc(const std::shared_ptr<Texture>& src) { src_tex = src; return *this; }
     PostProcessBuilder& SetDst(const std::shared_ptr<Texture>& dst) { dst_tex = dst; return *this; }
@@ -24,7 +24,7 @@ struct PostProcessBuilder {
     PostProcessBuilder& SetDepth(const std::shared_ptr<Texture>& depth) { depth_tex = depth; return *this; }
     PostProcessBuilder& SetMaterial(const std::shared_ptr<PostProcessMaterial>& mat) { material = mat; return *this; }
 
-    RasterState rs;
+    //RasterState rs;
     std::shared_ptr<Texture> src_tex;
     std::shared_ptr<Texture> dst_tex;
     std::shared_ptr<RenderTarget> dst_rt;

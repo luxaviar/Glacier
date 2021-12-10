@@ -88,7 +88,7 @@ public:
 
     void DrawInspector();
 
-private:
+protected:
     mutable bool dirty_ = true;
     Vec4f tex_ts_ = {1.0f, 1.0f, 0.0f, 0.0f}; //xy: tilling, zw: offset
     std::string name_;
