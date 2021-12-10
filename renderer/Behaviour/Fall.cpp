@@ -41,7 +41,7 @@ void Fall::SpawnCylinder() {
     float radius = 0.5f;
     float height = 1.0f;
 
-    auto& cube_go = render::Primitive::CreateCylinder(pbr_default, height, radius);
+    auto& cube_go = render::Primitive::CreateCylinder(pbr_default, radius, height);
     cube_go.transform().position({ 0.0f, 5.0f, 0.0f });
     cube_go.transform().rotation(Quaternion::AngleAxis(90, Vec3f::right));
 
@@ -55,7 +55,7 @@ void Fall::SpawnCapsule() {
     float radius = 0.5f;
     float height = 1.0f;
 
-    auto& cube_go = render::Primitive::CreateCapsule(pbr_default, height, radius);
+    auto& cube_go = render::Primitive::CreateCapsule(pbr_default, radius, height);
     cube_go.transform().position({ 0.0f, 5.0f, 0.0f });
 
     auto rigidbody = cube_go.AddComponent<Rigidbody>(RigidbodyType::kDynamic, true);

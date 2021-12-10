@@ -9,7 +9,7 @@ namespace render {
 
 class D3D11PipelineState : public PipelineState {
 public:
-    static std::shared_ptr<D3D11PipelineState> Create(const RasterState& rs);
+    static const std::shared_ptr<D3D11PipelineState>& Create(const RasterState& rs);
     static void Clear();
 
     D3D11PipelineState(const RasterState& rs);

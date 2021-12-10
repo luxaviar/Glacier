@@ -35,6 +35,9 @@ public:
     static int GetPosX();
     static int GetPosY();
 
+    static float GetMouseWheelDelta();
+    static void EndFrame();
+
 protected:
     Keyboard keyboard_;
     Mouse mouse_;

@@ -203,6 +203,7 @@
     <ClCompile Include="Render\Backend\D3D11\IndexBuffer.cpp" />
     <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp" />
     <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp" />
+    <ClCompile Include="Render\Backend\D3D11\Program.cpp" />
     <ClCompile Include="Render\Backend\D3D11\Query.cpp" />
     <ClCompile Include="Render\Backend\D3D11\RenderTarget.cpp" />
     <ClCompile Include="Render\Backend\D3D11\Sampler.cpp" />
@@ -213,6 +214,7 @@
     <ClCompile Include="Render\Base\BufferLayout.cpp" />
     <ClCompile Include="Render\Base\GfxDriver.cpp" />
     <ClCompile Include="Render\Base\PerfStats.cpp" />
+    <ClCompile Include="Render\Base\Program.cpp" />
     <ClCompile Include="Render\Base\Renderable.cpp" />
     <ClCompile Include="Render\Base\Util.cpp" />
     <ClCompile Include="Render\Base\VertexLayout.cpp" />
@@ -427,6 +429,7 @@
     <ClInclude Include="Render\Backend\D3D11\IndexBuffer.h" />
     <ClInclude Include="Render\Backend\D3D11\InputLayout.h" />
     <ClInclude Include="Render\Backend\D3D11\PipelineState.h" />
+    <ClInclude Include="Render\Backend\D3D11\Program.h" />
     <ClInclude Include="Render\Backend\D3D11\Query.h" />
     <ClInclude Include="Render\Backend\D3D11\RenderTarget.h" />
     <ClInclude Include="Render\Backend\D3D11\Sampler.h" />
@@ -443,6 +446,7 @@
     <ClInclude Include="Render\Base\InputLayout.h" />
     <ClInclude Include="Render\Base\PerfStats.h" />
     <ClInclude Include="Render\Base\PipelineState.h" />
+    <ClInclude Include="Render\Base\Program.h" />
     <ClInclude Include="Render\Base\Query.h" />
     <ClInclude Include="Render\Base\RasterState.h" />
     <ClInclude Include="Render\Base\Renderable.h" />

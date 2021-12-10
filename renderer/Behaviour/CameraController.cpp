@@ -39,7 +39,16 @@ void CameraController::Translate(const Vec3f& translation) noexcept
 }
 
 void CameraController::Update(float dt) {
-    if (!Input::IsRelativeMode()) return;
+    if (!Input::IsRelativeMode()) {
+        float delta = Input::GetMouseWheelDelta();
+        if (delta == 0.0f) return;
+        float fov = camera_->fov();
+        fov -= delta;
+        fov = math::Clamp(fov, 30, 120);
+        camera_->fov(fov);
+
+        return;
+    }
 
     auto& state = Input::GetKeyState();
     if (state.W) {

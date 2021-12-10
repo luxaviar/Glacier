@@ -7,6 +7,7 @@ namespace glacier {
 namespace render {
 
 class GfxDriver;
+class Program;
 
 class PbrRenderer : public Renderer
 {
@@ -18,7 +19,10 @@ protected:
     void InitRenderGraph(GfxDriver* gfx);
     void InitHelmetPbr(GfxDriver* gfx);
     void InitFloorPbr(GfxDriver* gfx);
+    void InitRoadPbr(GfxDriver* gfx);
     void InitDefaultPbr(GfxDriver* gfx);
+
+    std::shared_ptr<Program> pbr_program_;
 };
 
 }

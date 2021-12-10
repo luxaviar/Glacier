@@ -35,7 +35,7 @@ VSOut main_vs(AppData IN)
     return vso;
 }
 
-cbuffer ObjectMaterial : register(b2)
+cbuffer object_material : register(b2)
 {
     PhongMaterial mat;
 };

@@ -39,10 +39,10 @@ struct Material
     // Total:                              ( 16 * 9 = 144 bytes )
 };
 
-ConstantBuffer<Material> MaterialCB : register( b0, space1 );
-Texture2D DiffuseTexture            : register( t2 );
+ConstantBuffer<Material> MaterialCB : register( b1);
+Texture2D DiffuseTexture            : register( t0 );
 
-SamplerState LinearRepeatSampler    : register(s0);
+SamplerState LinearRepeatSampler    : register(s2);
 
 float3 LinearToSRGB( float3 x )
 {

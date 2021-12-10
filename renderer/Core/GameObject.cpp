@@ -236,7 +236,15 @@ void GameObject::DrawSceneNode(uint32_t& selected) {
         (transform_.children().empty() ? ImGuiTreeNodeFlags_Leaf : 0) |
         ((selected == id_) ? ImGuiTreeNodeFlags_Selected : 0);
 
+    if (!IsActive()) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+    }
+
     bool open = ImGui::TreeNodeEx(this, node_flags, name_.c_str());
+
+    if (!IsActive()) {
+        ImGui::PopStyleColor(1);
+    }
 
     if (ImGui::IsItemClicked()) {
         selected = id_;

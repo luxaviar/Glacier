@@ -12,7 +12,12 @@ namespace glacier {
 namespace render {
 
 Picking::Picking(GfxDriver* gfx) : gfx_(gfx) {
-    rs_.scissor = true;
+    RasterState rs;
+    rs.scissor = true;
+
+    mat_ = std::make_shared<Material>("pick", TEXT("Solid"), TEXT("Solid"));
+    mat_->SetProperty("color", Color{ 1.0f,1.0f,1.0f, 1.0f });
+    mat_->SetPipelineStateObject(gfx->CreatePipelineState(rs));
 }
 
 int Picking::Detect(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt) {
@@ -46,12 +51,10 @@ int Picking::Detect(int x, int y, Camera* camera, const std::vector<Renderable*>
 
         rt->Clear({ 0, 0, 0, 0 });
         rt->Bind();
-        gfx_->UpdatePipelineState(rs_);
         gfx_->BindCamera(camera);
 
-        auto mat = MaterialManager::Instance()->Get("solid");
         {
-            MaterialGuard guard(gfx_, mat);
+            MaterialGuard guard(gfx_, mat_.get());
             for (auto o :  visibles) {
                 if (!o->IsActive() || !o->IsPickable()) continue;
 
@@ -67,7 +70,6 @@ int Picking::Detect(int x, int y, Camera* camera, const std::vector<Renderable*>
                 o->Render(gfx_);
             }
         }
-        //pass.PostRender(gfx);
         rt->DisableScissor();
 
         Image tmp_img(sizex, sizey);

@@ -26,16 +26,6 @@ void GfxDriver::UpdateInputLayout(const std::shared_ptr<InputLayout>& layout) {
     input_layout_->Bind();
 }
 
-void GfxDriver::UpdatePipelineState(const RasterState& rs) {
-    if (raster_state_ == rs) {
-        return;
-    }
-
-    auto pso = this->CreatePipelineState(rs);
-    pso->Bind();
-    raster_state_ = rs;
-}
-
 bool GfxDriver::PushMaterial(Material* mat) {
     if (!mat) return false;
 

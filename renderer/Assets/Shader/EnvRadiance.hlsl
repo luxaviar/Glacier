@@ -1,4 +1,4 @@
-cbuffer TransformCBuf : register(b1)
+cbuffer vp_matrix : register(b1)
 {
     matrix vp;
 };

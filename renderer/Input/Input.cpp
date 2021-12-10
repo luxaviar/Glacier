@@ -62,4 +62,14 @@ int Input::GetPosY() {
     return Instance()->mouse().GetPosY();
 }
 
+float Input::GetMouseWheelDelta() {
+    float value = static_cast<float>(Instance()->mouse().GetState().scroll_wheel_value);
+    return value / static_cast<float>(WHEEL_DELTA);
+}
+
+void Input::EndFrame() {
+    Instance()->mouse().ResetScrollWheelValue();
+    Instance()->mouse().ResetRawDelta();
+}
+
 }

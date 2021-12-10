@@ -12,8 +12,8 @@ namespace render {
 class Image;
 
 struct TextureBuilder {
-    TextureBuilder& EnableSRGB() { srgb = true; return *this; }
-    TextureBuilder& EnableMips() { gen_mips = true; return *this; }
+    TextureBuilder& EnableSRGB(bool v = true) { srgb = v; return *this; }
+    TextureBuilder& EnableMips(bool v = true) { gen_mips = v; return *this; }
     TextureBuilder& SetFormat(TextureFormat fmt) { format = fmt; return *this; }
     //TextureBuilder& SetBindFlag(uint32_t flags) { bind_flags = flags; return *this; }
     TextureBuilder& SetBackBufferTexture(int idx) { backbuffer_index = idx; return *this; }

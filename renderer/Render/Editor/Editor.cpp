@@ -86,19 +86,18 @@ void Editor::DrawScenePanel() {
 
 void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto& render_graph = renderer->render_graph();
+    auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"));
 
-    auto outline_mat = std::make_shared<Material>("outline");
-    auto solid_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Solid"));
-    outline_mat->SetShader(solid_vs);
-
+    RasterState outline_rs;
+    outline_rs.depthWrite = false;
+    outline_rs.depthFunc = CompareFunc::kAlways;
+    outline_rs.stencilEnable = true;
+    outline_rs.stencilFunc = CompareFunc::kAlways;
+    outline_rs.depthStencilPassOp = StencilOp::kReplace;
+    outline_mat->SetPipelineStateObject(outline_rs);
+    
     render_graph.AddPass("outline mask",
         [&](PassNode& pass) {
-            auto& rs = pass.raster_state();
-            rs.depthWrite = false;
-            rs.depthFunc = CompareFunc::kAlways;
-            rs.stencilEnable = true;
-            rs.stencilFunc = CompareFunc::kAlways;
-            rs.depthStencilPassOp = StencilOp::kReplace;
         },
         [this, renderer, outline_mat](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
@@ -121,7 +120,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
 
     //Color Color{ 1.0f, 0.4f, 0.4f, 1.0f };
-    outline_solid_mat->SetProperty("outline_color", Color{ 1.0f, 0.4f, 0.4f, 1.0f }, ShaderType::kPixel, 0);
+    outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
 
     render_graph.AddPass("outline draw",
         [&](PassNode& pass) {
@@ -154,18 +153,12 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     ss.filter = FilterMode::kPoint;
 
     auto outline_hsample = gfx->CreateSampler(ss);
+    auto hblur_mat = std::make_shared<PostProcessMaterial>("hightlight", TEXT("BlurOutline"));
 
-    //auto fs_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("BlurOutline"));
-    auto blur_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("BlurOutline"));
-    auto hblur_mat = std::make_shared<Material>("hightlight");
-    //hblur_mat->SetShader(fs_vs);
-    hblur_mat->SetShader(blur_ps);
-    hblur_mat->SetProperty("blur_param", blur_param, ShaderType::kPixel, 0);
-    hblur_mat->SetProperty("blur_dir", blur_dir, ShaderType::kPixel, 1);
-    //hblur_mat->SetProperty("blur_tex", outline_draw_tex, ShaderType::kPixel, 0);
-    hblur_mat->SetProperty("blur_sampler", outline_hsample, ShaderType::kPixel, 0);
+    hblur_mat->SetProperty("Kernel", blur_param);
+    hblur_mat->SetProperty("Control", blur_dir);
+    hblur_mat->SetProperty("linear_sampler", outline_hsample);
 
-    //auto quad = renderer->FullscreenQuadMesh();
     render_graph.AddPass("horizontal blur",
         [&](PassNode& pass) {
         },
@@ -191,22 +184,22 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
     auto v_sample = gfx->CreateSampler(vss);
 
-    auto vblur_mat = std::make_shared<Material>(*hblur_mat);
-    //vblur_mat->SetProperty("blur_tex", outline_htex, ShaderType::kPixel, 0);
-    vblur_mat->SetProperty("blur_sampler", v_sample, ShaderType::kPixel, 0);
+    auto vblur_mat = std::make_shared<PostProcessMaterial>(*hblur_mat);
+    vblur_mat->SetProperty("linear_sampler", v_sample);
 
-    RasterState rs;
-    rs.depthWrite = false;
-    rs.stencilEnable = true;
-    rs.stencilFunc = CompareFunc::kNotEqual;
-    rs.depthStencilPassOp = StencilOp::kKeep;
-    rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;
-    rs.blendFunctionDstRGB = BlendFunction::kOneMinusSrcAlpha;
+    RasterState blur_rs;
+    blur_rs.depthWrite = false;
+    blur_rs.stencilEnable = true;
+    blur_rs.stencilFunc = CompareFunc::kNotEqual;
+    blur_rs.depthStencilPassOp = StencilOp::kKeep;
+    blur_rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;
+    blur_rs.blendFunctionDstRGB = BlendFunction::kOneMinusSrcAlpha;
+    vblur_mat->SetPipelineStateObject(blur_rs);
 
     render_graph.AddPass("vertical blur",
         [&](PassNode& pass) {
         },
-        [this, rs, blur_dir, vblur_mat, outline_htex](Renderer* renderer, const PassNode& pass) {
+        [this, blur_dir, vblur_mat, outline_htex](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
@@ -215,7 +208,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             blur_dir->Update(&blur_dir_);
 
             auto& mgr = renderer->GetPostProcessManager();
-            mgr.Process(outline_htex.get(), renderer->render_target().get(), vblur_mat.get(), rs);
+            mgr.Process(outline_htex.get(), renderer->render_target().get(), vblur_mat.get());
 
             //renderer->render_target()->Bind();
             //pass.Render(renderer, quad, vblur_mat.get());

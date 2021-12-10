@@ -31,7 +31,7 @@ GameObject& Primitive::CreateSphere(Material* material, float radius) {
     return go;
 }
 
-GameObject& Primitive::CreateCylinder(Material* material, float height, float radius) {
+GameObject& Primitive::CreateCylinder(Material* material, float radius, float height) {
     VertexCollection vertices;
     IndexCollection indices;
 
@@ -44,11 +44,11 @@ GameObject& Primitive::CreateCylinder(Material* material, float height, float ra
     return go;
 }
 
-GameObject& Primitive::CreateCapsule(Material* material, float height, float radius) {
+GameObject& Primitive::CreateCapsule(Material* material, float radius, float mid_height) {
     VertexCollection vertices;
     IndexCollection indices;
 
-    geometry::CreateCapsule(vertices, indices, height, radius);
+    geometry::CreateCapsule(vertices, indices, mid_height, radius);
 
     auto mesh = std::make_shared<Mesh>(vertices, indices);
     auto& go = GameObject::Create("capsule");

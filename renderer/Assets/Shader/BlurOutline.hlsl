@@ -13,7 +13,7 @@ VSOut main_vs(float3 pos : Position)
 }
 
 Texture2D tex;
-SamplerState splr;
+SamplerState linear_sampler;
 
 cbuffer Kernel
 {
@@ -53,7 +53,7 @@ float4 main_ps(float2 uv : Texcoord) : SV_Target
     for (int i = -r; i <= r; i++)
     {
         const float2 tc = uv + float2(dx * i, dy * i);
-        const float4 s = tex.Sample(splr, tc).rgba;
+        const float4 s = tex.Sample(linear_sampler, tc).rgba;
         const float coef = coefficients[i + r];
         accAlpha += s.a * coef;
         maxColor = max(s.rgb, maxColor);

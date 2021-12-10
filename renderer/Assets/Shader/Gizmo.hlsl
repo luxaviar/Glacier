@@ -6,7 +6,7 @@ struct GzimoOut
     float3 color : COLOR;
 };
 
-cbuffer TransformCBuf : register(b0)
+cbuffer vp_matrix : register(b0)
 {
     matrix vp;
 };
@@ -20,7 +20,7 @@ float4 main_vs(float3 pos : POSITION) : SV_Position //, float3 color : COLOR, fl
     return mul(float4(pos, 1.0f), vp);
 }
 
-cbuffer CBuf : register(b0)
+cbuffer color : register(b0)
 {
    float4 materialColor;
 };

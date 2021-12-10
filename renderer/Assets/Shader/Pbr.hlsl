@@ -27,7 +27,7 @@ struct PbrMaterial
     //--------------------------- ( 16 bytes )
 }; //--------------------------- ( 16 * 2 = 32 bytes )
 
-cbuffer ObjectMaterial : register(b2)
+cbuffer object_material : register(b2)
 {
     PbrMaterial mat;
 };

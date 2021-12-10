@@ -37,12 +37,10 @@ Renderer::Renderer(GfxDriver* gfx) : gfx_(gfx), editor_(gfx), post_process_manag
 
     UpdateRenderTarget(gfx_);
     InitMaterial(gfx_);
-
-    auto tonemapping_mat = std::make_shared<Material>("tone mapping");
-    auto tonemapping_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("ToneMapping"));
-    tonemapping_mat = std::make_shared<Material>("tone mapping");
-    tonemapping_mat->SetShader(tonemapping_ps);
-
+    
+    auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
+    tonemapping_mat->SetProperty("sam", post_process_manager_.GetSampler());
+    
     auto builder = PostProcess::Builder()
         .SetSrc(render_target_->GetColorAttachment(AttachmentPoint::kColor0))
         .SetDst(gfx->GetSwapChain()->GetRenderTarget())
@@ -87,14 +85,11 @@ void Renderer::RestoreCommonBindings() {
 }
 
 void Renderer::InitMaterial(GfxDriver* gfx) {
-    auto solid_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Solid"));
-    auto solid_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Solid"));
+    auto solid_program = gfx->CreateProgram("Solid", TEXT("Solid"), TEXT("Solid"));
 
     auto solid_mat = MaterialManager::Instance()->Create("solid");
-    solid_mat->SetShader(solid_vs);
-    solid_mat->SetShader(solid_ps);
-
-    solid_mat->SetProperty("solid_color", Color{ 1.0f,1.0f,1.0f, 1.0f }, ShaderType::kPixel, 0);
+    solid_mat->SetProgram(solid_program);
+    solid_mat->SetProperty("color", Color{ 1.0f,1.0f,1.0f, 1.0f });
 }
 
 void Renderer::UpdateRenderTarget(GfxDriver* gfx) {
@@ -306,19 +301,16 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
         .SetDimension(size, size)
         .SetFormat(TextureFormat::kR32_FLOAT);
 
-    auto shadow_map_cube = gfx->CreateTexture(builder1); // *gfx, TextureType::kTextureCube, size, size, TextureFormat::kR32_FLOAT);
+    auto shadow_map_cube = gfx->CreateTexture(builder1);
 
     auto builder2 = Texture::Builder()
         .SetDimension(size, size)
         .SetFormat(TextureFormat::kR24G8_TYPELESS)
         .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL);
-    auto depthstencil_texture1 = gfx->CreateTexture(builder2); // *gfx, TextureType::kTexture2D, size, size, TextureFormat::kR24G8_TYPELESS, D3D11_BIND_DEPTH_STENCIL);
+    auto depthstencil_texture1 = gfx->CreateTexture(builder2);
 
-    auto shadow_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Shadow"));// std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("Shadow"));
-    auto shadow_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Shadow"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("Shadow"));
-    auto shadow_mat = std::make_unique<Material>("cube shadow");
-    shadow_mat->SetShader(shadow_vs);
-    shadow_mat->SetShader(shadow_ps);
+    auto shadow_mat = std::make_unique<Material>("cube shadow", TEXT("Shadow"), TEXT("Shadow"));
+
     auto shadow_mat_ptr = shadow_mat.get();
     MaterialManager::Instance()->Add(std::move(shadow_mat));
 
@@ -385,11 +377,12 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     
     auto sampler2 = gfx->CreateSampler(ss1);
 
+    /// FIXME
     auto phong_mat = std::make_unique<Material>("lambert_cube");
-    phong_mat->SetProperty("shadow_trans", shadow_space_tx, ShaderType::kVertex, 1);
-    phong_mat->SetProperty("shadow_map", shadow_map_cube, ShaderType::kPixel, 3);
-    phong_mat->SetProperty("sampler1", sampler1, ShaderType::kPixel, 1);
-    phong_mat->SetProperty("sampler2", sampler2, ShaderType::kPixel, 2);
+    phong_mat->SetProperty("shadow_trans", shadow_space_tx);
+    phong_mat->SetProperty("shadow_map", shadow_map_cube);
+    phong_mat->SetProperty("sampler1", sampler1);
+    phong_mat->SetProperty("sampler2", sampler2);
 
     auto phong_mat_ptr = phong_mat.get();
     MaterialManager::Instance()->Add(std::move(phong_mat));

@@ -11,7 +11,6 @@ namespace glacier {
 namespace render {
 
 PostProcess::PostProcess(const PostProcessBuilder& builder, Renderer* renderer) :
-    state_(builder.rs),
     screen_tex_(builder.src_tex),
     depth_tex_(builder.depth_tex),
     material_(builder.material)
@@ -37,13 +36,12 @@ void PostProcess::Render(Renderer* renderer, Renderable* quad) {
     MaterialGuard mat_guard(gfx, material_.get());
     TextureGurad tex_guard(screen_tex_.get(), ShaderType::kPixel, 0);
 
-    gfx->UpdatePipelineState(state_);
     quad->Render(gfx);
 }
 
 PostProcessManager::PostProcessManager(Renderer* renderer) :
     renderer_(renderer),
-    material_("_post_common")
+    material_("_post_common", TEXT("PostProcessCommon"))
 {
     VertexCollection vertices;
     IndexCollection indices;
@@ -63,11 +61,7 @@ PostProcessManager::PostProcessManager(Renderer* renderer) :
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
 
-    auto linear_sampler = gfx->CreateSampler(ss);
-    auto vs = gfx->CreateShader(ShaderType::kVertex, TEXT("PostProcessCommon"));
-
-    material_.SetShader(vs);
-    material_.SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, 0);
+    linear_sampler_ = gfx->CreateSampler(ss);
 }
 
 void PostProcessManager::Push(const PostProcessBuilder& builder) {
@@ -81,15 +75,13 @@ void PostProcessManager::Render() {
     }
 }
 
-void PostProcessManager::Process(Texture* src, RenderTarget* dst, Material* mat, const RasterState& rs)
+void PostProcessManager::Process(Texture* src, RenderTarget* dst, PostProcessMaterial* mat)
 {
     auto gfx = renderer_->driver();
-    MaterialGuard guard(gfx, &material_);
     MaterialGuard mat_guard(gfx, mat);
     RenderTargetGuard rt_guard(dst);
     TextureGurad tex_guard(src, ShaderType::kPixel, 0);
 
-    gfx->UpdatePipelineState(rs);
     quad_->Render(gfx);
 }
 

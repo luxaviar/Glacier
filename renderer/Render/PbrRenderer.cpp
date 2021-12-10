@@ -32,6 +32,8 @@ void PbrRenderer::Setup() {
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     solid_mat->AddPass("solid");
 
+    pbr_program_ = gfx_->CreateProgram("Pbr", TEXT("Pbr"), TEXT("Pbr"));
+
     InitHelmetPbr(gfx_);
     InitFloorPbr(gfx_);
     InitDefaultPbr(gfx_);
@@ -64,26 +66,21 @@ void PbrRenderer::InitHelmetPbr(GfxDriver* gfx) {
         .EnableMips()
         .EnableSRGB();
     auto emissive_tex = gfx->CreateTexture(em_builder);
-    
+
     auto pbr_mat = MaterialManager::Instance()->Create("pbr_helmet");
+    pbr_mat->SetProgram(pbr_program_);
     pbr_mat->AddPass("pbr");
 
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kMirror;
     auto linear_sampler = gfx->CreateSampler(ss);
 
-    pbr_mat->SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, Material::kReservedSamplerSlot);
-
-    pbr_mat->SetProperty("albedo_tex", albedo_tex, ShaderType::kPixel, Material::kReservedTextureSlot);
-    pbr_mat->SetProperty("normal_tex", normal_tex, ShaderType::kPixel, Material::kReservedTextureSlot + 1);
-    pbr_mat->SetProperty("metal_roughness_tex", metal_roughness_tex, ShaderType::kPixel, Material::kReservedTextureSlot + 2);
-    pbr_mat->SetProperty("ao_tex", ao_tex, ShaderType::kPixel, Material::kReservedTextureSlot + 3);
-    pbr_mat->SetProperty("emissive_tex", emissive_tex, ShaderType::kPixel, Material::kReservedTextureSlot + 4);
-
-    auto pbr_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Pbr"));
-    auto pbr_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Pbr"));
-    pbr_mat->SetShader(pbr_vs);
-    pbr_mat->SetShader(pbr_ps);
+    pbr_mat->SetProperty("linear_sampler", linear_sampler);
+    pbr_mat->SetProperty("albedo_tex", albedo_tex);
+    pbr_mat->SetProperty("normal_tex", normal_tex);
+    pbr_mat->SetProperty("metalroughness_tex", metal_roughness_tex);
+    pbr_mat->SetProperty("ao_tex", ao_tex);
+    pbr_mat->SetProperty("emission_tex", emissive_tex);
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
@@ -92,32 +89,24 @@ void PbrRenderer::InitHelmetPbr(GfxDriver* gfx) {
 
     PbrMaterial pbr_param;
     auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param);
-    pbr_mat->SetProperty("pbr_param", mat_cbuf, ShaderType::kPixel, Material::kReservedPixelBufferSlot);
+    pbr_mat->SetProperty("object_material", mat_cbuf);
 }
 
 void PbrRenderer::InitDefaultPbr(GfxDriver* gfx) {
     auto pbr_mat = MaterialManager::Instance()->Create("pbr_default");
+    pbr_mat->SetProgram(pbr_program_);
     pbr_mat->AddPass("pbr");
 
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kMirror;
     auto linear_sampler = gfx->CreateSampler(ss);
     
-    pbr_mat->SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, Material::kReservedSamplerSlot);
+    pbr_mat->SetProperty("linear_sampler", linear_sampler);
 
-    pbr_mat->SetProperty("albedo_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot, 
-        Color::kWhite);
-    pbr_mat->SetProperty("metal_roughness_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 2,
-        Color(0.0f, 0.5f, 0.0f, 1.0f));
-    pbr_mat->SetProperty("ao_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 3,
-        Color::kWhite);
-    pbr_mat->SetProperty("emissive_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 4,
-        Color::kBlack);
-
-    auto pbr_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Pbr")); //std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("Pbr"));
-    auto pbr_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Pbr"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("Pbr"));
-    pbr_mat->SetShader(pbr_vs);
-    pbr_mat->SetShader(pbr_ps);
+    pbr_mat->SetProperty("albedo_tex", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
+    pbr_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("emission_tex", nullptr, Color::kBlack);
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
@@ -125,8 +114,8 @@ void PbrRenderer::InitDefaultPbr(GfxDriver* gfx) {
     };
 
     PbrMaterial pbr_param;
-    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param);// std::make_shared<ConstantBuffer<PbrMaterial>>(gfx, pbr_param);
-    pbr_mat->SetProperty("pbr_param", mat_cbuf, ShaderType::kPixel, Material::kReservedPixelBufferSlot);
+    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param);
+    pbr_mat->SetProperty("object_material", mat_cbuf);
 }
 
 void PbrRenderer::InitFloorPbr(GfxDriver* gfx) {
@@ -152,6 +141,7 @@ void PbrRenderer::InitFloorPbr(GfxDriver* gfx) {
     auto ao_tex = gfx->CreateTexture(ao_builder);
 
     auto pbr_mat = MaterialManager::Instance()->Create("pbr_floor");
+    pbr_mat->SetProgram(pbr_program_);
     pbr_mat->AddPass("pbr");
     pbr_mat->SetTexTilingOffset({5.0f, 5.0f, 0.0f, 0.0f});
     
@@ -159,20 +149,12 @@ void PbrRenderer::InitFloorPbr(GfxDriver* gfx) {
     ss.warpU = ss.warpV = WarpMode::kRepeat;
     auto linear_sampler = gfx->CreateSampler(ss);
 
-    pbr_mat->SetProperty("albedo_tex", albedo_tex, ShaderType::kPixel, Material::kReservedTextureSlot);
-    pbr_mat->SetProperty("normal_tex", normal_tex, ShaderType::kPixel, Material::kReservedTextureSlot + 1);
-    pbr_mat->SetProperty("metal_roughness_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 2,
-        Color(0.0f, 0.5f, 0.0f, 1.0f));
-    pbr_mat->SetProperty("ao_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 3,
-        Color::kWhite);
-    pbr_mat->SetProperty("emissive_tex", nullptr, ShaderType::kPixel, Material::kReservedTextureSlot + 4,
-        Color::kBlack);
-    pbr_mat->SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, Material::kReservedSamplerSlot);
-
-    auto pbr_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Pbr"));
-    auto pbr_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Pbr"));
-    pbr_mat->SetShader(pbr_vs);
-    pbr_mat->SetShader(pbr_ps);
+    pbr_mat->SetProperty("albedo_tex", albedo_tex);
+    pbr_mat->SetProperty("normal_tex", normal_tex);
+    pbr_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
+    pbr_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("emission_tex", nullptr, Color::kBlack);
+    pbr_mat->SetProperty("linear_sampler", linear_sampler);
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
@@ -181,7 +163,7 @@ void PbrRenderer::InitFloorPbr(GfxDriver* gfx) {
 
     PbrMaterial pbr_param;
     auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param);
-    pbr_mat->SetProperty("pbr_param", mat_cbuf, ShaderType::kPixel, Material::kReservedPixelBufferSlot);
+    pbr_mat->SetProperty("object_material", mat_cbuf);
 }
 
 void PbrRenderer::InitRenderGraph(GfxDriver* gfx) {

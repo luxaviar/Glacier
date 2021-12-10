@@ -50,6 +50,8 @@ public:
     std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point = nullptr,
         const char* target = nullptr, const std::vector<ShaderMacroEntry>& macros = {{nullptr, nullptr}}) override;
 
+    std::shared_ptr<Program> CreateProgram(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
+
     std::shared_ptr<Texture> CreateTexture(const TextureBuilder& builder) override;
     std::shared_ptr<Query> CreateQuery(QueryType type, int capacity) override;
 

@@ -154,15 +154,14 @@ enum class ShaderType : uint8_t {
 
 constexpr const char* DefaultShaderEntry[] = {"main_vs", "main_hs", "main_ds", "main_gs", "main_ps", "main_cs"};
 
-enum class ShaderParameterType : uint8_t {
-    kUnknown = 0,
-    kIndex,
+enum class ShaderParameterCatetory : uint8_t {
     kVertex,
-    kCBuffer,
-    kTexture,
-    kRWBuffer,
-    kRWTexture,
+    kIndex,
+    kCBV,
+    kSRV,
+    kUAV,
     kSampler,
+    kUnknown = 0,
 };
 
 enum class MaterialPropertyType : uint8_t {

@@ -19,7 +19,7 @@ void PassNode::Reset() {
 }
 
 void PassNode::PreRender(Renderer* renderer) const {
-    renderer->driver()->UpdatePipelineState(rs_);
+
 }
 
 void PassNode::PostRender(Renderer* renderer) const {

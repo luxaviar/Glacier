@@ -9,6 +9,7 @@ class RenderTarget;
 class Camera;
 class PipelineState;
 class Renderable;
+class Material;
 
 class Picking {
 public:
@@ -17,8 +18,9 @@ public:
 
 private:
     GfxDriver* gfx_;
-    RasterState rs_;
+    //RasterState rs_;
     std::shared_ptr<ConstantBuffer> color_buf_;
+    std::shared_ptr<Material> mat_;
 };
 
 }

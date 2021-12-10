@@ -9,7 +9,7 @@ namespace render {
 
 std::map<uint64_t, std::shared_ptr<D3D11PipelineState>> D3D11PipelineState::cache_;
 
-std::shared_ptr<D3D11PipelineState> D3D11PipelineState::Create(const RasterState& rs) {
+const std::shared_ptr<D3D11PipelineState>& D3D11PipelineState::Create(const RasterState& rs) {
     auto sig = rs.u;
     auto it = cache_.find(sig);
     if (it != cache_.end()) {
@@ -18,7 +18,10 @@ std::shared_ptr<D3D11PipelineState> D3D11PipelineState::Create(const RasterState
 
     auto ret = std::make_shared<D3D11PipelineState>(rs);
     cache_.emplace_hint(it, sig, ret);
-    return ret;
+    it = cache_.find(sig);
+    assert(it != cache_.end());
+
+    return it->second;
 }
 
 void D3D11PipelineState::Clear() {
@@ -82,7 +85,7 @@ D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs
 
 void D3D11PipelineState::Bind() {
     auto driver = GfxDriverD3D11::Instance();
-    const RasterState& last_rs = driver->raster_state();
+    auto last_rs = driver->raster_state();
     if (last_rs == state_) return;
 
     auto context = driver->GetContext();
@@ -106,7 +109,7 @@ void D3D11PipelineState::Bind() {
         GfxThrowIfAny(context->IASetPrimitiveTopology(GetTopology(state_.topology)));
     }
 
-    //driver->raster_state(state_);
+    driver->raster_state(state_);
 }
 
 }

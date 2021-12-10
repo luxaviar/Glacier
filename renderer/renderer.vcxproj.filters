@@ -474,6 +474,12 @@
     <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp">
       <Filter>Source\Render\Backend\D3D11</Filter>
     </ClCompile>
+    <ClCompile Include="Render\Base\Program.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Program.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="3rdparty\imgui\imconfig.h">
@@ -1197,6 +1203,12 @@
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Backend\D3D11\SwapChain.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\Program.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Program.h">
       <Filter>Source\Render\Backend\D3D11</Filter>
     </ClInclude>
   </ItemGroup>

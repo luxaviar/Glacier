@@ -81,7 +81,7 @@ public:
     void Clear();
 
 private:
-    void BatchRender(GfxDriver* gfx, std::vector<RasterState>& psos, float alpha);
+    void BatchRender(GfxDriver* gfx, std::vector<Material>& psos, float alpha);
     void DrawPrimitive(PrimitiveType type, RenderMode mode, GizmosVertex* vertex, uint32_t count);
     void DrawWireMesh(const Mesh& mesh, const Matrix4x4& m);
 
@@ -93,9 +93,12 @@ private:
     std::shared_ptr<VertexBuffer> vert_buffer_;
     std::shared_ptr<InputLayout> input_layout_;
 
-    std::vector<RasterState> ps_;
-    std::vector<RasterState> occluded_ps_;
-    std::vector<Material> materials_; //mode -> material
+    //std::vector<RasterState> ps_;
+    //std::vector<RasterState> occluded_ps_;
+    //std::vector<Material> materials_; //mode -> material
+
+    std::vector<Material> materials_;
+    std::vector<Material> occluded_materials_;
     
     std::vector<uint8_t> vert_data_;
     std::vector<GizmosBatch> batchs_;

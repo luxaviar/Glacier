@@ -119,10 +119,6 @@ void LightManager::UnBindEnv() {
 void LightManager::AddSkyboxPass(Renderer* renderer) {
     renderer->render_graph().AddPass("skybox",
         [&](PassNode& pass) {
-            auto& rs = pass.raster_state();
-            rs.depthWrite = false;
-            rs.depthFunc = CompareFunc::kLessEqual;
-            rs.culling = CullingMode::kFront;
         },
         [=](Renderer* renderer, const PassNode& pass) {
             auto main_camera_ = renderer->GetMainCamera();
@@ -147,16 +143,17 @@ void LightManager::GenerateSkybox() {
     skybox_texture_ = gfx_->CreateTexture(builder);
 
     auto skybox_sampler = gfx_->CreateSampler(SamplerState{});
+    skybox_material_ = std::make_unique<Material>("skybox", TEXT("Skybox"), TEXT("Skybox"));
 
-    auto skybox_vs = gfx_->CreateShader(ShaderType::kVertex, TEXT("Skybox")); //std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("Skybox"));
-    auto skybox_ps = gfx_->CreateShader(ShaderType::kPixel, TEXT("Skybox"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("Skybox"));
+    RasterState rs;
+    rs.depthWrite = false;
+    rs.depthFunc = CompareFunc::kLessEqual;
+    rs.culling = CullingMode::kFront;
+    skybox_material_->SetPipelineStateObject(rs);
 
-    skybox_material_ = std::make_unique<Material>("skybox");
-    skybox_material_->SetShader(skybox_vs);
-    skybox_material_->SetShader(skybox_ps);
-    skybox_material_->SetProperty("skybox_trans", skybox_matrix_, ShaderType::kVertex, Material::kReservedVertBufferSlot);
-    skybox_material_->SetProperty("skybox_texture", skybox_texture_, ShaderType::kPixel, 0);
-    skybox_material_->SetProperty("skybox_sampler", skybox_sampler, ShaderType::kPixel, 0);
+    skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
+    skybox_material_->SetProperty("tex", skybox_texture_);
+    skybox_material_->SetProperty("sam", skybox_sampler);
 
     VertexCollection vertices;
     IndexCollection indices;
@@ -172,12 +169,12 @@ void LightManager::GenerateSkybox() {
 }
 
 void LightManager::GenerateBrdfLut() {
-    auto integrate_vs = gfx_->CreateShader(ShaderType::kVertex, TEXT("IntegrateBRDF"));// std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("IntegrateBRDF"));
-    auto integrate_ps = gfx_->CreateShader(ShaderType::kPixel, TEXT("IntegrateBRDF"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("IntegrateBRDF"));
+    RasterState rs;
+    rs.depthWrite = false;
+    rs.depthFunc = CompareFunc::kAlways;
 
-    auto integrate_material_ = std::make_unique<Material>("integrate");
-    integrate_material_->SetShader(integrate_vs);
-    integrate_material_->SetShader(integrate_ps);
+    auto integrate_material_ = std::make_unique<Material>("integrate", TEXT("IntegrateBRDF"), TEXT("IntegrateBRDF"));
+    integrate_material_->SetPipelineStateObject(rs);
 
     constexpr int kSize = 512;
     auto builder = Texture::Builder()
@@ -202,14 +199,9 @@ void LightManager::GenerateBrdfLut() {
     quad->SetCastShadow(false);
     quad->SetReciveShadow(false);
 
-    RasterState rs;
-    rs.depthWrite = false;
-    rs.depthFunc = CompareFunc::kAlways;
-
     MaterialGuard mat_guard(gfx_, integrate_material_.get());
     RenderTargetGuard rt_guard(lut_target.get());
 
-    gfx_->UpdatePipelineState(rs);
     quad->Render(gfx_);
 }
 
@@ -217,19 +209,19 @@ void LightManager::GenerateIrradiance() {
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
 
+    auto convolve_material_ = std::make_unique<Material>("convolve", TEXT("EnvIrradiance"), TEXT("EnvIrradiance"));
     auto linear_sampler = gfx_->CreateSampler(ss);
+    auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
-    auto convolve_vs = gfx_->CreateShader(ShaderType::kVertex, TEXT("EnvIrradiance"));// std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("EnvIrradiance"));
-    auto convolve_ps = gfx_->CreateShader(ShaderType::kPixel, TEXT("EnvIrradiance"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("EnvIrradiance"));
+    convolve_material_->SetProperty("sam", linear_sampler);
+    convolve_material_->SetProperty("tex", skybox_texture_);
+    convolve_material_->SetProperty("vp_matrix", convolve_matrix_);
 
-    auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>(); // std::make_shared<ConstantBuffer<Matrix4x4>>(gfx);
-
-    auto convolve_material_ = std::make_unique<Material>("convolve");
-    convolve_material_->SetShader(convolve_vs);
-    convolve_material_->SetShader(convolve_ps);
-    convolve_material_->SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, 0);
-    convolve_material_->SetProperty("skybox", skybox_texture_, ShaderType::kPixel, 0);
-    convolve_material_->SetProperty("skybox_trans", convolve_matrix_, ShaderType::kVertex, Material::kReservedVertBufferSlot);
+    RasterState rs;
+    rs.depthWrite = false;
+    rs.depthFunc = CompareFunc::kAlways;
+    rs.culling = CullingMode::kFront;
+    convolve_material_->SetPipelineStateObject(rs);
 
     auto constexpr count = toUType(CubeFace::kCount);
     Matrix4x4 view[count] = {
@@ -252,12 +244,6 @@ void LightManager::GenerateIrradiance() {
 
     irradiance_ = gfx_->CreateTexture(builder);
     auto irrandiance_target = gfx_->CreateRenderTarget(kSize, kSize);
-    
-    RasterState rs;
-    rs.depthWrite = false;
-    rs.depthFunc = CompareFunc::kAlways;
-    rs.culling = CullingMode::kFront;
-    gfx_->UpdatePipelineState(rs);
 
     for (int i = 0; i < count; ++i) {
         Matrix4x4 vp = project * view[i];
@@ -277,20 +263,21 @@ void LightManager::GenerateRadiance() {
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
     auto linear_sampler = gfx_->CreateSampler(ss);
+    auto prefiter_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
+    auto roughness = gfx_->CreateConstantBuffer<Vec4f>();
 
-    auto prefilter_vs = gfx_->CreateShader(ShaderType::kVertex, TEXT("EnvRadiance"));// std::make_shared<Shader>(gfx, ShaderType::kVertex, TEXT("EnvRadiance"));
-    auto prefilter_ps = gfx_->CreateShader(ShaderType::kPixel, TEXT("EnvRadiance"));// std::make_shared<Shader>(gfx, ShaderType::kPixel, TEXT("EnvRadiance"));
+    auto prefilter_material_ = std::make_unique<Material>("convolve", TEXT("EnvRadiance"), TEXT("EnvRadiance"));
 
-    auto prefiter_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();// std::make_shared<ConstantBuffer<Matrix4x4>>(gfx);
-    auto roughness = gfx_->CreateConstantBuffer<Vec4f>();//  std::make_shared<ConstantBuffer<Vec4f>>(gfx);
+    RasterState rs;
+    rs.depthWrite = false;
+    rs.depthFunc = CompareFunc::kAlways;
+    rs.culling = CullingMode::kFront;
+    prefilter_material_->SetPipelineStateObject(rs);
 
-    auto prefilter_material_ = std::make_unique<Material>("convolve");
-    prefilter_material_->SetShader(prefilter_vs);
-    prefilter_material_->SetShader(prefilter_ps);
-    prefilter_material_->SetProperty("linear_sampler", linear_sampler, ShaderType::kPixel, 0);
-    prefilter_material_->SetProperty("skybox", skybox_texture_, ShaderType::kPixel, 0);
-    prefilter_material_->SetProperty("skybox_trans", prefiter_matrix_, ShaderType::kVertex, Material::kReservedVertBufferSlot);
-    prefilter_material_->SetProperty("roughness", roughness, ShaderType::kPixel, 1);
+    prefilter_material_->SetProperty("sam", linear_sampler);
+    prefilter_material_->SetProperty("tex", skybox_texture_);
+    prefilter_material_->SetProperty("vp_matrix", prefiter_matrix_);
+    prefilter_material_->SetProperty("Roughness", roughness);
 
     auto constexpr count = toUType(CubeFace::kCount);
     Matrix4x4 view[count] = {
@@ -313,14 +300,6 @@ void LightManager::GenerateRadiance() {
     radiance_ = gfx_->CreateTexture(builder);
     auto randiance_target = gfx_->CreateRenderTarget(kSize, kSize);
     uint32_t mip_levels = radiance_->GetMipLevels();
-    //D3D11_TEXTURE2D_DESC cube_desc;
-    //static_cast<ID3D11Texture2D*>(radiance_->underlying_resource())->GetDesc(&cube_desc);
-
-    RasterState rs;
-    rs.depthWrite = false;
-    rs.depthFunc = CompareFunc::kAlways;
-    rs.culling = CullingMode::kFront;
-    gfx_->UpdatePipelineState(rs);
 
     light_data_.radiance_max_load = (float)mip_levels - 1;
 

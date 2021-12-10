@@ -15,7 +15,7 @@ struct ShaderMacroEntry {
 struct ShaderParameter {
     std::string name;
     ShaderType shader_type = ShaderType::kUnknown;
-    ShaderParameterType type = ShaderParameterType::kUnknown;
+    ShaderParameterCatetory category = ShaderParameterCatetory::kUnknown;
     uint32_t bind_point;
     uint32_t bind_count = 1;
     uint32_t register_space = 0;
@@ -33,6 +33,19 @@ public:
 
     ShaderType type() const { return type_; }
     const EngineString& file_name() const { return file_name_; }
+
+    const ShaderParameter* FindParameter(const std::string& name) const {
+        return FindParameter(name.c_str());
+    }
+
+    const ShaderParameter* FindParameter(const char* name) const {
+        auto it = params_.find(name);
+        if (it != params_.end()) {
+            return &it->second;
+        }
+
+        return nullptr;
+    }
 
 protected:
     ShaderType type_ = ShaderType::kUnknown;

@@ -1,10 +1,10 @@
-// cbuffer TransformCBuf : register(b0)
+// cbuffer vp_matrix : register(b0)
 // {
 //     matrix model;
 //     matrix modelView;
 //     matrix modelViewProj;
 // };
-cbuffer ObjectTransform : register(b0)
+cbuffer object_transform : register(b0)
 {
     matrix model;
     matrix model_view;

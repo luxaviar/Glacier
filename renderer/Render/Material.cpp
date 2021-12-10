@@ -11,69 +11,52 @@
 namespace glacier {
 namespace render {
 
-MaterialProperty::MaterialProperty(const char* name, const std::shared_ptr<Texture>& tex,
-    ShaderType shader_type, uint16_t slot, const Color& default_color) :
-    name(name), 
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shared_ptr<Texture>& tex, const Color& default_color) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kTexture),
-    slot(slot),
     default_color(default_color),
     use_default(!tex),
     texture(tex)
 {
 }
 
-MaterialProperty::MaterialProperty(const char* name, const std::shared_ptr<ConstantBuffer>& buf,
-    ShaderType shader_type, uint16_t slot) :
-    name(name),
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shared_ptr<ConstantBuffer>& buf) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kCBuffer),
-    slot(slot),
     buffer(buf)
 {}
 
-MaterialProperty::MaterialProperty(const char* name, const std::shared_ptr<Sampler>& sm,
-    ShaderType shader_type, uint16_t slot) :
-    name(name),
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shared_ptr<Sampler>& sm) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kSampler),
-    slot(slot),
     sampler(sm)
 {}
 
-MaterialProperty::MaterialProperty(const char* name, const Color& color, ShaderType shader_type, uint16_t slot) :
-    name(name),
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const Color& color) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kColor),
-    slot(slot),
     color(color)
 {
 }
 
-MaterialProperty::MaterialProperty(const char* name, const Vec4f& float4, ShaderType shader_type, uint16_t slot) :
-    name(name),
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const Vec4f& float4) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kFloat4),
-    slot(slot),
     float4(float4)
 {
 }
 
-MaterialProperty::MaterialProperty(const char* name, const Matrix4x4& matrix, ShaderType shader_type, uint16_t slot) :
-    name(name),
-    shader_type(shader_type),
+MaterialProperty::MaterialProperty(const ShaderParameter* param, const Matrix4x4& matrix) :
+    shader_param(param),
     prop_type(MaterialPropertyType::kMatrix),
-    slot(slot),
     matrix(matrix)
 {
 }
 
 MaterialProperty::MaterialProperty(const MaterialProperty& other) noexcept :
     dirty(other.dirty),
-    name(other.name),
-    shader_type(other.shader_type),
+    shader_param(other.shader_param),
     prop_type(other.prop_type),
-    slot(other.slot),
     use_default(other.use_default),
     texture(other.texture),
     buffer(other.buffer),
@@ -100,10 +83,8 @@ MaterialProperty::MaterialProperty(const MaterialProperty& other) noexcept :
 
 MaterialProperty::MaterialProperty(MaterialProperty&& other) noexcept :
     dirty(other.dirty),
-    name(other.name),
-    shader_type(other.shader_type),
+    shader_param(other.shader_param),
     prop_type(other.prop_type),
-    slot(other.slot),
     use_default(other.use_default),
     texture(std::move(other.texture)),
     buffer(std::move(other.buffer)),
@@ -139,13 +120,13 @@ void MaterialProperty::Bind(GfxDriver* gfx) const {
             texture = gfx->CreateTexture(builder); //gfx, default_color, 8, 8);
         }
 
-        texture->Bind(shader_type, slot);
+        texture->Bind(shader_param->shader_type,shader_param->bind_point);
         break;
     case MaterialPropertyType::kSampler:
-        sampler->Bind(shader_type, slot);
+        sampler->Bind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kCBuffer:
-        buffer->Bind(shader_type, slot);
+        buffer->Bind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kColor:
         if (!buffer) {
@@ -153,7 +134,7 @@ void MaterialProperty::Bind(GfxDriver* gfx) const {
         } else if (dirty) {
             buffer->Update(&color);
         }
-        buffer->Bind(shader_type, slot);
+        buffer->Bind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kFloat4:
         if (!buffer) {
@@ -162,7 +143,7 @@ void MaterialProperty::Bind(GfxDriver* gfx) const {
         else if (dirty) {
             buffer->Update(&float4);
         }
-        buffer->Bind(shader_type, slot);
+        buffer->Bind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kMatrix:
         if (!buffer) {
@@ -171,7 +152,7 @@ void MaterialProperty::Bind(GfxDriver* gfx) const {
         else if (dirty) {
             buffer->Update(&matrix);
         }
-        buffer->Bind(shader_type, slot);
+        buffer->Bind(shader_param->shader_type, shader_param->bind_point);
         break;
     default:
         throw std::exception{ "Bad parameter type for MaterialProperty::Bind." };
@@ -184,16 +165,16 @@ void MaterialProperty::UnBind() const {
     switch (prop_type)
     {
     case MaterialPropertyType::kTexture:
-        texture->UnBind(shader_type, slot);
+        texture->UnBind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kSampler:
-        sampler->UnBind(shader_type, slot);
+        sampler->UnBind(shader_param->shader_type, shader_param->bind_point);
         break;
     case MaterialPropertyType::kColor:
     case MaterialPropertyType::kFloat4:
     case MaterialPropertyType::kMatrix:
     case MaterialPropertyType::kCBuffer:
-        buffer->UnBind(shader_type, slot);
+        buffer->UnBind(shader_param->shader_type, shader_param->bind_point);
         break;
     default:
         throw std::exception{ "Bad parameter type for MaterialProperty::Bind." };
@@ -201,8 +182,21 @@ void MaterialProperty::UnBind() const {
     }
 }
 
-Material::Material(const char* name) : name_(name) {
-     shaders_.resize((int)ShaderType::kUnknown);
+Material::Material(const char* name, const std::shared_ptr<Program>& program) :
+    name_(name),
+    program_(program)
+{
+    pso_ = GfxDriver::Get()->CreatePipelineState({});
+}
+
+Material::Material(const char* name, const TCHAR* vs, const TCHAR* ps) :
+    name_(name)
+{
+    if (vs || ps) {
+        program_ = GfxDriver::Get()->CreateProgram(name, vs, ps);
+    }
+
+    pso_ = GfxDriver::Get()->CreatePipelineState({});
 }
 
 void Material::ReBind(GfxDriver* gfx) const {
@@ -218,10 +212,12 @@ void Material::ReBind(GfxDriver* gfx) const {
 
 void Material::Bind(GfxDriver* gfx) const {
     dirty_ = false;
-    for (auto& shader : shaders_) {
-        if (shader) {
-            shader->Bind();
-        }
+    if (pso_) {
+        pso_->Bind();
+    }
+
+    if (program_) {
+        program_->Bind();
     }
 
     for (auto& prop : properties_) {
@@ -230,10 +226,8 @@ void Material::Bind(GfxDriver* gfx) const {
 }
 
 void Material::UnBind() const {
-    for (auto& shader : shaders_) {
-        if (shader) {
-            shader->UnBind();
-        }
+    if (program_) {
+        program_->Unbind();
     }
 
     for (auto& prop : properties_) {
@@ -250,46 +244,48 @@ bool Material::HasPass(const PassNode* pass) const {
     return std::find(passes_.begin(), passes_.end(), pass->name()) != passes_.end();
 }
 
+void Material::SetProgram(const std::shared_ptr<Program>& program) {
+    assert(!program_);
+    program_ = program;
+}
+
 void Material::SetTexTilingOffset(const Vec4f& st) {
     tex_ts_ = st;
 }
 
-void Material::SetShader(const std::shared_ptr<Shader>& shader) {
-    assert(shader->type() != ShaderType::kUnknown);
-    assert(!shaders_[(int)shader->type()]);
+void Material::SetPipelineStateObject(const std::shared_ptr<PipelineState> pso) {
+    pso_ = pso;
+}
 
-    shaders_[(int)shader->type()] = shader;
+void Material::SetPipelineStateObject(RasterState rs) {
+    pso_ = GfxDriver::Get()->CreatePipelineState(rs);
 }
 
 //TODO: check duplicate?
-void Material::SetProperty(const char* name, const std::shared_ptr<ConstantBuffer>& buf,
-    ShaderType shader_type, uint16_t slot) {
+void Material::SetProperty(const char* name, const std::shared_ptr<ConstantBuffer>& buf) {
+    auto param = program_->FindParameter(name);
+    assert(param);
 
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type &&
-            prop.prop_type == MaterialPropertyType::kCBuffer &&
-            prop.slot == slot) 
-        {
+        if (prop.shader_param == param && prop.prop_type == MaterialPropertyType::kCBuffer) {
             prop.buffer = buf;
-            prop.name = name;
             prop.dirty = true;
             return;
         }
     }
 
-    properties_.emplace_back(name, buf, shader_type, slot);
+    properties_.emplace_back(param, buf);
 }
 
-void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex,
-    ShaderType shader_type, uint16_t slot, const Color& default_color) 
+void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color) 
 {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type && 
-            prop.prop_type == MaterialPropertyType::kTexture &&
-            prop.slot == slot) 
+        if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param)
         {
             prop.texture = tex;
-            prop.name = name;
             prop.default_color = default_color;
             prop.use_default = !tex;
             prop.dirty = true;
@@ -297,29 +293,31 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex
         }
     }
 
-    properties_.emplace_back(name, tex, shader_type, slot, default_color);
+    properties_.emplace_back(param, tex, default_color);
 }
 
-void Material::SetProperty(const char* name, const std::shared_ptr<Sampler>& sampler,
-    ShaderType shader_type, uint16_t slot) {
+void Material::SetProperty(const char* name, const std::shared_ptr<Sampler>& sampler) {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type &&
-            prop.prop_type == MaterialPropertyType::kSampler &&
-            prop.slot == slot) 
+        if (prop.prop_type == MaterialPropertyType::kSampler && param == prop.shader_param) 
         {
             prop.sampler = sampler;
-            prop.name = name;
             prop.dirty = true;
             return;
         }
     }
 
-    properties_.emplace_back(name, sampler, shader_type, slot);
+    properties_.emplace_back(param, sampler);
 }
 
-void Material::SetProperty(const char* name, const Color& color, ShaderType shader_type, uint16_t slot) {
+void Material::SetProperty(const char* name, const Color& color) {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type && prop.slot == slot) {
+        if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kColor);
             prop.color = color;
             prop.dirty = true;
@@ -327,12 +325,15 @@ void Material::SetProperty(const char* name, const Color& color, ShaderType shad
         }
     }
 
-    properties_.emplace_back(name, color, shader_type, slot);
+    properties_.emplace_back(param, color);
 }
 
-void Material::SetProperty(const char* name, const Vec4f& v, ShaderType shader_type, uint16_t slot) {
+void Material::SetProperty(const char* name, const Vec4f& v) {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type && prop.slot == slot) {
+        if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kFloat4);
             prop.float4 = v;
             prop.dirty = true;
@@ -340,12 +341,15 @@ void Material::SetProperty(const char* name, const Vec4f& v, ShaderType shader_t
         }
     }
 
-    properties_.emplace_back(name, v, shader_type, slot);
+    properties_.emplace_back(param, v);
 }
 
-void Material::SetProperty(const char* name, const Matrix4x4& v, ShaderType shader_type, uint16_t slot) {
+void Material::SetProperty(const char* name, const Matrix4x4& v) {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type && prop.slot == slot) {
+        if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kMatrix);
             prop.matrix = v;
             prop.dirty = true;
@@ -353,12 +357,15 @@ void Material::SetProperty(const char* name, const Matrix4x4& v, ShaderType shad
         }
     }
 
-    properties_.emplace_back(name, v, shader_type, slot);
+    properties_.emplace_back(param, v);
 }
 
-void Material::UpdateProperty(const void* data, ShaderType shader_type, uint16_t slot) {
+void Material::UpdateProperty(const char* name, const void* data) {
+    auto param = program_->FindParameter(name);
+    assert(param);
+
     for (auto& prop : properties_) {
-        if (prop.shader_type == shader_type && prop.slot == slot) {
+        if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kCBuffer);
             prop.buffer->Update(data);
             prop.dirty = true;
@@ -375,29 +382,31 @@ void Material::DrawInspector() {
         ImGui::Bullet();
         ImGui::Selectable(p.c_str());
     }
-
-    ImGui::Text("Shader");
-    for (auto s : shaders_) {
-        if (s) {
-            ImGui::Bullet();
-            ImGui::Text(ToNarrow(s->file_name()).c_str());
-        }
+    
+    if (program_) {
+        program_->DrawInspector();
     }
 
     ImGui::Text("Property");
     for (auto& p : properties_) {
         ImGui::Bullet();
-        ImGui::Text(p.name.c_str());
+        ImGui::Text(p.shader_param->name.c_str());
         if (p.prop_type == MaterialPropertyType::kTexture && p.use_default) {
             ImGui::SameLine(200);
             std::string label("##material-color");
-            label.append(p.name);
+            label.append(p.shader_param->name.c_str());
             if (ImGui::ColorEdit4(label.c_str(), &p.default_color, ImGuiColorEditFlags_NoInputs)) {
                 p.dirty = true;
                 dirty_ = true;
             }
         }
     }
+}
+
+PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
+    Material(name, TEXT("PostProcessCommon"), ps)
+{
+
 }
 
 Material* MaterialManager::Create(const char* name) {

@@ -73,6 +73,7 @@ public:
 
     // Resets the accumulated scroll wheel value
     void ResetScrollWheelValue() noexcept;
+    void ResetRawDelta() noexcept;
 
     // Sets mouse mode (defaults to absolute)
     void SetMode(Mode mode);

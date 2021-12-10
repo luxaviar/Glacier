@@ -34,6 +34,8 @@ struct TextureBuilder;
 class RenderTarget;
 class Query;
 class SwapChain;
+class Program;
+class PipelineState;
 
 class GfxDriver : private Uncopyable {
 public:
@@ -78,6 +80,8 @@ public:
         const char* entry_point = nullptr, const char* target = nullptr,
         const std::vector<ShaderMacroEntry>& macros = { {nullptr, nullptr} }) = 0;
 
+    virtual std::shared_ptr<Program> CreateProgram(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr) = 0;
+
     virtual std::shared_ptr<Texture> CreateTexture(const TextureBuilder& builder) = 0;
     virtual std::shared_ptr<Query> CreateQuery(QueryType type, int capacity) = 0;
 
@@ -101,7 +105,6 @@ public:
     void raster_state(const RasterState& rs) { raster_state_ = rs; }
 
     void UpdateInputLayout(const std::shared_ptr<InputLayout>& layout);
-    void UpdatePipelineState(const RasterState& rs);
 
     bool PushMaterial(Material* mat);
     void PopMaterial(Material* mat);

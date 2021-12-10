@@ -24,17 +24,26 @@ void Gizmos::Setup(GfxDriver* gfx) {
     input_layout_ = gfx->CreateInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Texture2D });
 
     vert_data_.reserve(kMaxVertexCount * sizeof(GizmosVertex));
+    Material wrire_mat("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
 
     RasterState rs;
     rs.depthWrite = false;
     rs.culling = CullingMode::kNone;
-    //rs.depthFunc = CompareFunc::Less;
+
     rs.topology = TopologyType::kLine;
-    ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    materials_.push_back(wrire_mat);
+
+    //ps_.push_back(rs);
     rs.topology = TopologyType::kTriangle;
-    ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    materials_.push_back(wrire_mat);
+
+    //ps_.push_back(rs);
     rs.topology = TopologyType::kLineStrip;
-    ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    materials_.push_back(wrire_mat);
+    //ps_.push_back(rs);
 
     rs.depthFunc = CompareFunc::kGreaterEqual;
     rs.blendEquationRGB = BlendEquation::kAdd;
@@ -45,20 +54,23 @@ void Gizmos::Setup(GfxDriver* gfx) {
     rs.blendFunctionDstAlpha = BlendFunction::kDstAlpha;
 
     rs.topology = TopologyType::kLine;
-    occluded_ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    occluded_materials_.push_back(wrire_mat);
+
+    //occluded_ps_.push_back(rs);
     rs.topology = TopologyType::kTriangle;
-    occluded_ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    occluded_materials_.push_back(wrire_mat);
+
+    //occluded_ps_.push_back(rs);
     rs.topology = TopologyType::kLineStrip;
-    occluded_ps_.push_back(rs);
+    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
+    occluded_materials_.push_back(wrire_mat);
 
-    auto solid_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Gizmo"));
-    auto solid_ps = gfx->CreateShader(ShaderType::kPixel, TEXT("Gizmo"));
+    //occluded_ps_.push_back(rs);
 
-    Material wrie_mat("wireframe");
-    wrie_mat.SetShader(solid_vs);
-    wrie_mat.SetShader(solid_ps);
-
-    materials_.emplace_back(std::move(wrie_mat));
+    //Material wrire_mat("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
+    //materials_.emplace_back(std::move(wrire_mat));
 }
 
 Gizmos::Gizmos() :
@@ -116,30 +128,31 @@ void Gizmos::Render(GfxDriver* gfx) {
 
     const auto& mv = gfx->projection() * view_mat;
     for (auto& mat : materials_) {
-        mat.SetProperty("mvp", mv, ShaderType::kVertex, 0);
+        mat.SetProperty("vp_matrix", mv);
+    }
+
+    for (auto& mat : occluded_materials_) {
+        mat.SetProperty("vp_matrix", mv);
     }
 
     gfx->UpdateInputLayout(input_layout_);
     vert_buffer_->Update(vert_data_.data());
     vert_buffer_->Bind();
 
-    BatchRender(gfx, ps_, 1.0f);
-    BatchRender(gfx, occluded_ps_, 0.3f);
+    BatchRender(gfx, materials_, 1.0f);
+    BatchRender(gfx, occluded_materials_, 0.3f);
 }
 
-void Gizmos::BatchRender(GfxDriver* gfx, std::vector<RasterState>& psos, float alpha) {
+void Gizmos::BatchRender(GfxDriver* gfx, std::vector<Material>& mats, float alpha) {
     for (auto& task : tasks_) {
         for (auto i = task.begin; i < task.end; ++i) {
             auto& batch = batchs_[i];
-            auto& mat = materials_[(int)batch.mode];
+            auto& mat = mats[(int)batch.type];
             batch.color.a = alpha;
 
-            mat.SetProperty("color", batch.color, ShaderType::kPixel, 0);
+            mat.SetProperty("color", batch.color);
 
             MaterialGuard guard(gfx, &mat);
-
-            auto ps = psos[(int)batch.type];
-            gfx->UpdatePipelineState(ps);
             gfx->Draw(batch.vertex_count, batch.vertex_offset);
         }
     }

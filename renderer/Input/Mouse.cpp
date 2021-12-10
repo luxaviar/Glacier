@@ -53,7 +53,7 @@ void Mouse::ReadRawDelta(int& x, int& y) {
     x = state_.x;
     y = state_.y;
 
-    state_.x = state_.y = 0;
+    //state_.x = state_.y = 0;
 }
 
 bool Mouse::IsRelativeMode() const {
@@ -62,6 +62,12 @@ bool Mouse::IsRelativeMode() const {
 
 void Mouse::ResetScrollWheelValue() noexcept {
     state_.scroll_wheel_value = 0;
+}
+
+void Mouse::ResetRawDelta() noexcept {
+    if (state_.mode == Mode::kRelative) {
+        state_.x = state_.y = 0;
+    }
 }
 
 void Mouse::SetMode(Mode mode) {

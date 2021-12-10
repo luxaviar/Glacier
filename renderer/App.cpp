@@ -75,6 +75,7 @@ void App::DoFrame(float dt) {
     renderer_->Render();
 
     GameObjectManager::Instance()->CleanDead();
+    Input::Instance()->EndFrame();
 }
 
 App::~App()

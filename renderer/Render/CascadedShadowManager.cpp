@@ -60,9 +60,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
         render_targets_.emplace_back(std::move(shadow_rt));
     }
 
-    auto shadow_vs = gfx->CreateShader(ShaderType::kVertex, TEXT("Shadow"));
-    material_ = std::make_unique<Material>("shadow");
-    material_->SetShader(shadow_vs);
+    material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
 
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kBorder;

@@ -87,8 +87,8 @@ struct LightResult
     float4 Specular;
 };
 
-ConstantBuffer<Material> MaterialCB : register( b0, space1 );
-ConstantBuffer<LightProperties> LightPropertiesCB : register( b1 );
+ConstantBuffer<Material> MaterialCB : register( b1 );
+ConstantBuffer<LightProperties> LightPropertiesCB : register( b2 );
 
 StructuredBuffer<PointLight> PointLights : register( t0 );
 StructuredBuffer<SpotLight> SpotLights : register( t1 );

@@ -36,7 +36,7 @@ public:
     void Finalize() const;
 
     const std::string& name() const { return name_; }
-    RasterState& raster_state() { return rs_; }
+    //RasterState& raster_state() { return rs_; }
 
     bool active() const { return active_; }
     void active(bool enable) { active_ = enable; }
@@ -44,7 +44,7 @@ public:
 protected:
     bool active_ = true;
     std::string name_;
-    RasterState rs_;
+    //RasterState rs_;
 
     std::unique_ptr<PassExecutor> executor_;
 };

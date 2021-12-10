@@ -19,6 +19,7 @@
 #include "rendertarget.h"
 #include "query.h"
 #include "imguizmo/ImGuizmo.h"
+#include "Program.h"
 
 namespace glacier {
 namespace render {
@@ -208,6 +209,21 @@ std::shared_ptr<Shader> GfxDriverD3D11::CreateShader(ShaderType type, const TCHA
         auto ret = std::make_shared<D3D11Shader>(type, file_name, entry_point, target, macros);
         return ret;
     }
+}
+
+std::shared_ptr<Program> GfxDriverD3D11::CreateProgram(const char* name, const TCHAR* vs, const TCHAR* ps) {
+    auto program = std::make_shared<D3D11Program>(name);
+    if (vs) {
+        auto shader = CreateShader(ShaderType::kVertex, vs);
+        program->SetShader(shader);
+    }
+
+    if (ps) {
+        auto shader = CreateShader(ShaderType::kPixel, ps);
+        program->SetShader(shader);
+    }
+    
+    return program;
 }
 
 std::shared_ptr<Texture> GfxDriverD3D11::CreateTexture(const TextureBuilder& builder) {
