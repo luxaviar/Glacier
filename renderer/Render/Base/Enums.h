@@ -17,6 +17,13 @@ enum class AttachmentPoint : uint8_t
     kNumAttachmentPoints
 };
 
+enum class MSAAType : uint8_t {
+    kNone = 0,
+    k2x = 2,
+    k4x = 4,
+    k8x = 8,
+};
+
 enum class IndexType : uint8_t {
     kUInt16,
     kUInt32,
@@ -28,6 +35,11 @@ enum class CullingMode : uint8_t {
     kFront,              //!< Front face culling, only back faces are visible
     kBack,               //!< Back face culling, only front faces are visible
     //FRONT_AND_BACK      //!< Front and Back, geometry is not visible
+};
+
+enum class FillMode : uint8_t {
+    kSolid,
+    kWireframe
 };
 
 enum class TopologyType : uint8_t {
@@ -115,6 +127,8 @@ enum class TextureFormat : uint8_t {
     kR8G8B8A8_UNORM,
     kR8G8B8A8_UNORM_SRGB,
     kR24G8_TYPELESS,
+    kR24X8_TYPELESS,
+    kD24S8_UINT,
     kR32_TYPELESS,
     kR32_FLOAT,
     kD32_FLOAT,

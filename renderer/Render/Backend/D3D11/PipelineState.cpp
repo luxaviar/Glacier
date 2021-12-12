@@ -33,6 +33,8 @@ D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs
     D3D11_RASTERIZER_DESC rasterDesc = CD3D11_RASTERIZER_DESC( CD3D11_DEFAULT{} );
     rasterDesc.CullMode =  GetUnderlyingCullMode(rs.culling);
     rasterDesc.ScissorEnable = rs.scissor;
+    rasterDesc.FillMode = rs.fillMode == FillMode::kSolid ? D3D11_FILL_SOLID : D3D11_FILL_WIREFRAME;
+    rasterDesc.MultisampleEnable = TRUE;
 
     auto device = GfxDriverD3D11::Instance()->GetDevice();
 
@@ -45,10 +47,7 @@ D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs
             dsDesc.DepthWriteMask = D3D11_DEPTH_WRITE_MASK_ZERO;
         }
 
-        if (rs.depthFunc == CompareFunc::kAlways) {
-            dsDesc.DepthEnable = false;
-        }
-
+        dsDesc.DepthEnable = rs.depthEnable;
         dsDesc.DepthFunc = GetUnderlyingCompareFunc(rs.depthFunc);
 
         if (rs.stencilEnable) {
@@ -89,7 +88,7 @@ void D3D11PipelineState::Bind() {
     if (last_rs == state_) return;
 
     auto context = driver->GetContext();
-    if (state_.culling != last_rs.culling || state_.scissor != last_rs.scissor) {
+    if (state_.culling != last_rs.culling || state_.scissor != last_rs.scissor || state_.fillMode != last_rs.fillMode) {
         GfxThrowIfAny(context->RSSetState(rasterizer_state_.Get()));
     }
 

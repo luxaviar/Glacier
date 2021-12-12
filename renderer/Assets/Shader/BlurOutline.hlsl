@@ -1,19 +1,4 @@
-struct VSOut
-{
-    float2 uv : Texcoord;
-    float4 pos : SV_Position;
-};
-
-VSOut main_vs(float3 pos : Position)
-{
-    VSOut vso;
-    vso.pos = float4(pos.x, pos.y, 0.0f, 1.0f);
-    vso.uv = float2((pos.x + 1) / 2.0f, -(pos.y - 1) / 2.0f);
-    return vso;
-}
-
-Texture2D tex;
-SamplerState linear_sampler;
+#include "PostProcessCommon.hlsl"
 
 cbuffer Kernel
 {
@@ -29,7 +14,7 @@ cbuffer Control
 
 static float coefficients[16] = (float[16])coefficients_packed;
 
-float4 main_ps(float2 uv : Texcoord) : SV_Target
+float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_Target
 {
     float width, height;
     tex.GetDimensions(width, height);
@@ -53,7 +38,7 @@ float4 main_ps(float2 uv : Texcoord) : SV_Target
     for (int i = -r; i <= r; i++)
     {
         const float2 tc = uv + float2(dx * i, dy * i);
-        const float4 s = tex.Sample(linear_sampler, tc).rgba;
+        const float4 s = tex.Sample(tex_sam, tc).rgba;
         const float coef = coefficients[i + r];
         accAlpha += s.a * coef;
         maxColor = max(s.rgb, maxColor);

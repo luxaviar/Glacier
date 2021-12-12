@@ -21,9 +21,9 @@ void Program::Bind() {
             shader->Bind();
     }
 
-    if (pso_) {
-        pso_->Bind();
-    }
+    //if (pso_) {
+    //    pso_->Bind();
+    //}
 }
 
 void Program::Unbind() {

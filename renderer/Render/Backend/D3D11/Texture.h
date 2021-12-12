@@ -35,6 +35,8 @@ private:
     void CreateFromColor();
     void Create();
 
+    void CreateViews(const D3D11_TEXTURE2D_DESC& desc);
+
     void CreateTextureFromImage(const Image& image, ID3D11Texture2D** tex, ID3D11ShaderResourceView** srv);
     void CreateCubeMapFromImage(const Image& image);
 

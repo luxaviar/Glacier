@@ -6,9 +6,9 @@ struct GzimoOut
     float3 color : COLOR;
 };
 
-cbuffer vp_matrix : register(b0)
+cbuffer mvp_matrix : register(b0)
 {
-    matrix vp;
+    matrix mvp;
 };
 
 float4 main_vs(float3 pos : POSITION) : SV_Position //, float3 color : COLOR, float2 coord : TEXCOORD) : SV_Position
@@ -17,10 +17,10 @@ float4 main_vs(float3 pos : POSITION) : SV_Position //, float3 color : COLOR, fl
     // go.position = mul( float4(pos,1.0f),mvp );
     // go.color = color;
     // return go;
-    return mul(float4(pos, 1.0f), vp);
+    return mul(float4(pos, 1.0f), mvp);
 }
 
-cbuffer color : register(b0)
+cbuffer line_color : register(b0)
 {
    float4 materialColor;
 };

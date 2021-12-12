@@ -11,6 +11,7 @@ A personal toy game engine project based on D3D11
 * PBR & IBL
 * HDR/linear lighting
 * Cascaded Shadow Map
+* MSAA
 * Rigidbody Physics
 * Component-Based Architecture
 * Editor & Gizmo

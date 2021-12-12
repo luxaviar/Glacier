@@ -20,8 +20,9 @@
 namespace glacier {
 namespace render {
 
-PbrRenderer::PbrRenderer(GfxDriver* gfx) : Renderer(gfx) {
-
+PbrRenderer::PbrRenderer(GfxDriver* gfx, MSAAType msaa) :
+    Renderer(gfx, msaa)
+{
 }
 
 void PbrRenderer::Setup() {

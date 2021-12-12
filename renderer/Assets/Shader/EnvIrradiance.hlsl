@@ -18,7 +18,7 @@ VSOut main_vs(float3 pos : Position)
 }
 
 TextureCube tex : register(t0);
-SamplerState sam : register(s0);
+SamplerState tex_sam : register(s0);
 
 static const float PI= 3.14159265359;
 
@@ -45,7 +45,7 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
             //Tangent space to world space
             float3 sampleDir = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal;
 
-            irradiance += tex.Sample(sam, sampleDir).rgb * cos(theta) * sin(theta);
+            irradiance += tex.Sample(tex_sam, sampleDir).rgb * cos(theta) * sin(theta);
 
             nSamples++;
         }

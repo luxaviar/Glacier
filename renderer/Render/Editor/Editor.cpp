@@ -157,7 +157,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
     hblur_mat->SetProperty("Kernel", blur_param);
     hblur_mat->SetProperty("Control", blur_dir);
-    hblur_mat->SetProperty("linear_sampler", outline_hsample);
+    hblur_mat->SetProperty("tex_sam", outline_hsample);
 
     render_graph.AddPass("horizontal blur",
         [&](PassNode& pass) {
@@ -173,9 +173,6 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
             auto& mgr = renderer->GetPostProcessManager();
             mgr.Process(outline_draw_tex.get(), outline_hrt.get(), hblur_mat.get());
-
-            //outline_hrt->Bind();
-            //pass.Render(renderer, quad, hblur_mat.get());
         });
 
     SamplerState vss;
@@ -185,7 +182,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto v_sample = gfx->CreateSampler(vss);
 
     auto vblur_mat = std::make_shared<PostProcessMaterial>(*hblur_mat);
-    vblur_mat->SetProperty("linear_sampler", v_sample);
+    vblur_mat->SetProperty("tex_sam", v_sample);
 
     RasterState blur_rs;
     blur_rs.depthWrite = false;
@@ -208,10 +205,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             blur_dir->Update(&blur_dir_);
 
             auto& mgr = renderer->GetPostProcessManager();
-            mgr.Process(outline_htex.get(), renderer->render_target().get(), vblur_mat.get());
-
-            //renderer->render_target()->Bind();
-            //pass.Render(renderer, quad, vblur_mat.get());
+            mgr.Process(outline_htex.get(), renderer->intermediate_target().get(), vblur_mat.get());
         });
 }
 

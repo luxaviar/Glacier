@@ -76,13 +76,6 @@ D3D11Shader::D3D11Shader(ShaderType type, const TCHAR* file_name, const char* en
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
     GfxThrowIfFailed(CompileFromFile(path.c_str(), &blob_, (const D3D_SHADER_MACRO*)macros.data(), entry_point ? entry_point : DefaultShaderEntry[(int)type], target, flags, 0));
 
-    //EngineString path;
-    //path.append(TEXT("assets\\ShaderBins\\"));
-    //path.append(file_name);
-    //path.append(L".cso");
-
-    //GfxThrowIfFailed(D3DReadFileToBlob(path.c_str(), &blob_));
-
     auto dev = GfxDriverD3D11::Instance()->GetDevice();
     switch (type_)
     {
@@ -108,6 +101,11 @@ D3D11Shader::D3D11Shader(ShaderType type, const TCHAR* file_name, const char* en
         throw std::exception{ "Invalid Shader Type." };
         break;
     }
+
+    SetupParameter();
+}
+
+void D3D11Shader::SetupParameter() {
 
     // Reflect the parameters from the shader.
     // Inspired by: http://members.gamedev.net/JasonZ/Heiroglyph/D3D11ShaderReflection.pdf
@@ -146,7 +144,7 @@ D3D11Shader::D3D11Shader(ShaderType type, const TCHAR* file_name, const char* en
 
         // Create an empty shader parameter that should be filled-in by the application.
         params_.emplace(resourceName, ShaderParameter{
-            resourceName, type_, parameterType, bindDesc.BindPoint, bindDesc.BindCount});
+            resourceName, type_, parameterType, bindDesc.BindPoint, bindDesc.BindCount });
     }
 }
 

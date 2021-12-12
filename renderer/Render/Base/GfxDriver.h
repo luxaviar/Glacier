@@ -49,6 +49,9 @@ public:
     virtual void Present() = 0;
     virtual void BeginFrame() = 0;
 
+    virtual void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) = 0;
+    virtual void ResolveMSAA(std::shared_ptr<Texture>& src, std::shared_ptr<Texture>& dst, TextureFormat format) = 0;
+
     virtual void DrawIndexed(uint32_t count) = 0;
     virtual void Draw(uint32_t count, uint32_t offset) = 0;
 
@@ -76,9 +79,8 @@ public:
     virtual std::shared_ptr<Sampler> CreateSampler(const SamplerState& ss) = 0;
     virtual std::shared_ptr<Sampler> CreateSampler(const SamplerBuilder& builder) = 0;
 
-    virtual std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name,
-        const char* entry_point = nullptr, const char* target = nullptr,
-        const std::vector<ShaderMacroEntry>& macros = { {nullptr, nullptr} }) = 0;
+    virtual std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point = nullptr, 
+        const std::vector<ShaderMacroEntry>& macros = { {nullptr, nullptr} }, const char* target = nullptr) = 0;
 
     virtual std::shared_ptr<Program> CreateProgram(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr) = 0;
 

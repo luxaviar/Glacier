@@ -20,10 +20,10 @@ VSOut main_vs(float3 pos : Position)
 }
 
 TextureCube tex : register(t0);
-SamplerState sam : register(s0);
+SamplerState tex_sam : register(s0);
 
 float4 main_ps(float3 wpos : Position) : SV_TARGET
 {
-    float4 col = tex.Sample(sam, wpos);
+    float4 col = tex.Sample(tex_sam, wpos);
     return col;
 }

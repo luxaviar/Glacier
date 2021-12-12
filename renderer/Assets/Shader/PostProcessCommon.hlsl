@@ -1,16 +1,22 @@
-struct VSOut
-{
+struct VSOut {
+    float4 position : SV_Position;
     float2 uv : Texcoord;
-    float4 pos : SV_Position;
 };
 
-VSOut main_vs(float3 pos : Position)
+VSOut main_vs(uint id : SV_VertexID)
 {
-    VSOut vso;
-    vso.pos = float4(pos.x, pos.y, 0.0f, 1.0f);
-    vso.uv = float2((pos.x + 1) / 2.0f, -(pos.y - 1) / 2.0f);
-    return vso;
+   VSOut output;
+
+   // Calculate the UV via the id
+   output.uv = float2((id << 1) & 2, id & 2);
+
+   // Convert the UV to the (-1, 1) to (3, -3) range for position
+   output.position = float4(output.uv, 0, 1);
+   output.position.x = output.position.x * 2 -1;
+   output.position.y = output.position.y * -2 + 1;
+
+   return output;
 }
 
 Texture2D tex : register(t0);
-SamplerState sam : register(s0);
+SamplerState tex_sam : register(s0);

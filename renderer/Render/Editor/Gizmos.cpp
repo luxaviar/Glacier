@@ -28,22 +28,20 @@ void Gizmos::Setup(GfxDriver* gfx) {
 
     RasterState rs;
     rs.depthWrite = false;
-    rs.culling = CullingMode::kNone;
+    //rs.fillMode = FillMode::kSolid;
+    //rs.culling = CullingMode::kNone;
 
     rs.topology = TopologyType::kLine;
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     materials_.push_back(wrire_mat);
 
-    //ps_.push_back(rs);
     rs.topology = TopologyType::kTriangle;
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     materials_.push_back(wrire_mat);
 
-    //ps_.push_back(rs);
     rs.topology = TopologyType::kLineStrip;
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     materials_.push_back(wrire_mat);
-    //ps_.push_back(rs);
 
     rs.depthFunc = CompareFunc::kGreaterEqual;
     rs.blendEquationRGB = BlendEquation::kAdd;
@@ -57,20 +55,13 @@ void Gizmos::Setup(GfxDriver* gfx) {
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     occluded_materials_.push_back(wrire_mat);
 
-    //occluded_ps_.push_back(rs);
     rs.topology = TopologyType::kTriangle;
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     occluded_materials_.push_back(wrire_mat);
 
-    //occluded_ps_.push_back(rs);
     rs.topology = TopologyType::kLineStrip;
     wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
     occluded_materials_.push_back(wrire_mat);
-
-    //occluded_ps_.push_back(rs);
-
-    //Material wrire_mat("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
-    //materials_.emplace_back(std::move(wrire_mat));
 }
 
 Gizmos::Gizmos() :
@@ -126,13 +117,13 @@ void Gizmos::Render(GfxDriver* gfx) {
         return va.z < vb.z;
     });
 
-    const auto& mv = gfx->projection() * view_mat;
+    const auto& vp = gfx->projection() * view_mat;
     for (auto& mat : materials_) {
-        mat.SetProperty("vp_matrix", mv);
+        mat.SetProperty("mvp_matrix", vp);
     }
 
     for (auto& mat : occluded_materials_) {
-        mat.SetProperty("vp_matrix", mv);
+        mat.SetProperty("mvp_matrix", vp);
     }
 
     gfx->UpdateInputLayout(input_layout_);
@@ -150,7 +141,7 @@ void Gizmos::BatchRender(GfxDriver* gfx, std::vector<Material>& mats, float alph
             auto& mat = mats[(int)batch.type];
             batch.color.a = alpha;
 
-            mat.SetProperty("color", batch.color);
+            mat.SetProperty("line_color", batch.color);
 
             MaterialGuard guard(gfx, &mat);
             gfx->Draw(batch.vertex_count, batch.vertex_offset);
@@ -190,12 +181,16 @@ void Gizmos::DrawWireArc(const Vec3f& center, const Vec3f& normal, const Vec3f& 
         }
     }
 
-    //we don't use LineStrip, Line mode is good for batch
+    //we don't use LineStrip, Line mode is batch friendly
     constexpr int kArcLinePoints = (kArcPoints - 1) * 2;
     GizmosVertex vertices[kArcLinePoints];
     for (int i = 0; i < kArcPoints - 1; ++i) {
         vertices[i * 2].pos = points[i];
         vertices[i * 2 + 1].pos = points[i + 1];
+    }
+
+    if (tasks_.empty()) {
+        Begin(center);
     }
 
     DrawPrimitive(PrimitiveType::kLine, RenderMode::kWire, vertices, kArcLinePoints);
@@ -209,6 +204,10 @@ void Gizmos::DrawLine(const Vec3f& v0, const Vec3f& v1, const Vec3f& translate, 
     } else {
         vert[0].pos = v0;
         vert[1].pos = v1;
+    }
+
+    if (tasks_.empty()) {
+        Begin((vert[0].pos + vert[1].pos) / 2.0f);
     }
 
     DrawPrimitive(PrimitiveType::kLine, RenderMode::kWire, vert, 2);

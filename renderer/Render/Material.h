@@ -66,7 +66,7 @@ public:
     const Vec4f& GetTexTilingOffset() const { return tex_ts_; }
     void SetTexTilingOffset(const Vec4f& st);
 
-    void SetPipelineStateObject(const std::shared_ptr<PipelineState> pso);
+    void SetPipelineStateObject(const std::shared_ptr<PipelineState>& pso);
     void SetPipelineStateObject(RasterState rs);
 
     void Bind(GfxDriver* gfx) const;

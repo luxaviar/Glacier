@@ -47,6 +47,8 @@ public:
         return nullptr;
     }
 
+    const std::unordered_map<std::string, ShaderParameter>& GetAllParameters() const { return params_; }
+
 protected:
     ShaderType type_ = ShaderType::kUnknown;
     EngineString file_name_;

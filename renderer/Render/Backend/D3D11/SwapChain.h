@@ -17,6 +17,7 @@ public:
 
     IDXGISwapChain1* GetSwapChain() { return swap_chain_.Get(); }
     ComPtr<ID3D11Texture2D>& GetBackBuffer() { return back_buffer_; }
+    DXGI_FORMAT GetFormate() const { return format_; }
 
     std::shared_ptr<RenderTarget>& GetRenderTarget() override;
     GfxDriver* GetDriver() const override;
@@ -30,7 +31,7 @@ public:
 
 private:
     //bool CheckTearingSupport();
-
+    DXGI_FORMAT format_ = DXGI_FORMAT_R8G8B8A8_UNORM;
     GfxDriverD3D11* driver_;
     ComPtr<IDXGISwapChain1> swap_chain_;
     ComPtr<ID3D11Texture2D> back_buffer_;

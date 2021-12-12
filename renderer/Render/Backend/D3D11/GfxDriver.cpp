@@ -20,6 +20,7 @@
 #include "query.h"
 #include "imguizmo/ImGuizmo.h"
 #include "Program.h"
+#include "Render/Base/Util.h"
 
 namespace glacier {
 namespace render {
@@ -144,6 +145,32 @@ void GfxDriverD3D11::EndFrame() {
 
 }
 
+void GfxDriverD3D11::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) {
+    uint32_t target_sample_count = (uint32_t)msaa;
+    auto backbuffer_format = swap_chain_->GetFormate();
+    for (smaple_count = target_sample_count; smaple_count > 1; smaple_count--)
+    {
+        quality_level = 0;
+        if (device_->CheckMultisampleQualityLevels(backbuffer_format, smaple_count, &quality_level))
+            continue;
+
+        if (quality_level > 0) {
+            --quality_level;
+            break;
+        }
+    }
+
+    if (smaple_count < 2)
+    {
+        throw std::exception("MSAA not supported");
+    }
+}
+
+void GfxDriverD3D11::ResolveMSAA(std::shared_ptr<Texture>& src, std::shared_ptr<Texture>& dst, TextureFormat format) {
+    GfxThrowIfAny(context_->ResolveSubresource((ID3D11Texture2D*)dst->underlying_resource(), 0, 
+        (ID3D11Texture2D*)src->underlying_resource(), 0, GetUnderlyingFormat(format)));
+}
+
 void GfxDriverD3D11::DrawIndexed(uint32_t count) {
     GfxThrowIfAny(context_->DrawIndexed(count, 0u, 0u));
 }
@@ -200,7 +227,7 @@ std::shared_ptr<Sampler> GfxDriverD3D11::CreateSampler(const SamplerState& ss) {
 }
 
 std::shared_ptr<Shader> GfxDriverD3D11::CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point,
-    const char* target, const std::vector<ShaderMacroEntry>& macros) 
+    const std::vector<ShaderMacroEntry>& macros, const char* target)
 {
     if (macros.empty()) {
         auto ret = D3D11Shader::Create(type, file_name, entry_point, target);

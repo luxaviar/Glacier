@@ -18,6 +18,7 @@
 #include "Core/Scene.h"
 #include "physics/World.h"
 #include "Input/Input.h"
+#include "Common/BitUtil.h"
 #include "Render/Image.h"
 #include "Render/Base/Renderable.h"
 #include "Render/Base/RenderTarget.h"
@@ -28,25 +29,62 @@
 namespace glacier {
 namespace render {
 
-Renderer::Renderer(GfxDriver* gfx) : gfx_(gfx), editor_(gfx), post_process_manager_(this) {
+Renderer::Renderer(GfxDriver* gfx, MSAAType msaa) :
+    msaa_(msaa),
+    gfx_(gfx),
+    editor_(gfx),
+    post_process_manager_(gfx)
+{
+    if (msaa_ != MSAAType::kNone) {
+        gfx_->CheckMSAA(msaa_, sample_count_, quality_level_);
+        assert(sample_count_ <= 8);
+
+        msaa_ = (MSAAType)sample_count_;
+    }
+
     Gizmos::Instance()->Setup(gfx);
 
     stats_ = std::make_unique<PerfStats>(gfx);
 
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 15, 40, 70, 100 });
 
-    UpdateRenderTarget(gfx_);
-    InitMaterial(gfx_);
-    
+    InitRenderTarget();
+    InitMaterial();
+
+    InitPostProcess();
+    InitMSAA();
+}
+
+void Renderer::InitPostProcess() {
     auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
-    tonemapping_mat->SetProperty("sam", post_process_manager_.GetSampler());
-    
     auto builder = PostProcess::Builder()
-        .SetSrc(render_target_->GetColorAttachment(AttachmentPoint::kColor0))
-        .SetDst(gfx->GetSwapChain()->GetRenderTarget())
+        .SetSrc(intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0))
+        .SetDst(gfx_->GetSwapChain()->GetRenderTarget())
         .SetMaterial(tonemapping_mat);
 
     post_process_manager_.Push(builder);
+}
+
+void Renderer::InitMSAA() {
+    RasterState rs;
+    rs.depthFunc = CompareFunc::kAlways;
+
+    auto vert_shader = gfx_->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
+
+    std::array<std::pair<MSAAType, std::string>, 3> msaa_types = { { {MSAAType::k2x, "2"}, {MSAAType::k4x, "4"}, {MSAAType::k8x, "8"} } };
+    for (auto& v : msaa_types) {
+        auto pixel_shader = gfx_->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps", { {"MSAASamples_", v.second.c_str()}, {nullptr, nullptr} });
+        auto program = gfx_->CreateProgram("MSAA");
+        program->SetShader(vert_shader);
+        program->SetShader(pixel_shader);
+
+        auto mat = std::make_shared<Material>("msaa resolve");
+        mat->SetPipelineStateObject(rs);
+        mat->SetProgram(program);
+        mat->SetProperty("depth_buffer", render_target_->GetDepthStencil());
+        mat->SetProperty("color_buffer", render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+        msaa_resolve_mat_[log2((uint32_t)v.first)] = mat;
+    }
 }
 
 void Renderer::Setup() {
@@ -56,14 +94,21 @@ void Renderer::Setup() {
 void Renderer::OnResize(uint32_t width, uint32_t height) {
     auto swapchain = gfx_->GetSwapChain();
     swapchain->OnResize(width, height);
+    auto backbuffer_depth = swapchain->GetRenderTarget()->GetDepthStencil();
 
-    auto depth_tex = swapchain->GetRenderTarget()->GetDepthStencil();
     auto rt_tex = render_target_->GetColorAttachment(AttachmentPoint::kColor0);
     rt_tex->Resize(width, height);
 
     render_target_->Resize(width, height);
     render_target_->AttachColor(AttachmentPoint::kColor0, rt_tex);
-    render_target_->AttachDepthStencil(depth_tex);
+    render_target_->AttachDepthStencil(backbuffer_depth);
+
+    rt_tex = intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0);
+    rt_tex->Resize(width, height);
+
+    intermediate_target_->Resize(width, height);
+    intermediate_target_->AttachColor(AttachmentPoint::kColor0, rt_tex);
+    intermediate_target_->AttachDepthStencil(backbuffer_depth);
 }
 
 void Renderer::FilterVisibles() {
@@ -84,29 +129,53 @@ void Renderer::RestoreCommonBindings() {
     render_target_->Bind();
 }
 
-void Renderer::InitMaterial(GfxDriver* gfx) {
-    auto solid_program = gfx->CreateProgram("Solid", TEXT("Solid"), TEXT("Solid"));
+void Renderer::InitMaterial() {
+    auto solid_program = gfx_->CreateProgram("Solid", TEXT("Solid"), TEXT("Solid"));
 
     auto solid_mat = MaterialManager::Instance()->Create("solid");
     solid_mat->SetProgram(solid_program);
     solid_mat->SetProperty("color", Color{ 1.0f,1.0f,1.0f, 1.0f });
 }
 
-void Renderer::UpdateRenderTarget(GfxDriver* gfx) {
-    auto width = gfx->width();
-    auto height = gfx->height();
+void Renderer::InitRenderTarget() {
+    auto width = gfx_->width();
+    auto height = gfx_->height();
+    auto& swapchain_render_target = gfx_->GetSwapChain()->GetRenderTarget();
+    auto backbuffer_depth_tex = swapchain_render_target->GetDepthStencil();
 
-    auto& swapchain_render_target = gfx->GetSwapChain()->GetRenderTarget();
-    auto depthstencil_texture = swapchain_render_target->GetDepthStencil();
-
-    auto color0_builder = Texture::Builder()
+    auto colorframe_builder = Texture::Builder()
         .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT);
-    auto color0_tex = gfx->CreateTexture(color0_builder);
+        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetSampleDesc(sample_count_, quality_level_);
+    auto colorframe = gfx_->CreateTexture(colorframe_builder);
 
-    render_target_ = gfx->CreateRenderTarget(width, height);
-    render_target_->AttachColor(AttachmentPoint::kColor0, color0_tex);
-    render_target_->AttachDepthStencil(depthstencil_texture);
+    render_target_ = gfx_->CreateRenderTarget(width, height);
+    render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
+
+    intermediate_target_ = gfx_->CreateRenderTarget(width, height);
+    if (msaa_ == MSAAType::kNone) {
+        render_target_->AttachDepthStencil(backbuffer_depth_tex);
+
+        intermediate_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
+        intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
+    }
+    else {
+        auto depth_tex_builder = Texture::Builder()
+            .SetDimension(width, height)
+            .SetFormat(TextureFormat::kR24G8_TYPELESS)
+            .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL)
+            .SetSampleDesc(sample_count_, quality_level_);
+        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_builder);
+        render_target_->AttachDepthStencil(depthstencil_texture);
+
+        auto intermediate_color_builder = Texture::Builder()
+            .SetDimension(width, height)
+            .SetFormat(TextureFormat::kR16G16B16A16_FLOAT);
+        auto intermediate_color = gfx_->CreateTexture(intermediate_color_builder);
+
+        intermediate_target_->AttachColor(AttachmentPoint::kColor0, intermediate_color);
+        intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
+    }
 }
 
 Camera* Renderer::GetMainCamera() const {
@@ -123,6 +192,11 @@ void Renderer::PreRender() {
     gfx_->BeginFrame();
 
     render_target_->Clear();
+    
+    if (msaa_ != MSAAType::kNone) {
+        intermediate_target_->Clear();
+    }
+
     RestoreCommonBindings();
     FilterVisibles();
 }
@@ -147,19 +221,14 @@ void Renderer::Render() {
 
     render_graph_.Execute(this);
     render_target_->UnBind();
+
+    ResolveMSAA();
     
     post_process_manager_.Render();
 
     present_render_target->Bind();
 
     physics::World::Instance()->OnDrawGizmos(true);
-    //auto sel = editor_.GetSelected();
-    //if (sel) {
-    //    auto mesh_renderer = sel->GetComponent<MeshRenderer>();
-    //    if (mesh_renderer) {
-    //        Gizmos::Instance()->DrawWireMesh(*mesh_renderer);
-    //    }
-    //}
 
     auto& state = Input::GetJustKeyDownState();
     if (state.Tab) {
@@ -199,6 +268,16 @@ void Renderer::Render() {
     gfx_->Present();
 
     PostRender();
+}
+
+void Renderer::ResolveMSAA() {
+    if (msaa_ == MSAAType::kNone) return;
+
+    auto& mat = msaa_resolve_mat_[log2((uint32_t)msaa_)];
+    MaterialGuard mat_guard(gfx_, mat.get());
+    RenderTargetGuard rt_guard(intermediate_target_.get());
+
+    gfx_->Draw(3, 0);
 }
 
 void Renderer::GrabScreen() {

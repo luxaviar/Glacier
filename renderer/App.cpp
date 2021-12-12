@@ -15,6 +15,7 @@
 #include "physics/world.h"
 #include "Render/PbrRenderer.h"
 #include "Render/Backend/D3D11/GfxDriver.h"
+#include "Render/Base/Enums.h"
 
 namespace glacier {
 App::App( const std::string& commandLine ) :
@@ -23,7 +24,7 @@ App::App( const std::string& commandLine ) :
 {
     render::GfxDriverD3D11::Instance()->Init(wnd_.handle(), wnd_.width(), wnd_.height());
 
-    renderer_ = std::make_unique<render::PbrRenderer>(render::GfxDriverD3D11::Instance());
+    renderer_ = std::make_unique<render::PbrRenderer>(render::GfxDriverD3D11::Instance(), render::MSAAType::k4x);
     wnd_.resize_signal().Connect([this] (uint32_t width, uint32_t height) {
         renderer_->OnResize(width, height);
     });

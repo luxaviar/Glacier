@@ -11,6 +11,7 @@ struct RasterState {
         static_assert(sizeof(RasterState) == sizeof(uint64_t),
             "RasterState size not what was intended");
         culling = CullingMode::kBack;
+        fillMode = FillMode::kSolid;
         topology = TopologyType::kTriangle;
         alphaToCoverage = false;
         scissor = false;
@@ -18,6 +19,7 @@ struct RasterState {
         depthWrite = true;
         depthFunc = CompareFunc::kLess;
 
+        depthEnable = true;
         stencilEnable = false;
         stencilFunc = CompareFunc::kAlways;
         stencilFailOp = StencilOp::kKeep;
@@ -56,7 +58,7 @@ struct RasterState {
     }
 
     bool HasStencilDepth() const noexcept {
-        return !(depthWrite &&
+        return !(depthWrite && depthEnable &&
             depthFunc == CompareFunc::kLess &&
             !stencilEnable &&
             stencilFunc == CompareFunc::kAlways &&
@@ -101,27 +103,30 @@ struct RasterState {
             //! Depth test function
             CompareFunc depthFunc : 3;        // 28
 
-            bool stencilEnable : 1;                         //29
-            CompareFunc stencilFunc : 3;      //32
-            StencilOp stencilFailOp : 3;                   //35
-            StencilOp depthFailOp : 3;                     //38
-            StencilOp depthStencilPassOp : 3;              //41
+            bool depthEnable : 1;                           //29
+            bool stencilEnable : 1;                         //30
+            CompareFunc stencilFunc : 3;      //31
+            StencilOp stencilFailOp : 3;                   //36
+            StencilOp depthFailOp : 3;                     //39
+            StencilOp depthStencilPassOp : 3;              //42
 
             //! Whether color-buffer writes are enabled
-            bool colorWrite : 1;        // 42
+            bool colorWrite : 1;        // 43
 
             //! use alpha-channel as coverage mask for anti-aliasing
-            bool alphaToCoverage : 1;        // 43
+            bool alphaToCoverage : 1;        // 44
 
             //! whether front face winding direction must be inverted
-            bool inverseFrontFaces : 1;        // 44
+            bool inverseFrontFaces : 1;        // 45
 
-            TopologyType topology : 2;          //46
+            TopologyType topology : 2;          //47
 
-            bool scissor : 1;                   //47
+            bool scissor : 1;                   //48
+
+            FillMode fillMode : 1;             //49
 
             //! padding, must be 0
-            //uint8_t padding : 1;        // 48
+            //uint8_t padding : 1;        // 50
         };
         uint64_t u = 0;
     };

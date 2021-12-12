@@ -16,9 +16,9 @@ public:
 
     const std::string& name() const { return name_; }
 
-    void SetPipelineStateObject(const std::shared_ptr<PipelineState>& pso) {
-        pso_ = pso;
-    }
+    //void SetPipelineStateObject(const std::shared_ptr<PipelineState>& pso) {
+    //    pso_ = pso;
+    //}
 
     void SetShader(const std::shared_ptr<Shader>& shader);
     const Shader* GetShader(ShaderType type) const {
@@ -59,7 +59,7 @@ protected:
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
     std::unordered_map<std::string, ShaderParameter> params_;
-    std::shared_ptr<PipelineState> pso_;
+    //std::shared_ptr<PipelineState> pso_;
 };
 
 }

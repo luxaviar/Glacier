@@ -153,7 +153,7 @@ void LightManager::GenerateSkybox() {
 
     skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
     skybox_material_->SetProperty("tex", skybox_texture_);
-    skybox_material_->SetProperty("sam", skybox_sampler);
+    skybox_material_->SetProperty("tex_sam", skybox_sampler);
 
     VertexCollection vertices;
     IndexCollection indices;
@@ -171,6 +171,7 @@ void LightManager::GenerateSkybox() {
 void LightManager::GenerateBrdfLut() {
     RasterState rs;
     rs.depthWrite = false;
+    rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
 
     auto integrate_material_ = std::make_unique<Material>("integrate", TEXT("IntegrateBRDF"), TEXT("IntegrateBRDF"));
@@ -213,12 +214,13 @@ void LightManager::GenerateIrradiance() {
     auto linear_sampler = gfx_->CreateSampler(ss);
     auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
-    convolve_material_->SetProperty("sam", linear_sampler);
+    convolve_material_->SetProperty("tex_sam", linear_sampler);
     convolve_material_->SetProperty("tex", skybox_texture_);
     convolve_material_->SetProperty("vp_matrix", convolve_matrix_);
 
     RasterState rs;
     rs.depthWrite = false;
+    rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
     convolve_material_->SetPipelineStateObject(rs);
@@ -270,11 +272,12 @@ void LightManager::GenerateRadiance() {
 
     RasterState rs;
     rs.depthWrite = false;
+    rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
     prefilter_material_->SetPipelineStateObject(rs);
 
-    prefilter_material_->SetProperty("sam", linear_sampler);
+    prefilter_material_->SetProperty("tex_sam", linear_sampler);
     prefilter_material_->SetProperty("tex", skybox_texture_);
     prefilter_material_->SetProperty("vp_matrix", prefiter_matrix_);
     prefilter_material_->SetProperty("Roughness", roughness);

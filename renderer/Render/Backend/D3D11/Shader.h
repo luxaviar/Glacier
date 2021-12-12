@@ -28,6 +28,8 @@ public:
 protected:
     static const char* GetLatestTarget(ShaderType type);
 
+    void SetupParameter();
+
     ComPtr<ID3DBlob> blob_;
     ComPtr<ID3D11VertexShader> vertex_shader_;
     ComPtr<ID3D11HullShader> hull_shader_;

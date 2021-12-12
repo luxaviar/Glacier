@@ -253,7 +253,7 @@ void Material::SetTexTilingOffset(const Vec4f& st) {
     tex_ts_ = st;
 }
 
-void Material::SetPipelineStateObject(const std::shared_ptr<PipelineState> pso) {
+void Material::SetPipelineStateObject(const std::shared_ptr<PipelineState>& pso) {
     pso_ = pso;
 }
 
@@ -408,6 +408,7 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
 {
     RasterState rs;
     rs.depthWrite = false;
+    rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     pso_ = GfxDriver::Get()->CreatePipelineState(rs);
 }

@@ -36,6 +36,10 @@ DXGI_FORMAT GetUnderlyingFormat(TextureFormat format) {
         return DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
     case TextureFormat::kR24G8_TYPELESS:
         return DXGI_FORMAT_R24G8_TYPELESS;
+    case TextureFormat::kR24X8_TYPELESS:
+        return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
+    case TextureFormat::kD24S8_UINT:
+        return DXGI_FORMAT_D24_UNORM_S8_UINT;
     case TextureFormat::kR32_TYPELESS:
         return DXGI_FORMAT_R32_TYPELESS;
     case TextureFormat::kR32_FLOAT:

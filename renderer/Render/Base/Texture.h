@@ -15,7 +15,6 @@ struct TextureBuilder {
     TextureBuilder& EnableSRGB(bool v = true) { srgb = v; return *this; }
     TextureBuilder& EnableMips(bool v = true) { gen_mips = v; return *this; }
     TextureBuilder& SetFormat(TextureFormat fmt) { format = fmt; return *this; }
-    //TextureBuilder& SetBindFlag(uint32_t flags) { bind_flags = flags; return *this; }
     TextureBuilder& SetBackBufferTexture(int idx) { backbuffer_index = idx; return *this; }
     TextureBuilder& SetFile(const TCHAR* file_) { file = file_; return *this; }
     TextureBuilder& SetDimension(uint32_t w, uint32_t h) { width = w; height = h; return *this; }
@@ -34,7 +33,6 @@ struct TextureBuilder {
     bool srgb = false;
     bool gen_mips = false;
     TextureFormat format = TextureFormat::kR8G8B8A8_UNORM;
-    //uint32_t bind_flags = 0;
     uint32_t create_flags = 0;
     TextureType type = TextureType::kTexture2D;
 

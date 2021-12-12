@@ -55,7 +55,7 @@ void D3D11RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr
         rtv_desc.Texture2DArray.FirstArraySlice = slice;
         rtv_desc.Texture2DArray.ArraySize = 1;
     } else {
-        rtv_desc.ViewDimension = D3D11_RTV_DIMENSION_TEXTURE2D;
+        rtv_desc.ViewDimension = tex_desc.SampleDesc.Count > 1 ? D3D11_RTV_DIMENSION_TEXTURE2DMS : D3D11_RTV_DIMENSION_TEXTURE2D;
         rtv_desc.Texture2D = D3D11_TEX2D_RTV{ 0 };
     }
 
@@ -79,8 +79,12 @@ void D3D11RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& tex) 
     D3D11_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
     dsv_desc.Format = GetDSVFormat(tex_desc.Format);
     dsv_desc.Flags = 0;
-    dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
-    dsv_desc.Texture2D.MipSlice = 0;
+    if (tex_desc.SampleDesc.Count > 1) {
+        dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2DMS;
+    }
+    else {
+        dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
+    }
     GfxThrowIfFailed(GfxDriverD3D11::Instance()->GetDevice()->CreateDepthStencilView(
         tex_ptr, &dsv_desc, &depth_stencil_view_
     ));

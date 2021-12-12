@@ -7,7 +7,7 @@
 #include "render/base/gfxdriver.h"
 #include "SwapChain.h"
 
-#pragma comment(lib,"d3d11.lib")
+#pragma comment(lib, "d3d11")
 
 namespace glacier {
 namespace render {
@@ -19,6 +19,9 @@ public:
     ~GfxDriverD3D11();
 
     void Init(HWND hWnd, int width, int height);
+
+    void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) override;
+    void ResolveMSAA(std::shared_ptr<Texture>& src, std::shared_ptr<Texture>& dst, TextureFormat format) override;
 
     SwapChain* GetSwapChain() const override { return swap_chain_.get(); }
     D3D11SwapChain* GetUnderlyingSwapChain() const { return swap_chain_.get(); }
@@ -48,7 +51,7 @@ public:
     std::shared_ptr<Sampler> CreateSampler(const SamplerState& ss) override;
 
     std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point = nullptr,
-        const char* target = nullptr, const std::vector<ShaderMacroEntry>& macros = {{nullptr, nullptr}}) override;
+        const std::vector<ShaderMacroEntry>& macros = {{nullptr, nullptr}}, const char* target = nullptr) override;
 
     std::shared_ptr<Program> CreateProgram(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
 

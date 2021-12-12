@@ -36,26 +36,7 @@ void D3D11Texture::CreateFromBackBuffer() {
     detail_.width = tex_desc.Width;
     detail_.height = tex_desc.Height;
 
-    if (tex_desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) {
-        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-        srv_desc.Format = tex_desc.Format;
-        srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-        srv_desc.Texture2D.MostDetailedMip = 0;
-        srv_desc.Texture2D.MipLevels = -1;
-
-        GfxThrowIfFailed(GfxDriverD3D11::Instance()->GetDevice()->CreateShaderResourceView(texture_.Get(), &srv_desc, &srv_));
-    }
-
-    //if (tex_desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) {
-    //    assert(tex_desc.SampleDesc.Count == 1);
-
-    //    D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
-    //    uav_desc.Format = tex_desc.Format;
-    //    uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
-    //    uav_desc.Texture2D.MipSlice = 0;
-
-    //    GfxThrowIfFailed(gfx.device()->CreateUnorderedAccessView(texture_.Get(), &uav_desc, &srv_));
-    //}
+    CreateViews(tex_desc);
 }
 
 void D3D11Texture::CreateFromColor() {
@@ -73,10 +54,10 @@ void D3D11Texture::CreateFromColor() {
     tex_desc.ArraySize = 1;
     tex_desc.MipLevels = gen_mips ? 0 : 1;
     tex_desc.Format = dxgi_format;
-    tex_desc.SampleDesc.Count = 1;
-    tex_desc.SampleDesc.Quality = 0;
+    tex_desc.SampleDesc.Count = detail_.sample_count;
+    tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET;
+    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
@@ -92,13 +73,7 @@ void D3D11Texture::CreateFromColor() {
 
     GfxThrowIfFailed(dev->CreateTexture2D(&tex_desc, gen_mips ? nullptr : &subres_data, &texture_));
 
-    // create the resource view on the texture
-    D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
-    srv_desc.Format = dxgi_format;
-    srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-    srv_desc.Texture2D.MostDetailedMip = 0;
-    srv_desc.Texture2D.MipLevels = -1;
-    GfxThrowIfFailed(dev->CreateShaderResourceView(texture_.Get(), &srv_desc, &srv_));
+    CreateViews(tex_desc);
 
     // generate the mip chain using the gpu rendering pipeline
     if (gen_mips) {
@@ -114,17 +89,16 @@ void D3D11Texture::Create() {
     auto dxgi_format = GetUnderlyingFormat(detail_.format);
     bool gen_mips = detail_.gen_mips;
 
-    // create texture resource
     D3D11_TEXTURE2D_DESC tex_desc = {};
     tex_desc.ArraySize = detail_.depth_or_array_size; // detail_.type == TextureType::kTexture2D ? 1 : 6;
     tex_desc.MipLevels = gen_mips ? 0 : 1;
     tex_desc.Width = detail_.width;
     tex_desc.Height = detail_.height;
     tex_desc.Format = dxgi_format;
-    tex_desc.SampleDesc.Count = 1;
-    tex_desc.SampleDesc.Quality = 0;
+    tex_desc.SampleDesc.Count = detail_.sample_count;
+    tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
+    tex_desc.BindFlags = detail_.create_flags;
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
@@ -132,6 +106,11 @@ void D3D11Texture::Create() {
 
     UINT support;
     GfxThrowIfFailed(dev->CheckFormatSupport(dxgi_format, &support));
+    // special case for typeless depth/stencil buffer
+    if ((support & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE) || dxgi_format == DXGI_FORMAT_R24G8_TYPELESS) {
+        tex_desc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
+    }
+
     if (support & D3D11_FORMAT_SUPPORT_RENDER_TARGET) {
         tex_desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
     }
@@ -146,28 +125,46 @@ void D3D11Texture::Create() {
 
     GfxThrowIfFailed(dev->CreateTexture2D(&tex_desc, nullptr, &texture_));
 
-    auto srv_fmt = GetSRVFormat(dxgi_format);
-    GfxThrowIfFailed(dev->CheckFormatSupport(srv_fmt, &support));
+    CreateViews(tex_desc);
+}
+
+void D3D11Texture::CreateViews(const D3D11_TEXTURE2D_DESC& desc) {
+    auto dev = GfxDriverD3D11::Instance()->GetDevice();
+    auto srv_fmt = GetSRVFormat(desc.Format);
 
     // create the resource view on the texture
-    if (support & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE) {
-        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    if (desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) {
+        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
         srv_desc.Format = srv_fmt;
-        srv_desc.ViewDimension = detail_.type == TextureType::kTexture2D ? D3D11_SRV_DIMENSION_TEXTURE2D : D3D11_SRV_DIMENSION_TEXTURECUBE;
-        //srv_desc.Texture2D.MostDetailedMip = 0;
-        srv_desc.Texture2D.MipLevels = gen_mips ? -1 : 1;
+        if (detail_.type == TextureType::kTexture2D) {
+            srv_desc.ViewDimension = desc.SampleDesc.Count > 1 ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
+        }
+        else {
+            srv_desc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURECUBE;
+        }
+        srv_desc.Texture2D.MostDetailedMip = 0;
+        srv_desc.Texture2D.MipLevels = -1;
         GfxThrowIfFailed(dev->CreateShaderResourceView(texture_.Get(), &srv_desc, &srv_));
     }
 
-    //UINT support;
-    //GfxThrowIfFailed(gfx.device()->CheckFormatSupport(dxgi_format, &support));
+    if (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) {
+        assert(desc.SampleDesc.Count == 1);
 
-    //// Can the texture be dynamically modified on the CPU?
-    //bool cpu_lockable = ((int)CPUAccess & (int)CPUAccess::Write) != 0 && (support & D3D11_FORMAT_SUPPORT_CPU_LOCKABLE) != 0;
-    //// Can mipmaps be automatically generated for this texture format?
-    //bool can_gen_mipmaps = !cpu_lockable && (support & D3D11_FORMAT_SUPPORT_MIP_AUTOGEN) != 0; // && ( m_RenderTargetViewFormatSupport & D3D11_FORMAT_SUPPORT_MIP_AUTOGEN ) != 0;
-    //// Are UAVs supported?
-    //bool uav = uav && (support & D3D11_FORMAT_SUPPORT_SHADER_LOAD) != 0;
+        D3D11_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+        uav_desc.Format = desc.Format;
+        uav_desc.ViewDimension = D3D11_UAV_DIMENSION_TEXTURE2D;
+        uav_desc.Texture2D.MipSlice = 0;
+
+        GfxThrowIfFailed(dev->CreateUnorderedAccessView(texture_.Get(), &uav_desc, &uav_));
+    }
+
+    // special case for depth/stencil buffer (you can also create a D24_UNORM_S8_UINT DSV)
+    if (desc.Format == DXGI_FORMAT_R24G8_TYPELESS) {
+        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
+        srv_desc.Format = srv_fmt;
+        srv_desc.ViewDimension = desc.SampleDesc.Count > 1 ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
+        GfxThrowIfFailed(dev->CreateShaderResourceView(texture_.Get(), &srv_desc, &srv_));
+    }
 }
 
 void D3D11Texture::CreateFromFile() {
@@ -192,10 +189,10 @@ void D3D11Texture::CreateTextureFromImage(const Image& image, ID3D11Texture2D** 
     tex_desc.MipLevels = gen_mips ? 0 : 1;
     ///TODO: what about unsupported R32G32B32_FLOAT filter?
     tex_desc.Format = image.IsSRGB() ? GetSRGBFormat(format) : format;
-    tex_desc.SampleDesc.Count = 1;
-    tex_desc.SampleDesc.Quality = 0;
+    tex_desc.SampleDesc.Count = detail_.sample_count;
+    tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
@@ -257,7 +254,7 @@ void D3D11Texture::CreateCubeMapFromImage(const Image& image) {
     tex_array_desc.SampleDesc.Count = 1;
     tex_array_desc.SampleDesc.Quality = 0;
     tex_array_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_array_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    tex_array_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
     tex_array_desc.CPUAccessFlags = 0;
     tex_array_desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 

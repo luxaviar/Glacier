@@ -30,7 +30,7 @@ D3D11SwapChain::D3D11SwapChain(GfxDriverD3D11* driver, HWND hWnd, uint32_t width
     DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {};
     swapchain_desc.Width = width;
     swapchain_desc.Height = height;
-    swapchain_desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    swapchain_desc.Format = format_;
     swapchain_desc.SampleDesc.Count = 1;
     swapchain_desc.SampleDesc.Quality = 0;
     swapchain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -80,7 +80,7 @@ void D3D11SwapChain::CreateRenderTarget() {
 
     auto depth_tex_builder = Texture::Builder()
         .SetDimension(width_, height_)
-        .SetFormat(TextureFormat::kR24G8_TYPELESS)
+        .SetFormat(TextureFormat::kD24S8_UINT)
         .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_builder);
 
