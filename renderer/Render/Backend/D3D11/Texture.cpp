@@ -107,7 +107,7 @@ void D3D11Texture::Create() {
     UINT support;
     GfxThrowIfFailed(dev->CheckFormatSupport(dxgi_format, &support));
     // special case for typeless depth/stencil buffer
-    if ((support & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE) || dxgi_format == DXGI_FORMAT_R24G8_TYPELESS) {
+    if (support & D3D11_FORMAT_SUPPORT_SHADER_SAMPLE) {
         tex_desc.BindFlags |= D3D11_BIND_SHADER_RESOURCE;
     }
 
@@ -156,14 +156,6 @@ void D3D11Texture::CreateViews(const D3D11_TEXTURE2D_DESC& desc) {
         uav_desc.Texture2D.MipSlice = 0;
 
         GfxThrowIfFailed(dev->CreateUnorderedAccessView(texture_.Get(), &uav_desc, &uav_));
-    }
-
-    // special case for depth/stencil buffer (you can also create a D24_UNORM_S8_UINT DSV)
-    if (desc.Format == DXGI_FORMAT_R24G8_TYPELESS) {
-        D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
-        srv_desc.Format = srv_fmt;
-        srv_desc.ViewDimension = desc.SampleDesc.Count > 1 ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
-        GfxThrowIfFailed(dev->CreateShaderResourceView(texture_.Get(), &srv_desc, &srv_));
     }
 }
 

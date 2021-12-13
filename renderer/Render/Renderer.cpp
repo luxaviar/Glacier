@@ -163,7 +163,7 @@ void Renderer::InitRenderTarget() {
         auto depth_tex_builder = Texture::Builder()
             .SetDimension(width, height)
             .SetFormat(TextureFormat::kR24G8_TYPELESS)
-            .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL)
+            .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE)
             .SetSampleDesc(sample_count_, quality_level_);
         auto depthstencil_texture = gfx_->CreateTexture(depth_tex_builder);
         render_target_->AttachDepthStencil(depthstencil_texture);
@@ -385,7 +385,7 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     auto builder2 = Texture::Builder()
         .SetDimension(size, size)
         .SetFormat(TextureFormat::kR24G8_TYPELESS)
-        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL);
+        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE);
     auto depthstencil_texture1 = gfx->CreateTexture(builder2);
 
     auto shadow_mat = std::make_unique<Material>("cube shadow", TEXT("Shadow"), TEXT("Shadow"));

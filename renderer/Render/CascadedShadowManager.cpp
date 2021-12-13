@@ -35,7 +35,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
 
     TextureBuilder tex_builder = Texture::Builder()
         .SetFormat(TextureFormat::kR32_TYPELESS)
-        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL)
+        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE)
         .SetDimension(size * cascade_levels, size);
     
     shadow_map_ = gfx->CreateTexture(tex_builder);
