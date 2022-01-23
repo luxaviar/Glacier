@@ -3,6 +3,7 @@
 #include <unordered_map>
 #include "Common/Util.h"
 #include "resource.h"
+#include <d3dcommon.h>
 
 namespace glacier {
 namespace render {
@@ -23,16 +24,27 @@ struct ShaderParameter {
 
 class Shader : public Resource {
 public:
+    static HRESULT CompileFromFile(const TCHAR* file_path, ID3DBlob** ptr_blob, const D3D_SHADER_MACRO* defines,
+        const char* entry_point, const char* target, UINT flags1 = 0, UINT flags2 = 0);
+
     Shader(ShaderType type, const TCHAR* file_name) : 
         type_(type),
         file_name_(file_name)
     {}
     
-    virtual void Bind() = 0;
-    virtual void UnBind() = 0;
+    virtual void Bind() {};
+    virtual void UnBind() {};
 
     ShaderType type() const { return type_; }
     const EngineString& file_name() const { return file_name_; }
+    
+    ID3DBlob* GetBytecode() const noexcept {
+        return blob_ ? blob_.Get() : nullptr;
+    }
+
+    size_t GetBytecodeSize() const {
+        return blob_ ? blob_->GetBufferSize() : 0;
+    }
 
     const ShaderParameter* FindParameter(const std::string& name) const {
         return FindParameter(name.c_str());
@@ -52,6 +64,7 @@ public:
 protected:
     ShaderType type_ = ShaderType::kUnknown;
     EngineString file_name_;
+    ComPtr<ID3DBlob> blob_;
     std::unordered_map<std::string, ShaderParameter> params_;
 };
 

@@ -149,5 +149,44 @@ void LineSegment::ClosestPointSegmentSegment(const Vec3f& p0, const Vec3f& p1, c
     d2 = (math::Abs(tN) < math::kEpsilon ? 0.0f : tN / tD);
 }
 
+
+//https://stackoverflow.com/questions/563198/how-do-you-detect-where-two-line-segments-intersect
+bool LineSegment2D::Intersects(const LineSegment2D& other, float* t) const {
+    auto p0 = a;
+    auto p1 = b;
+    auto p2 = other.a;
+    auto p3 = other.b;
+
+    auto s10 = p1 - p0;
+    auto s32 = p3 - p2;
+    float denom = s10.x * s32.y - s32.x * s10.y;
+    if (denom == 0)
+        return false; // Collinear
+    bool denomPositive = denom > 0;
+
+    auto s02 = p0 - p2;
+    float s_numer = s10.x * s02.y - s10.y * s02.x;
+    if ((s_numer < 0) == denomPositive)
+        return false; // No collision
+
+    float t_numer = s32.x * s02.y - s32.y * s02.x;
+    if ((t_numer < 0) == denomPositive)
+        return false; // No collision
+
+    if (((s_numer > denom) == denomPositive) || ((t_numer > denom) == denomPositive))
+        return false; // No collision
+
+    // Collision detected
+    if (t) {
+        *t = t_numer / denom;
+    }
+
+    //if (intersect_point) {
+    //    *intersect_point = p0 + (t * s10);
+    //}
+
+    return true;
+}
+
 }
 

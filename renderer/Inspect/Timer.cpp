@@ -6,20 +6,20 @@ namespace glacier {
 
 Timer::Timer() noexcept
 {
-    last = steady_clock::now();
+    last = ClockType::now();
 }
 
 double Timer::Mark() noexcept
 {
-    const auto old = last;
-    last = steady_clock::now();
-    const duration<double> frameTime = last - old;
+    auto old = last;
+    last = ClockType::now();
+    duration<double> frameTime = last - old;
     return frameTime.count();
 }
 
 double Timer::Peek() const noexcept
 {
-    return duration<double>(steady_clock::now() - last).count();
+    return duration<double>(ClockType::now() - last).count();
 }
 
 }

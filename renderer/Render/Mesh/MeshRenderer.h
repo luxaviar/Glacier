@@ -15,7 +15,8 @@ public:
     MeshRenderer() {}
     MeshRenderer(const std::shared_ptr<Mesh>& mesh, Material* material = nullptr);
 
-    void Render(GfxDriver* gfx) const override;
+    void Render(GfxDriver* gfx, Material* mat = nullptr) const override;
+    void Draw(GfxDriver* gfx) const override;
 
     void AddMesh(const std::shared_ptr<Mesh>& mesh);
 

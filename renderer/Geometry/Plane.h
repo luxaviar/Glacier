@@ -3,6 +3,7 @@
 #include "Math/Vec3.h"
 #include "Math/Vec4.h"
 #include "Math/Mat4.h"
+#include "Ray.h"
 
 namespace glacier {
 
@@ -23,6 +24,8 @@ struct Plane {
         return point.Dot(normal) - d;
     }
 
+    bool Intersect(Ray& ray, float max, float& t);
+
     //// Most efficient way to transform a plane.  (Involves one quaternion-vector rotation and one dot product.)
     //friend Plane operator* (const Transform& xform, const Plane& plane) {
     //    Vec3f normal = xform.rotation() * plane.normal;
@@ -40,15 +43,4 @@ struct Plane {
     Vec3f normal;
 };
 
-inline Plane::Plane(const Vec3f& plane_normal, const Vec3f& point_on_plane)
-{
-    // Guarantee a normal.  This constructor isn't meant to be called frequently, but if it is, we can change this.
-    normal = plane_normal.Normalized();
-    d = -point_on_plane.Dot(normal);
-}
-
-inline Plane::Plane(const Vec3f& a, const Vec3f& b, const Vec3f& c) {
-    normal = (b - a).Cross(c - a).Normalized();
-    d = a.Dot(normal);
-}
 }

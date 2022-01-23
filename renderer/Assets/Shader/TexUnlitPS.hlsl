@@ -53,7 +53,7 @@ float3 LinearToSRGB( float3 x )
     return x < 0.0031308 ? 12.92 * x : 1.13005 * sqrt( abs( x - 0.00228 ) ) - 0.13448 * x + 0.005719;
 }
 
-float4 main( PixelShaderInput IN ) : SV_Target
+float4 main_ps( PixelShaderInput IN ) : SV_Target
 {
     float4 emissive = MaterialCB.Emissive;
     float4 ambient = MaterialCB.Ambient;

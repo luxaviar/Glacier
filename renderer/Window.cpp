@@ -11,6 +11,8 @@
 
 namespace glacier {
 
+//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
 // Window Class Stuff
 Window::WindowClass Window::WindowClass::wndClass;
 
@@ -224,8 +226,71 @@ LRESULT Window::HandleMsg( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noex
 
             Resize(width, height);
         }
+
+        //if (wParam == SIZE_MINIMIZED)
+        //{
+        //    mAppPaused = true;
+        //    mMinimized = true;
+        //    mMaximized = false;
+        //}
+        //else if (wParam == SIZE_MAXIMIZED)
+        //{
+        //    mAppPaused = false;
+        //    mMinimized = false;
+        //    mMaximized = true;
+        //    OnResize();
+        //}
+        //else if (wParam == SIZE_RESTORED)
+        //{
+
+        //    // Restoring from minimized state?
+        //    if (mMinimized)
+        //    {
+        //        mAppPaused = false;
+        //        mMinimized = false;
+        //        OnResize();
+        //    }
+
+        //    // Restoring from maximized state?
+        //    else if (mMaximized)
+        //    {
+        //        mAppPaused = false;
+        //        mMaximized = false;
+        //        OnResize();
+        //    }
+        //    else if (mResizing)
+        //    {
+        //        // If user is dragging the resize bars, we do not resize
+        //        // the buffers here because as the user continuously
+        //        // drags the resize bars, a stream of WM_SIZE messages are
+        //        // sent to the window, and it would be pointless (and slow)
+        //        // to resize for each WM_SIZE message received from dragging
+        //        // the resize bars.  So instead, we reset after the user is
+        //        // done resizing the window and releases the resize bars, which
+        //        // sends a WM_EXITSIZEMOVE message.
+        //    }
+        //    else // API call such as SetWindowPos or mSwapChain->SetFullscreenState.
+        //    {
+        //        OnResize();
+        //    }
+        //}
     }
     break;
+    // WM_EXITSIZEMOVE is sent when the user grabs the resize bars.
+    //case WM_ENTERSIZEMOVE:
+    //    mAppPaused = true;
+    //    mResizing = true;
+    //    mTimer->Stop();
+    //    return; 0;
+
+    //    // WM_EXITSIZEMOVE is sent when the user releases the resize bars.
+    //    // Here we reset everything based on the new window dimensions.
+    //case WM_EXITSIZEMOVE:
+    //    mAppPaused = false;
+    //    mResizing = false;
+    //    mTimer->Start();
+    //    OnResize();
+    //    return; 0;
 
     /*********** KEYBOARD MESSAGES ***********/
     case WM_ACTIVATEAPP:
@@ -247,9 +312,11 @@ LRESULT Window::HandleMsg( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noex
     case WM_INPUT:
         mouse.ProcessMessage(msg, wParam, lParam);
         break;
+    default:
+        return DefWindowProc(hWnd, msg, wParam, lParam);
     }
 
-    return DefWindowProc( hWnd,msg,wParam,lParam );
+    return 0;
 }
 
 void Window::Resize(uint32_t width, uint32_t height) {
@@ -257,6 +324,7 @@ void Window::Resize(uint32_t width, uint32_t height) {
         width_ = width;
         height_ = height;
 
+        //Graphics::Instance()->OnResize(width_, height_);
         resize_signal_.Emit(width, height);
     }
 }

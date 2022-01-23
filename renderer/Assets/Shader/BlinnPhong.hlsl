@@ -1,6 +1,4 @@
-#include "Common/Lighting.hlsli"
-#include "Common/Shadow.hlsli"
-#include "Common/Transform.hlsli"
+#include "Common/LightingData.hlsli"
 
 struct PhongMaterial
 {
@@ -20,6 +18,14 @@ struct PhongMaterial
     //--------------------------- ( 16 bytes )
 }; //--------------------------- ( 16 * 4 = 64 bytes )
 
+cbuffer object_material : register(b3)
+{
+    PhongMaterial mat;
+};
+
+Texture2D albedo_tex : register(t4);
+Texture2D normal_tex : register(t5);
+
 VSOut main_vs(AppData IN)
 {
     VSOut vso;
@@ -34,16 +40,6 @@ VSOut main_vs(AppData IN)
     //vso.shadowHomoPos = ToShadowHomoSpace(pos, model);
     return vso;
 }
-
-cbuffer object_material : register(b2)
-{
-    PhongMaterial mat;
-};
-
-Texture2D albedo_tex : register(t4);
-Texture2D normal_tex : register(t5);
-
-sampler linear_sampler : register(s1);
 
 static const float4 CascadeColorsMultiplier[8] =
 {
@@ -85,7 +81,8 @@ float4 main_ps(VSOut IN) : SV_Target
         float shadow_level = 1.0f;
         if (main_light.shadow_enable)
         {
-            shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position);
+            shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
+                shadow_info, shadow_tex, shadow_cmp_sampler);
         }
         
         color += DoPhongLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;

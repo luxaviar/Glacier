@@ -3,7 +3,7 @@
 #include "Render/Graph/PassNode.h"
 #include "Common/Util.h"
 #include "imgui/imgui.h"
-#include "ConstantBuffer.h"
+#include "Buffer.h"
 
 namespace glacier {
 namespace render {
@@ -24,8 +24,8 @@ void Renderable::SetMaterial(Material* mat) {
     material_ = mat;
 }
 
-void Renderable::Bind(GfxDriver* gfx, Transform* tx) const {
-    const auto& m = tx ? tx->LocalToWorldMatrix() : transform().LocalToWorldMatrix();
+void Renderable::UpdateTransform(GfxDriver* gfx) const {
+    const auto& m = transform().LocalToWorldMatrix();
     const auto& mv = gfx->view() * m;
     const auto& mvp = gfx->projection() * mv;
     RenderableTransform tx_data = {
@@ -36,8 +36,11 @@ void Renderable::Bind(GfxDriver* gfx, Transform* tx) const {
     };
     
     auto& tx_cbuf = GetTransformCBuffer(gfx);
-    tx_cbuf.Update(&tx_data);
-    tx_cbuf.Bind(ShaderType::kVertex, 0);
+    tx_cbuf->Update(&tx_data);
+    //tx_cbuf->Bind(ShaderType::kVertex, 0);
+    //if (mat) {
+    //    mat->SetProperty("object_transform", tx_buf_);
+    //}
 }
 
 const AABB& Renderable::world_bounds() const {
@@ -87,12 +90,12 @@ void Renderable::SetPickable(bool on) {
     }
 }
 
-ConstantBuffer& Renderable::GetTransformCBuffer(GfxDriver* gfx) const {
+std::shared_ptr<ConstantBuffer>& Renderable::GetTransformCBuffer(GfxDriver* gfx) {
     if (!tx_buf_) {
-        tx_buf_ = gfx->CreateConstantBuffer<RenderableTransform>();// std::make_unique<ConstantBuffer<RenderableTransform>>(gfx);
+        tx_buf_ = gfx->CreateConstantBuffer<RenderableTransform>();
     }
 
-    return *tx_buf_;
+    return tx_buf_;
 }
 
 void Renderable::DrawInspectorBasic() {

@@ -8,7 +8,6 @@ namespace glacier {
 struct Triangle2D {
     static void Barycentric(const Vector2& p, const Vector2& a, const Vector2& b, const Vector2& c, float& u, float& v, float& w);
     static Vector2 CircumCenter(const Vector2& a, const Vector2& b, const Vector2& c);
-    static float CircumRadius(const Vector2& a, const Vector2& b, const Vector2& c);
     static Vector3 SideLength(const Vector2& a, const Vector2& b, const Vector2& c);
     //4 * Area
     static float QuatArea(float a, float b, float c);
@@ -25,7 +24,6 @@ struct Triangle2D {
     Vector2 Incenter();
 
     Vector2 CircumCenter();
-    float CircumRadius();
 
     //x: a-b, y: b-c, z: c-a
     Vector3 SideLength();

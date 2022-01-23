@@ -8,8 +8,6 @@
 #include <string>
 #include "Common/Singleton.h"
 
-#pragma comment(lib, "dxguid.lib")
-
 namespace glacier {
 
 class DxgiInfo : public Singleton<DxgiInfo> {

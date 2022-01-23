@@ -246,6 +246,7 @@ void GameObject::DrawSceneNode(uint32_t& selected) {
         ImGui::PopStyleColor(1);
     }
 
+    bool clicked = false;
     if (ImGui::IsItemClicked()) {
         selected = id_;
     }

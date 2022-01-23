@@ -6,31 +6,31 @@
 namespace glacier {
 namespace render {
 
+class SwapChain;
+
 class D3D11Texture : public Texture {
 public:
-    D3D11Texture(const TextureBuilder& builder);
+    D3D11Texture(const TextureDescription& desc);
+    D3D11Texture(SwapChain* swapchain);
+
+    void Reset(const ComPtr<ID3D11Texture2D>& res);
 
     uint32_t GetMipLevels() const override;
 
-    void Bind(ShaderType shader_type, uint16_t slot) override;
-    void UnBind(ShaderType shader_type, uint16_t slot) override;
+    void Bind(ShaderType shader_type, uint16_t slot);
+    void UnBind(ShaderType shader_type, uint16_t slot);
 
     void GenerateMipMaps() override;
 
     void ReleaseUnderlyingResource() override;
     bool Resize(uint32_t width, uint32_t height) override;
-    bool RefreshBackBuffer() override;
 
     void* underlying_resource() const override { return texture_.Get(); }
 
-    bool ReadBackImage(Image& image, int left, int top,
-        int width, int height, int destX, int destY, const ReadBackResolver& resolver) const override;
-
-    bool ReadBackImage(Image& image, int left, int top,
-        int width, int height, int destX, int destY) const override;
+    void ReadBackImage(int left, int top,
+        int width, int height, int destX, int destY, ReadbackDelegate&& callback);
 
 private:
-    void CreateFromBackBuffer();
     void CreateFromFile();
     void CreateFromColor();
     void Create();

@@ -3,23 +3,24 @@
 #include "render/base/texture.h"
 #include "render/material.h"
 #include "Common/Uncopyable.h"
+#include "Render/Base/SamplerState.h"
 
 namespace glacier {
 namespace render {
 
 class GfxDriver;
 
-struct PostProcessBuilder {
-    PostProcessBuilder() {
+struct PostProcessDescription {
+    PostProcessDescription() {
 
     }
 
-    PostProcessBuilder& SetSrc(const std::shared_ptr<Texture>& src) { src_tex = src; return *this; }
-    PostProcessBuilder& SetDst(const std::shared_ptr<Texture>& dst) { dst_tex = dst; return *this; }
-    PostProcessBuilder& SetDst(const std::shared_ptr<RenderTarget>& dst) { dst_rt = dst; return *this; }
+    PostProcessDescription& SetSrc(const std::shared_ptr<Texture>& src) { src_tex = src; return *this; }
+    PostProcessDescription& SetDst(const std::shared_ptr<Texture>& dst) { dst_tex = dst; return *this; }
+    PostProcessDescription& SetDst(const std::shared_ptr<RenderTarget>& dst) { dst_rt = dst; return *this; }
 
-    PostProcessBuilder& SetDepth(const std::shared_ptr<Texture>& depth) { depth_tex = depth; return *this; }
-    PostProcessBuilder& SetMaterial(const std::shared_ptr<PostProcessMaterial>& mat) { material = mat; return *this; }
+    PostProcessDescription& SetDepth(const std::shared_ptr<Texture>& depth) { depth_tex = depth; return *this; }
+    PostProcessDescription& SetMaterial(const std::shared_ptr<PostProcessMaterial>& mat) { material = mat; return *this; }
 
     std::shared_ptr<Texture> src_tex;
     std::shared_ptr<Texture> dst_tex;
@@ -27,19 +28,19 @@ struct PostProcessBuilder {
     std::shared_ptr<Texture> depth_tex;
     std::shared_ptr<PostProcessMaterial> material;
 
-    std::shared_ptr<Sampler> sampler;
+    SamplerState sampler;
 };
 
 class PostProcess {
 public:
-    static PostProcessBuilder Builder() { return {}; }
+    static PostProcessDescription Description() { return {}; }
 
-    PostProcess(const PostProcessBuilder& builder, GfxDriver* gfx);
+    PostProcess(const PostProcessDescription& desc, GfxDriver* gfx);
 
     void Render(GfxDriver* gfx);
 
 private:
-    std::shared_ptr<Texture> screen_tex_;
+    //std::shared_ptr<Texture> screen_tex_;
     std::shared_ptr<Texture> depth_tex_;
 
     std::shared_ptr<RenderTarget> render_target_;
@@ -50,16 +51,16 @@ class PostProcessManager : private Uncopyable {
 public:
     PostProcessManager(GfxDriver* gfx);
 
-    const std::shared_ptr<Sampler>& GetSampler() const { return linear_sampler_; }
+    const SamplerState& GetSampler() const { return linear_sampler_; }
 
-    void Push(PostProcessBuilder& builder);
+    void Push(PostProcessDescription& desc);
     void Render();
 
-    void Process(Texture* src, RenderTarget* dst, PostProcessMaterial* mat);
+    void Process(RenderTarget* dst, PostProcessMaterial* mat);
 
 private:
     GfxDriver* gfx_;
-    std::shared_ptr<Sampler> linear_sampler_;
+    SamplerState linear_sampler_;
     std::vector<PostProcess> jobs_;
 };
 

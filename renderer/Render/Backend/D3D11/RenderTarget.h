@@ -1,6 +1,7 @@
 #pragma once
 
 #include <d3d11_1.h>
+#include <array>
 #include "render/base/rendertarget.h"
 
 namespace glacier {
@@ -11,9 +12,9 @@ public:
     D3D11RenderTarget(uint32_t width, uint32_t height);
     void Resize(uint32_t width, uint32_t height) override;
 
-    void Bind() override;
-    void UnBind() override;
-    void BindDepthStencil() override;
+    void Bind(GfxDriver* gfx) override;
+    void UnBind(GfxDriver* gfx) override;
+    void BindDepthStencil(GfxDriver* gfx) override;
 
     void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 1.0f, uint8_t stencil = 0u) override;
     void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) override;
@@ -35,7 +36,7 @@ private:
     D3D11_VIEWPORT viewport_;
     D3D11_RECT scissor_rect_ = { 0, 0, 0, 0 };
 
-    std::vector<ComPtr<ID3D11RenderTargetView>> color_views_;
+    std::array<ComPtr<ID3D11RenderTargetView>, (int)AttachmentPoint::kNumAttachmentPoints - 1> color_views_;
     ComPtr<ID3D11DepthStencilView> depth_stencil_view_;
 };
 

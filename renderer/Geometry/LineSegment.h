@@ -26,4 +26,13 @@ struct LineSegment {
     Vec3f b;
 };
 
+struct LineSegment2D {
+    LineSegment2D(const Vector2& a, const Vector2& b) : a(a), b(b) {}
+
+    bool Intersects(const LineSegment2D& other, float* t = nullptr) const;
+
+    Vector2 a;
+    Vector2 b;
+};
+
 }

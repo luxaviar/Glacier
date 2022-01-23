@@ -12,19 +12,18 @@ namespace glacier {
 
 class BuddyAllocatorBase;
 
-struct BuddyAllocPage {
+struct BuddyAllocBlock {
     uint32_t order;
     size_t page_offset;
     size_t align_offset;
     size_t size;
     BuddyAllocatorBase* allocator = nullptr;
-    void* resource = nullptr;
 };
 
 class BuddyAllocatorBase {
 public:
     virtual ~BuddyAllocatorBase() = default;
-    virtual void Deallocate(const BuddyAllocPage& page) = 0;
+    virtual void Deallocate(const BuddyAllocBlock& block) = 0;
 };
 
 template<typename T, uint32_t MaxOrder, uint32_t MinOrder = 4>
@@ -56,13 +55,13 @@ public:
     size_t TotalAllocSize() const noexcept { return total_alloc_; }
     T& GetUnderlyingResource() { return underlying_resource_; }
 
-    std::optional<BuddyAllocPage> Allocate(size_t size, size_t alignment) {
+    std::optional<BuddyAllocBlock> Allocate(size_t size, size_t alignment) {
         if (total_alloc_ == kHeapSize) return std::nullopt;
 
-        size = CalcAllocSize(size, alignment);
+        auto alloc_size = CalcAllocSize(size, alignment);
 
         uint32_t order = MinOrder;
-        while (PageSize(order) < size) order++;
+        while (PageSize(order) < alloc_size) order++;
 
         // level up until available list found
         uint32_t i = order;
@@ -89,15 +88,15 @@ public:
 
         total_alloc_ += PageSize(order);
 
-        return BuddyAllocPage{ order, page_offset, align_offset, size, this };
+        return BuddyAllocBlock{ order, page_offset, align_offset, alloc_size, this };
     }
 
-    void Deallocate(const BuddyAllocPage& page) override {
-        total_alloc_ -= PageSize(page.order);
+    void Deallocate(const BuddyAllocBlock& block) override {
+        total_alloc_ -= PageSize(block.order);
 
-        uint32_t i = page.order;
+        uint32_t i = block.order;
         size_t buddy_offset;
-        size_t page_offset = page.page_offset;
+        size_t page_offset = block.page_offset;
 
         for (;; i++) {
             buddy_offset = BuddyOfPage(page_offset, i);
@@ -144,9 +143,9 @@ public:
 
     }
 
-    BuddyAllocPage Allocate(size_t size, size_t align_size) {
+    BuddyAllocBlock Allocate(size_t size, size_t alignment) {
         for (auto& allocator : pool_) {
-            auto result = allocator.Allocate(size, align_size);
+            auto result = allocator.Allocate(size, alignment);
             if (result) return result.value();
         }
 
@@ -154,13 +153,13 @@ public:
         pool_.emplace_back(std::move(res));
 
         auto& allocator = pool_.back();
-        auto result = allocator.Allocate(size, align_size);
+        auto result = allocator.Allocate(size, alignment);
         assert(result);
         return result.value();
     }
 
-    void Deallocate(const BuddyAllocPage& page) {
-        page.allocator->Deallocate(page);
+    void Deallocate(const BuddyAllocBlock& block) {
+        block.allocator->Deallocate(block);
     }
 
 protected:

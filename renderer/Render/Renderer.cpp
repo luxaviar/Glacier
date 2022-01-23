@@ -22,9 +22,10 @@
 #include "Render/Image.h"
 #include "Render/Base/Renderable.h"
 #include "Render/Base/RenderTarget.h"
-#include "Render/Base/Sampler.h"
-#include "Render/Base/ConstantBuffer.h"
+#include "Render/Base/SamplerState.h"
+#include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
@@ -42,8 +43,6 @@ Renderer::Renderer(GfxDriver* gfx, MSAAType msaa) :
         msaa_ = (MSAAType)sample_count_;
     }
 
-    Gizmos::Instance()->Setup(gfx);
-
     stats_ = std::make_unique<PerfStats>(gfx);
 
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 15, 40, 70, 100 });
@@ -57,16 +56,16 @@ Renderer::Renderer(GfxDriver* gfx, MSAAType msaa) :
 
 void Renderer::InitPostProcess() {
     auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
-    auto builder = PostProcess::Builder()
+    auto desc = PostProcess::Description()
         .SetSrc(intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0))
         .SetDst(gfx_->GetSwapChain()->GetRenderTarget())
         .SetMaterial(tonemapping_mat);
 
-    post_process_manager_.Push(builder);
+    post_process_manager_.Push(desc);
 }
 
 void Renderer::InitMSAA() {
-    RasterState rs;
+    RasterStateDesc rs;
     rs.depthFunc = CompareFunc::kAlways;
 
     auto vert_shader = gfx_->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
@@ -78,21 +77,29 @@ void Renderer::InitMSAA() {
         program->SetShader(vert_shader);
         program->SetShader(pixel_shader);
 
-        auto mat = std::make_shared<Material>("msaa resolve");
-        mat->SetPipelineStateObject(rs);
-        mat->SetProgram(program);
+        auto mat = std::make_shared<Material>("msaa resolve", program);
+        mat->GetTemplate()->SetRasterState(rs);
+
         mat->SetProperty("depth_buffer", render_target_->GetDepthStencil());
         mat->SetProperty("color_buffer", render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-        msaa_resolve_mat_[log2((uint32_t)v.first)] = mat;
+        msaa_resolve_mat_[glacier::log2((uint32_t)v.first)] = mat;
     }
 }
 
 void Renderer::Setup() {
-    LightManager::Instance()->Setup(gfx_);
+    if (init_) return;
+
+    init_ = true;
+    Gizmos::Instance()->Setup(gfx_);
+    LightManager::Instance()->Setup(gfx_, this);
 }
 
 void Renderer::OnResize(uint32_t width, uint32_t height) {
     auto swapchain = gfx_->GetSwapChain();
+    if (swapchain->GetWidth() == width && swapchain->GetHeight() == height) {
+        return;
+    }
+
     swapchain->OnResize(width, height);
     auto backbuffer_depth = swapchain->GetRenderTarget()->GetDepthStencil();
 
@@ -101,7 +108,21 @@ void Renderer::OnResize(uint32_t width, uint32_t height) {
 
     render_target_->Resize(width, height);
     render_target_->AttachColor(AttachmentPoint::kColor0, rt_tex);
-    render_target_->AttachDepthStencil(backbuffer_depth);
+    if (msaa_ == MSAAType::kNone) {
+        render_target_->AttachDepthStencil(backbuffer_depth);
+    }
+    else {
+        auto depth_tex_desc = Texture::Description()
+            .SetDimension(width, height)
+            .SetFormat(TextureFormat::kR24G8_TYPELESS)
+            .SetCreateFlag(CreateFlags::kDepthStencil)
+            .SetCreateFlag(CreateFlags::kShaderResource)
+            .SetSampleDesc(sample_count_, quality_level_);
+        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
+        depthstencil_texture->SetName(TEXT("msaa depth texture"));
+
+        render_target_->AttachDepthStencil(depthstencil_texture);
+    }
 
     rt_tex = intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0);
     rt_tex->Resize(width, height);
@@ -112,6 +133,7 @@ void Renderer::OnResize(uint32_t width, uint32_t height) {
 }
 
 void Renderer::FilterVisibles() {
+    PerfSample("Filter Visibles");
     auto main_camera = GetMainCamera();
 
     visibles_.clear();
@@ -119,35 +141,43 @@ void Renderer::FilterVisibles() {
 
     //TODO: sort by depth?
     std::sort(visibles_.begin(), visibles_.end(), [](Renderable* a, Renderable* b) {
-        return a->GetMaterial()->id() < b->GetMaterial()->id();
-        });
+        auto template_a = a->GetMaterial()->GetTemplate()->id();
+        auto template_b = b->GetMaterial()->GetTemplate()->id();
+        if (template_a == template_b) {
+            return a->GetMaterial()->id() < b->GetMaterial()->id();
+        }
+
+        return template_a < template_b;
+    });
 }
 
 void Renderer::RestoreCommonBindings() {
     auto main_camera = GetMainCamera();
     gfx_->BindCamera(main_camera);
-    render_target_->Bind();
+    render_target_->Bind(gfx_);
 }
 
 void Renderer::InitMaterial() {
-    auto solid_program = gfx_->CreateProgram("Solid", TEXT("Solid"), TEXT("Solid"));
-
-    auto solid_mat = MaterialManager::Instance()->Create("solid");
-    solid_mat->SetProgram(solid_program);
+    auto solid_mat = std::make_unique<Material>("solid", TEXT("Solid"), TEXT("Solid"));
     solid_mat->SetProperty("color", Color{ 1.0f,1.0f,1.0f, 1.0f });
+    solid_mat->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+
+    MaterialManager::Instance()->Add(std::move(solid_mat));
 }
 
 void Renderer::InitRenderTarget() {
-    auto width = gfx_->width();
-    auto height = gfx_->height();
+    auto width = gfx_->GetSwapChain()->GetWidth();
+    auto height = gfx_->GetSwapChain()->GetHeight();
     auto& swapchain_render_target = gfx_->GetSwapChain()->GetRenderTarget();
     auto backbuffer_depth_tex = swapchain_render_target->GetDepthStencil();
 
-    auto colorframe_builder = Texture::Builder()
+    auto colorframe_desc = Texture::Description()
         .SetDimension(width, height)
         .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetCreateFlag(CreateFlags::kRenderTarget)
         .SetSampleDesc(sample_count_, quality_level_);
-    auto colorframe = gfx_->CreateTexture(colorframe_builder);
+    auto colorframe = gfx_->CreateTexture(colorframe_desc);
+    colorframe->SetName(TEXT("linear render color texture"));
 
     render_target_ = gfx_->CreateRenderTarget(width, height);
     render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
@@ -160,18 +190,23 @@ void Renderer::InitRenderTarget() {
         intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
     }
     else {
-        auto depth_tex_builder = Texture::Builder()
+        auto depth_tex_desc = Texture::Description()
             .SetDimension(width, height)
             .SetFormat(TextureFormat::kR24G8_TYPELESS)
-            .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE)
+            .SetCreateFlag(CreateFlags::kDepthStencil)
+            .SetCreateFlag(CreateFlags::kShaderResource)
             .SetSampleDesc(sample_count_, quality_level_);
-        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_builder);
+        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
+        depthstencil_texture->SetName(TEXT("msaa depth texture"));
+
         render_target_->AttachDepthStencil(depthstencil_texture);
 
-        auto intermediate_color_builder = Texture::Builder()
+        auto intermediate_color_desc = Texture::Description()
             .SetDimension(width, height)
+            .SetCreateFlag(CreateFlags::kRenderTarget)
             .SetFormat(TextureFormat::kR16G16B16A16_FLOAT);
-        auto intermediate_color = gfx_->CreateTexture(intermediate_color_builder);
+        auto intermediate_color = gfx_->CreateTexture(intermediate_color_desc);
+        intermediate_color->SetName(TEXT("intermediate color buffer"));
 
         intermediate_target_->AttachColor(AttachmentPoint::kColor0, intermediate_color);
         intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
@@ -188,8 +223,8 @@ Camera* Renderer::GetMainCamera() const {
 }
 
 void Renderer::PreRender() {
+    PerfSample("PreRender");
     stats_->PreRender();
-    gfx_->BeginFrame();
 
     render_target_->Clear();
     
@@ -205,12 +240,25 @@ void Renderer::PostRender() {
     Gizmos::Instance()->Clear();
 
     // present
-    gfx_->EndFrame();
+    //gfx_->EndFrame();
 
     render_graph_.Reset();
 }
 
 void Renderer::Render() {
+    auto& state = Input::GetJustKeyDownState();
+    if (state.Tab) {
+        show_gui_ = !show_gui_;
+    }
+
+    if (state.F4) {
+        show_gizmo_ = !show_gizmo_;
+    }
+
+    if (state.F1) {
+        show_imgui_demo_ = !show_imgui_demo_;
+    }
+
     auto& present_render_target = gfx_->GetSwapChain()->GetRenderTarget();
     PreRender();
 
@@ -219,36 +267,33 @@ void Renderer::Render() {
         editor_.Pick(mouse.GetPosX(), mouse.GetPosY(), GetMainCamera(), visibles_, present_render_target);
     }
 
-    render_graph_.Execute(this);
-    render_target_->UnBind();
-
-    ResolveMSAA();
-    
-    post_process_manager_.Render();
-
-    present_render_target->Bind();
-
-    physics::World::Instance()->OnDrawGizmos(true);
-
-    auto& state = Input::GetJustKeyDownState();
-    if (state.Tab) {
-        show_gui_ = !show_gui_;
-    }
-
-    if (show_gui_) {
-        editor_.DoFrame();
-    }
-
-    if (state.F4) {
-        show_gizmo_ = !show_gizmo_;
+    {
+        PerfSample("Exexute render graph");
+        render_graph_.Execute(this);
     }
 
     if (show_gizmo_) {
+        PerfSample("Draw Gizmos");
+        RestoreCommonBindings();
+        physics::World::Instance()->OnDrawGizmos(true);
+        editor_.DrawGizmos();
         Gizmos::Instance()->Render(gfx_);
     }
 
-    if (state.F1) {
-        show_imgui_demo_ = !show_imgui_demo_;
+    render_target_->UnBind(gfx_);
+
+    ResolveMSAA();
+    
+    {
+        PerfSample("Post Process");
+        post_process_manager_.Render();
+    }
+
+    present_render_target->Bind(gfx_);
+
+    if (show_gui_) {
+        PerfSample("Editor");
+        editor_.DrawPanel();
     }
 
     if (show_imgui_demo_) {
@@ -271,61 +316,50 @@ void Renderer::Render() {
 }
 
 void Renderer::ResolveMSAA() {
+    PerfSample("Resolve MSAA");
     if (msaa_ == MSAAType::kNone) return;
 
     auto& mat = msaa_resolve_mat_[log2((uint32_t)msaa_)];
+    RenderTargetBindingGuard rt_guard(gfx_, intermediate_target_.get());
     MaterialGuard mat_guard(gfx_, mat.get());
-    RenderTargetGuard rt_guard(intermediate_target_.get());
 
     gfx_->Draw(3, 0);
 }
 
 void Renderer::GrabScreen() {
     auto render_target = gfx_->GetSwapChain()->GetRenderTarget();
-    Image tmp_img(render_target->width(), render_target->height());
+    auto width = render_target->width();
+    auto height = render_target->height();
 
     auto& tex = render_target->GetColorAttachment(AttachmentPoint::kColor0);
-    tex->ReadBackImage(tmp_img, 0, 0, render_target->width(), render_target->height(), 0, 0);
-    tmp_img.Save(TEXT("screen_grab.png"), false);
-}
+    tex->ReadBackImage(0, 0, render_target->width(), render_target->height(), 0, 0,
+        [width, height, this](const uint8_t* data, size_t raw_pitch) {
+            Image image(width, height, false);
 
-void Renderer::AddPhongPass() {
-    render_graph_.AddPass("phong",
-        [&](PassNode& pass) {
-        },
-        [this](Renderer* renderer, const PassNode& pass) {
-            auto gfx = renderer->driver();
+            for (int y = 0; y < height; ++y) {
+                const uint8_t* texel = data;
+                auto pixel = image.GetRawPtr<ColorRGBA32>(0, y);
+                for (int x = 0; x < width; ++x) {
+                    *pixel = *((const ColorRGBA32*)texel);
+                    texel += sizeof(ColorRGBA32);
+                    ++pixel;
+                }
+                data += raw_pitch;
+            }
 
-            ResourceGuard<LightManager> light_gurad(LightManager::Instance());
-            ResourceGuard<CascadedShadowManager> csm_guard(csm_manager_.get());
-
-            pass.Render(renderer, visibles_);
-        });
-}
-
-void Renderer::AddPbrPass() {
-    render_graph_.AddPass("pbr",
-        [&](PassNode& pass) {
-        },
-        [this](Renderer* renderer, const PassNode& pass) {
-            auto gfx = renderer->driver();
-
-            ResourceGuard<LightManager> light_gurad(LightManager::Instance());
-            ResourceGuard<CascadedShadowManager> csm_guard(csm_manager_.get());
-            
-            pass.Render(renderer, visibles_);
+            image.Save(TEXT("screen_grab.png"), false);
         });
 }
 
 void Renderer::AddSolidPass() {
-    auto mat = MaterialManager::Instance()->Get("solid");
-    render_graph_.AddPass("solid",
-        [&](PassNode& pass) {
-        },
-        [this, mat](Renderer* renderer, const PassNode& pass) {
-            MaterialGuard guard(renderer->driver(), mat);
-            pass.Render(renderer, visibles_);
-        });
+    //auto mat = MaterialManager::Instance()->Get("solid");
+    //render_graph_.AddPass("solid",
+    //    [&](PassNode& pass) {
+    //    },
+    //    [this, mat](Renderer* renderer, const PassNode& pass) {
+    //        MaterialGuard guard(renderer->driver(), mat);
+    //        pass.Render(renderer, visibles_);
+    //    });
 }
 
 void Renderer::AddShadowPass() {
@@ -333,15 +367,15 @@ void Renderer::AddShadowPass() {
         [&](PassNode& pass) {
         },
         [this](Renderer* renderer, const PassNode& pass) {
+            PerfSample("Shadow pass");
+
             auto light_mgr = LightManager::Instance();
             auto main_camera_ = GetMainCamera();
             LightManager::Instance()->SortLight(main_camera_->ViewCenter());
             auto main_light = light_mgr->GetMainLight();
             if (!main_light || !main_light->HasShadow()) return;
 
-            pass.PreRender(renderer);
             csm_manager_->Render(main_camera_, visibles_, main_light);
-            pass.PostRender(renderer);
 
             renderer->RestoreCommonBindings();
         });
@@ -375,18 +409,21 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
         shadow_cameras[i] = camera;
     }
 
-    auto builder1 = Texture::Builder()
+    auto desc1 = Texture::Description()
         .SetType(TextureType::kTextureCube)
         .SetDimension(size, size)
         .SetFormat(TextureFormat::kR32_FLOAT);
 
-    auto shadow_map_cube = gfx->CreateTexture(builder1);
+    auto shadow_map_cube = gfx->CreateTexture(desc1);
+    shadow_map_cube->SetName(TEXT("shadow_map_cube texture"));
 
-    auto builder2 = Texture::Builder()
+    auto desc2 = Texture::Description()
         .SetDimension(size, size)
         .SetFormat(TextureFormat::kR24G8_TYPELESS)
-        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE);
-    auto depthstencil_texture1 = gfx->CreateTexture(builder2);
+        .SetCreateFlag(CreateFlags::kDepthStencil)
+        .SetCreateFlag(CreateFlags::kShaderResource);
+    auto depthstencil_texture1 = gfx->CreateTexture(desc2);
+    depthstencil_texture1->SetName(TEXT("shadow_map_cube depth texture"));
 
     auto shadow_mat = std::make_unique<Material>("cube shadow", TEXT("Shadow"), TEXT("Shadow"));
 
@@ -408,28 +445,26 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
             auto light_pos = light.pos();
             auto gfx = renderer->driver();
 
-            pass.PreRender(renderer);
             //auto shadow_cubemap
             for (size_t i = 0; i < 6; i++)
             {
                 auto& rt = shadow_map_rt[i];
                 rt->Clear();
-                rt->Bind();
+                rt->Bind(gfx);
 
                 auto camera = shadow_cameras[i];
                 camera->position({ light_pos.x, light_pos.y, light_pos.z });
                 gfx->BindCamera(camera);
 
-                MaterialGuard guard(gfx, shadow_mat_ptr);
+                //MaterialGuard guard(gfx, shadow_mat_ptr);
                 for (auto o : visibles_) {
-                    o->Render(gfx);
+                    o->Render(gfx, shadow_mat_ptr);
                 }
             }
 
             auto& rt = shadow_map_rt[5];
             //for binding as PSV, tex can't be render target simultaneously
-            rt->UnBind();
-            pass.PostRender(renderer);
+            rt->UnBind(gfx);
 
             renderer->RestoreCommonBindings();
         });
@@ -448,20 +483,17 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     ss.filter = FilterMode::kCmpBilinear;
     ss.comp = CompareFunc::kLessEqual;
 
-    auto sampler1 = gfx->CreateSampler(ss);
-
     SamplerState ss1;
     ss1.warpU = ss1.warpV = WarpMode::kClamp;
     ss.filter = FilterMode::kAnisotropic;
-    
-    auto sampler2 = gfx->CreateSampler(ss1);
 
     /// FIXME
     auto phong_mat = std::make_unique<Material>("lambert_cube");
     phong_mat->SetProperty("shadow_trans", shadow_space_tx);
     phong_mat->SetProperty("shadow_map", shadow_map_cube);
-    phong_mat->SetProperty("sampler1", sampler1);
-    phong_mat->SetProperty("sampler2", sampler2);
+    phong_mat->GetTemplate()->SetProperty("sampler1", ss);
+    phong_mat->GetTemplate()->SetProperty("sampler2", ss1);
+    phong_mat->GetTemplate()->SetInputLayout(Mesh::kDefaultLayout);
 
     auto phong_mat_ptr = phong_mat.get();
     MaterialManager::Instance()->Add(std::move(phong_mat));

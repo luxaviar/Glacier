@@ -3,6 +3,7 @@
 #include "render/material.h"
 #include "inputlayout.h"
 #include "pipelinestate.h"
+#include "Render/MaterialTemplate.h"
 
 namespace glacier {
 namespace render {
@@ -17,48 +18,6 @@ void GfxDriver::BindCamera(const Camera* cam) {
 void GfxDriver::BindCamera(const Matrix4x4& view, const Matrix4x4& projection) {
     projection_ = projection;
     view_ = view;
-}
-
-void GfxDriver::UpdateInputLayout(const std::shared_ptr<InputLayout>& layout) {
-    if (input_layout_ == layout.get()) return;
-
-    input_layout_ = layout.get();
-    input_layout_->Bind();
-}
-
-bool GfxDriver::PushMaterial(Material* mat) {
-    if (!mat) return false;
-
-    if (!materials_.empty()) {
-        auto cur_mat = materials_.top();
-        if (cur_mat == mat) {
-            cur_mat->ReBind(this);
-            return false;
-        }
-    }
-
-    materials_.push(mat);
-    mat->Bind(this);
-
-    return true;
-}
-
-void GfxDriver::PopMaterial(Material* mat) {
-    if (materials_.empty()) return;
-
-    auto cur_mat = materials_.top();
-    if (cur_mat == mat) {
-        cur_mat->UnBind();
-        materials_.pop();
-    }
-}
-
-void GfxDriver::PopMaterial(int n) {
-    assert(materials_.size() >= n);
-    for (int i = 0; i < n; ++i) {
-        auto mat = materials_.top();
-        PopMaterial(mat);
-    }
 }
 
 }

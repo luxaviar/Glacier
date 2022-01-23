@@ -7,21 +7,18 @@
 #include "render/base/gfxdriver.h"
 #include "SwapChain.h"
 
-#pragma comment(lib, "d3d11")
-
 namespace glacier {
 namespace render {
 
 class D3D11SwapChain;
 
-class GfxDriverD3D11 : public GfxDriver, public Singleton<GfxDriverD3D11> {
+class D3D11GfxDriver : public GfxDriver, public Singleton<D3D11GfxDriver> {
 public:
-    ~GfxDriverD3D11();
+    ~D3D11GfxDriver();
 
-    void Init(HWND hWnd, int width, int height);
+    void Init(HWND hWnd, int width, int height, TextureFormat format) override;
 
     void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) override;
-    void ResolveMSAA(std::shared_ptr<Texture>& src, std::shared_ptr<Texture>& dst, TextureFormat format) override;
 
     SwapChain* GetSwapChain() const override { return swap_chain_.get(); }
     D3D11SwapChain* GetUnderlyingSwapChain() const { return swap_chain_.get(); }
@@ -36,29 +33,31 @@ public:
     void DrawIndexed(uint32_t count) override;
     void Draw(uint32_t count, uint32_t offset) override;
 
-    std::shared_ptr<InputLayout> CreateInputLayout(const InputLayoutDesc& layout) override;
     std::shared_ptr<IndexBuffer> CreateIndexBuffer(const std::vector<uint32_t>& indices) override;
+    std::shared_ptr<IndexBuffer> CreateIndexBuffer(const void* data, size_t size,
+        IndexFormat type, UsageType usage) override;
 
     std::shared_ptr<VertexBuffer> CreateVertexBuffer(const VertexData& vertices) override;
     std::shared_ptr<VertexBuffer> CreateVertexBuffer(const void* data, size_t size, size_t stride, UsageType usage) override;
 
-    std::shared_ptr<ConstantBuffer> CreateConstantBuffer(const void* data, size_t size, UsageType usage) override;
-    std::shared_ptr<ConstantBuffer> CreateConstantBuffer(std::shared_ptr<BufferData>& data) override;
+    std::shared_ptr<ConstantBuffer> CreateConstantBuffer(const void* data, size_t size, UsageType usage = UsageType::kDynamic) override;
+    std::shared_ptr<ConstantBuffer> CreateConstantBuffer(std::shared_ptr<BufferData>& data, UsageType usage = UsageType::kDynamic) override;
 
-    std::shared_ptr<PipelineState> CreatePipelineState(RasterState rs) override;
-
-    std::shared_ptr<Sampler> CreateSampler(const SamplerBuilder& builder) override;
-    std::shared_ptr<Sampler> CreateSampler(const SamplerState& ss) override;
+    std::shared_ptr<PipelineState> CreatePipelineState(RasterStateDesc rs, const InputLayoutDesc& layout) override;
 
     std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point = nullptr,
         const std::vector<ShaderMacroEntry>& macros = {{nullptr, nullptr}}, const char* target = nullptr) override;
 
     std::shared_ptr<Program> CreateProgram(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
 
-    std::shared_ptr<Texture> CreateTexture(const TextureBuilder& builder) override;
+    std::shared_ptr<Texture> CreateTexture(const TextureDescription& desc) override;
+    std::shared_ptr<Texture> CreateTexture(SwapChain* swapchain) override;
     std::shared_ptr<Query> CreateQuery(QueryType type, int capacity) override;
 
     std::shared_ptr<RenderTarget> CreateRenderTarget(uint32_t width, uint32_t height) override;
+
+    void BindMaterial(Material* mat) override;
+    void UnBindMaterial() override;
 
 private:
     ComPtr<ID3D11Device> device_;

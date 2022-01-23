@@ -76,7 +76,7 @@ D3D11Shader::D3D11Shader(ShaderType type, const TCHAR* file_name, const char* en
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
     GfxThrowIfFailed(CompileFromFile(path.c_str(), &blob_, (const D3D_SHADER_MACRO*)macros.data(), entry_point ? entry_point : DefaultShaderEntry[(int)type], target, flags, 0));
 
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
     switch (type_)
     {
     case ShaderType::kVertex:
@@ -153,7 +153,7 @@ ID3DBlob* D3D11Shader::GetBytecode() const noexcept {
 }
 
 void D3D11Shader::Bind() {
-    auto ctx = GfxDriverD3D11::Instance()->GetContext();
+    auto ctx = D3D11GfxDriver::Instance()->GetContext();
     switch (type_)
     {
     case ShaderType::kVertex:
@@ -181,7 +181,7 @@ void D3D11Shader::Bind() {
 }
 
 void D3D11Shader::UnBind() {
-    auto ctx = GfxDriverD3D11::Instance()->GetContext();
+    auto ctx = D3D11GfxDriver::Instance()->GetContext();
     switch (type_)
     {
     case ShaderType::kVertex:
@@ -210,7 +210,7 @@ void D3D11Shader::UnBind() {
 
 const char* D3D11Shader::GetLatestTarget(ShaderType type) {
     // Query the current feature level:
-    D3D_FEATURE_LEVEL featureLevel = GfxDriverD3D11::Instance()->GetDevice()->GetFeatureLevel();
+    D3D_FEATURE_LEVEL featureLevel = D3D11GfxDriver::Instance()->GetDevice()->GetFeatureLevel();
 
     switch (type)
     {

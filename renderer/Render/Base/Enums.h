@@ -24,7 +24,7 @@ enum class MSAAType : uint8_t {
     k8x = 8,
 };
 
-enum class IndexType : uint8_t {
+enum class IndexFormat : uint8_t {
     kUInt16,
     kUInt32,
 };
@@ -46,7 +46,6 @@ enum class TopologyType : uint8_t {
     kTriangle = 0,
     kPoint,
     kLine,
-    kLineStrip,
 };
 
 //! comparison function for the depth sampler
@@ -115,11 +114,19 @@ enum class WarpMode : uint8_t {
 };
 
 enum class UsageType : uint8_t {
-    //kNone,
     kDefault,
     kImmutable,
     kDynamic,
     kStage,
+};
+
+enum class BufferType : uint8_t {
+    kConstantBuffer,
+    kVertexBuffer,
+    kIndexBuffer,
+    kStructuredBuffer,
+    kRWStructuredBuffer,
+    kReadBackBuffer,
 };
 
 enum class TextureFormat : uint8_t {
@@ -181,7 +188,9 @@ enum class ShaderParameterCatetory : uint8_t {
 enum class MaterialPropertyType : uint8_t {
     kTexture,
     kSampler,
-    kCBuffer,
+    kConstantBuffer,
+    kStructuredBuffer,
+    kRWStructuredBuffer,
     kColor,
     kFloat4,
     kMatrix,
@@ -193,14 +202,21 @@ enum class CameraType : uint8_t {
 };
 
 enum class QueryType : uint8_t {
-    kTimer,
-    kCountSamples,
-    kCountSamplesPredicate,
-    kCountStreamOutPrimitives,
-    kCountTransformFeedbackPrimitives,
-    kCountRenderPrimitives
+    kTimeStamp = 0,
+    kOcclusion,
+    kBinaryOcclusion,
+    kPipelineStatistics,
+    kStreamOutputStaticstics,
+    kCount,
 };
 
+enum class CreateFlags : uint32_t {
+    kNone = 0,
+    kShaderResource = 1,
+    kRenderTarget = 1 << 1,
+    kDepthStencil = 1 << 2,
+    kUav = 1 << 3,
+};
 
 }
 }

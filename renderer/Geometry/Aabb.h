@@ -2,6 +2,7 @@
 
 #include "ray.h"
 #include "Math/Vec3.h"
+#include "Math/Vec2.h"
 #include "Math/Mat4.h"
 #include "plane.h"
 
@@ -28,6 +29,7 @@ struct AABB {
 
     Vec3f ClosestPoint(const Vec3f& point) const;
     bool Contains(const Vec3f& point) const;
+    bool Contains(const Vec2f& point) const;
     bool Contains(const AABB& other) const;
     bool Contains(const Vec3f& center, float radius) const;
 
@@ -43,6 +45,7 @@ struct AABB {
     AABB Expand(const Vec3f& margin) const;
     AABB Expand(float margin) const;
     void AddPoint(const Vector3& point);
+    void AddPoint(const Vector2& point);
 
     void OnDrawGizmos();
 

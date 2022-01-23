@@ -18,13 +18,13 @@ void PassNode::Reset() {
     //TODO:
 }
 
-void PassNode::PreRender(Renderer* renderer) const {
-
-}
-
-void PassNode::PostRender(Renderer* renderer) const {
-
-}
+//void PassNode::PreRender(Renderer* renderer) const {
+//
+//}
+//
+//void PassNode::PostRender(Renderer* renderer) const {
+//
+//}
 
 void PassNode::Execute(Renderer* renderer) {
     if (executor_) {
@@ -37,44 +37,42 @@ void PassNode::Execute(Renderer* renderer) {
 void PassNode::Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat) const {
     auto gfx = renderer->driver();
 
-    PreRender(renderer);
+    //PreRender(renderer);
 
     if (mat) {
-        MaterialGuard guard(gfx, mat);
+        //MaterialGuard guard(gfx, mat);
         for (auto o : objs) {
-            o->Render(gfx);
+            o->Render(gfx, mat);
         }
     } else {
-        Material* last_mat = nullptr;
-        int n = 0;
         for (auto o : objs) {
             auto cur_mat = o->GetMaterial();
             if (cur_mat->HasPass(this)) {
-                last_mat = cur_mat;
-                if (gfx->PushMaterial(last_mat)) {
-                    ++n;
-                }
-                o->Render(gfx);
+                o->UpdateTransform(gfx);
+                gfx->BindMaterial(cur_mat);
+                o->Draw(gfx);
+                //o->Render(gfx);
             }
         }
-        gfx->PopMaterial(n);
+
+        gfx->UnBindMaterial();
     }
 
-    PostRender(renderer);
+    //PostRender(renderer);
 }
 
 void PassNode::Render(Renderer* renderer, const Renderable* obj, Material* mat) const {
     if (!obj) return;
 
-    PreRender(renderer);
+    //PreRender(renderer);
 
     if (obj->IsActive()) {
         auto gfx = renderer->driver();
-        MaterialGuard guard(gfx, mat);
-        obj->Render(gfx);
+        //MaterialGuard guard(gfx, mat);
+        obj->Render(gfx, mat);
     }
 
-    PostRender(renderer);
+    //PostRender(renderer);
 }
 
 void PassNode::Finalize() const

@@ -5,12 +5,13 @@
 #include "Render/Material.h"
 #include "Render/Base/Renderable.h"
 #include "Render/Base/RenderTarget.h"
-#include "Render/Base/ConstantBuffer.h"
-#include "Render/Base/Sampler.h"
+#include "Render/Base/Buffer.h"
+#include "Render/Base/SamplerState.h"
 #include "Core/Objectmanager.h"
 #include "Input/Input.h"
 #include "Editor/Gizmos.h"
 #include "Render/Image.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
@@ -33,12 +34,14 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     assert(cascade_partions.front() > 0.0f);
     assert(cascade_partions.back() == 100.0f);
 
-    TextureBuilder tex_builder = Texture::Builder()
+    TextureDescription tex_desc = Texture::Description()
         .SetFormat(TextureFormat::kR32_TYPELESS)
-        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL | D3D11_BIND_SHADER_RESOURCE)
+        .SetCreateFlag(CreateFlags::kDepthStencil)
+        .SetCreateFlag(CreateFlags::kShaderResource)
         .SetDimension(size * cascade_levels, size);
     
-    shadow_map_ = gfx->CreateTexture(tex_builder);
+    shadow_map_ = gfx->CreateTexture(tex_desc);
+    shadow_map_->SetName(TEXT("shadow map"));
 
     shadow_data_.texel_size.x = 1.0f / size /cascade_levels;
     shadow_data_.texel_size.y = 1.0f / size;
@@ -61,13 +64,12 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     }
 
     material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
+    material_->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
-    SamplerState ss;
-    ss.warpU = ss.warpV = WarpMode::kBorder;
-    ss.filter = FilterMode::kCmpBilinear;
-    ss.comp = CompareFunc::kLessEqual;
-
-    shadow_sampler_ = gfx->CreateSampler(ss);
+    shadow_sampler_.warpU = shadow_sampler_.warpV = WarpMode::kBorder;
+    shadow_sampler_.filter = FilterMode::kCmpBilinear;
+    shadow_sampler_.comp = CompareFunc::kLessEqual;
 
     pcf_size(3);
 
@@ -88,37 +90,46 @@ void CascadedShadowManager::Render(const Camera* camera,
 
     //cull objects
     AABB reciver_bounds;
-    for (auto o : visibles) {
-        if (o->IsReciveShadow()) {
-            reciver_bounds = AABB::Union(reciver_bounds, o->world_bounds());
+    {
+        PerfSample("calc reciver bound");
+        for (auto o : visibles) {
+            if (o->IsReciveShadow()) {
+                reciver_bounds = AABB::Union(reciver_bounds, o->world_bounds());
+            }
         }
     }
 
     AABB caster_bounds;
     casters_.clear();
 
-    auto& renderables = RenderableManager::Instance()->GetList();
-    for (auto& node : renderables) {
-        auto& o = node.data;
-        if (o->IsActive() && o->IsCastShadow()) {
-            caster_bounds = AABB::Union(caster_bounds, o->world_bounds());
-            casters_.push_back(o);
+    {
+        PerfSample("calc caster bound");
+        auto& renderables = RenderableManager::Instance()->GetList();
+        for (auto& node : renderables) {
+            auto& o = node.data;
+            if (o->IsActive() && o->IsCastShadow()) {
+                caster_bounds = AABB::Union(caster_bounds, o->world_bounds());
+                casters_.push_back(o);
+            }
         }
     }
 
     if (casters_.empty()) return;
 
-    UpdateShadowInfo(camera, light, AABB::Union(caster_bounds, reciver_bounds));
+    {
+        PerfSample("update shadow info");
+        UpdateShadowInfo(camera, light, AABB::Union(caster_bounds, reciver_bounds));
+    }
 
-    MaterialGuard guard(gfx_, material_.get());
+    PerfSample("Render shadow");
     for (size_t i = 0; i < shadow_data_.cascade_levels; ++i) {
         gfx_->BindCamera(shadow_view_, shadow_proj_[i]);
-        RenderTargetGuard guard(render_targets_[i].get());
+        RenderTargetBindingGuard guard(gfx_, render_targets_[i].get());
 
         auto& shadow_frustum = frustums_[i];
         for (auto o : casters_) {
             if (shadow_frustum.Intersect(o->world_bounds())) {
-                o->Render(gfx_);
+                o->Render(gfx_, material_.get());
             }
         }
     }
@@ -127,11 +138,9 @@ void CascadedShadowManager::Render(const Camera* camera,
 void CascadedShadowManager::UpdateShadowInfo(const Camera* camera, 
     DirectionalLight* light, const AABB& scene_bounds) 
 {
-    auto& light_camera = light->camera();
-
-    shadow_view_ = light_camera.view();
-    //auto light_space_tx = light_camera.transform().WorldToLocalMatrix();
-
+    auto& light_transform = light->transform();
+    shadow_view_ = Matrix4x4::LookToLH(light_transform.position(), light_transform.forward(), Vec3f::up);
+    
     AABB shadow_bounds = AABB::Transform(scene_bounds, shadow_view_);
     float nearz = shadow_bounds.min.z;
     float farz = shadow_bounds.max.z;
@@ -168,7 +177,7 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
         Vec3f ortho_max(-FLT_MAX);
 
         for (int i = 0; i < (int)FrustumCorner::kCount; ++i) {
-            corners[i] = light_camera.WorldToCamera(corners[i]);
+            corners[i] = light_transform.InverseTransform(corners[i]); //world space to light camera space;
             ortho_min = Vec3f::Min(ortho_min, corners[i]);
             ortho_max = Vec3f::Max(ortho_max, corners[i]);
         }
@@ -215,7 +224,7 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
         };
 
         for (auto& p : ortho_corners) {
-            p = light_camera.CameraToWorld(p);
+            p = light_transform.ApplyTransform(p);// light camera space to world space;
         }
 
         if (draw) {
@@ -236,31 +245,41 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
     }
 }
 
-void CascadedShadowManager::Bind() {
-    shadow_cbuffer_->Update(&shadow_data_);
-    shadow_cbuffer_->Bind(ShaderType::kPixel, 0);
-
-    shadow_map_->Bind(ShaderType::kPixel, 0);
-    shadow_sampler_->Bind(ShaderType::kPixel, 0);
+void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
+    mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
+    mat->SetProperty("shadow_tex", shadow_map_);
+    mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 
-void CascadedShadowManager::UnBind() {
-    shadow_cbuffer_->UnBind(ShaderType::kPixel, 0);
-    shadow_map_->UnBind(ShaderType::kPixel, 0);
-    shadow_sampler_->UnBind(ShaderType::kPixel, 0);
+void CascadedShadowManager::Update() {
+    shadow_cbuffer_->Update(&shadow_data_);
 }
 
 void CascadedShadowManager::GrabShadowMap() {
     auto& shadow_tex = shadow_map_;
-    Image tmp_img(shadow_map_->width(), shadow_map_->height());
-    shadow_map_->ReadBackImage(tmp_img, 0, 0, shadow_map_->width(), shadow_map_->height(), 0, 0,
-        [](const uint8_t* texel, ColorRGBA32* pixel) {
-            float v = *(const float*)texel;
-            uint8_t c = (uint8_t)((v / 1.0f) * 255);
-            *pixel = ColorRGBA32(c, c, c, 255);
-            return sizeof(float);
+    uint32_t width = shadow_map_->width();
+    uint32_t height = shadow_map_->height();
+
+    shadow_map_->ReadBackImage(0, 0, shadow_map_->width(), shadow_map_->height(), 0, 0,
+        [width, height, this](const uint8_t* data, size_t raw_pitch) {
+            Image image(width, height, false);
+
+            for (int y = 0; y < height; ++y) {
+                const uint8_t* texel = data;
+                auto pixel = image.GetRawPtr<ColorRGBA32>(0, y);
+                for (int x = 0; x < width; ++x) {
+                    auto v = *((const float*)texel);
+                    uint8_t c = (uint8_t)((v / 1.0f) * 255);
+                    *pixel = ColorRGBA32(c, c, c, 255);
+
+                    texel += sizeof(uint32_t);
+                    ++pixel;
+                }
+                data += raw_pitch;
+            }
+
+            image.Save(TEXT("shadowmap_grab.png"), false);
         });
-    tmp_img.Save(TEXT("shadowmap_grab.png"), false);
 }
 
 }

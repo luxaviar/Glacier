@@ -38,6 +38,7 @@ Transform::~Transform() {
 }
 
 void Transform::SetParent(Transform* parent) {
+    assert(parent != this);
     if (parent_ == parent) return;
 
     if (parent_) {

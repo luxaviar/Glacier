@@ -7,6 +7,7 @@
 #include "geometry/frustum.h"
 #include "Common/Singleton.h"
 #include "render/base/gfxdriver.h"
+#include "Render/Mesh/Mesh.h"
 
 namespace glacier {
 namespace render {
@@ -17,47 +18,33 @@ class MeshRenderer;
 
 class Gizmos : public Singleton<Gizmos> {
 public:
-    enum class PrimitiveType : uint8_t {
-        kLine = 0,
-        kTriangle,
-        kLineStrip,
-        //kQuad
-    };
+    //enum class PrimitiveType : uint8_t {
+    //    kLine = 0,
+    //    kTriangle,
+    //    kLineStrip,
+    //    //kQuad
+    //};
 
-    enum class RenderMode : uint8_t {
-        kWire = 0,
-        //kIcon
-    };
-
-    struct GizmosTask {
-        Vec3f center;
-        size_t begin;
-        size_t end;
-    };
-
-    struct GizmosBatch {
-        PrimitiveType type;
-        RenderMode mode;
-        Color color;
-        uint32_t vertex_count;
-        uint32_t vertex_offset;
-    };
+    //enum class RenderMode : uint8_t {
+    //    kWire = 0,
+    //    //kIcon
+    //};
 
     struct GizmosVertex {
         Vec3f pos;
-        //Colorf color;
-        Vec2f coord;
+        Color color;
+        //Vec2f coord;
     };
 
-    static constexpr size_t kMaxVertexCount = 6553600;
+    static constexpr size_t kMaxVertexCount = 655360;
     static const Color kDefaultColor;
 
     Gizmos();
 
     void Setup(GfxDriver* gfx);
+    void OnDestroy();
 
     void SetColor(const Color& color);
-    void Begin(const Vec3f& pos);
 
     void DrawLine(const Vec3f& v0, const Vec3f& v1, 
         const Vec3f& translate = Vec3f::zero, const Quaternion& rot = Quaternion::identity);
@@ -74,35 +61,34 @@ public:
     void DrawFrustum(const Vec3f& position, float fov_degree, float aspect, float n, float f, const Quaternion& rot = Quaternion::identity);
     void DrawFrustum(Vec3f corners[(int)FrustumCorner::kCount]);
 
-    //TODO: dynamic is too slow, let's put it on a standalone pass
     void DrawWireMesh(const MeshRenderer& mesh_renderer);
 
-    void Render(GfxDriver* gfx);
+    void Render(GfxDriver* gfx, bool late=false);
     void Clear();
 
 private:
-    void BatchRender(GfxDriver* gfx, std::vector<Material>& psos, float alpha);
-    void DrawPrimitive(PrimitiveType type, RenderMode mode, GizmosVertex* vertex, uint32_t count);
+    void BatchRender(GfxDriver* gfx, Material* mat, float alpha);
+    void Draw(const GizmosVertex* vertex, uint32_t vert_count,
+        const uint32_t* index, uint32_t index_count);
     void DrawWireMesh(const Mesh& mesh, const Matrix4x4& m);
 
-    void EndLast();
+    template<size_t N, size_t M>
+    void Draw(const GizmosVertex (&vertices)[N], const uint32_t (&indices)[M]) {
+        Draw(vertices, N, indices, M);
+    }
 
     GfxDriver* gfx_;
 
     Color color_;
-    std::shared_ptr<VertexBuffer> vert_buffer_;
-    std::shared_ptr<InputLayout> input_layout_;
+    //std::shared_ptr<Buffer> vert_buffer_;
+    //std::shared_ptr<Buffer> index_buffer_;
+    std::unique_ptr<Mesh> mesh_;
 
-    //std::vector<RasterState> ps_;
-    //std::vector<RasterState> occluded_ps_;
-    //std::vector<Material> materials_; //mode -> material
+    std::shared_ptr<Material> material_;
+    std::shared_ptr<Material> occluded_material_;
 
-    std::vector<Material> materials_;
-    std::vector<Material> occluded_materials_;
-    
-    std::vector<uint8_t> vert_data_;
-    std::vector<GizmosBatch> batchs_;
-    std::vector<GizmosTask> tasks_;
+    std::vector<GizmosVertex> vert_data_;
+    std::vector<uint32_t> index_data_;
 };
 
 }

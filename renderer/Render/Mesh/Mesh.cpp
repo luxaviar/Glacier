@@ -4,19 +4,19 @@
 #include <assimp/postprocess.h>
 #include "Render/Graph/PassNode.h"
 #include "Common/Util.h"
-#include "Render/Base/Indexbuffer.h"
-#include "Render/Base/Vertexbuffer.h"
+#include "Render/Base/buffer.h"
 #include "Render/Base/Inputlayout.h"
 
 namespace glacier {
 namespace render {
+
+InputLayoutDesc Mesh::kDefaultLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent };
 
 Mesh::Mesh() : name_("unnamed") {}
 
 Mesh::Mesh(const VertexCollection& vertices, const IndexCollection& indices, bool recalculate_normals) :
     Mesh()
 {
-    //Set(gfx, vertices, indices);
     vertices_ = vertices;
     indices_ = indices;
 
@@ -29,6 +29,9 @@ Mesh::Mesh(const VertexCollection& vertices, const IndexCollection& indices, boo
 
 Mesh::Mesh(const aiMesh& mesh) {
     name_ = mesh.mName.C_Str();
+
+    vertices_.reserve(mesh.mNumVertices);
+    indices_.reserve(mesh.mNumFaces * 3);
 
     auto texcoords = mesh.mTextureCoords ? mesh.mTextureCoords[0] : nullptr;
     for (size_t i = 0; i < mesh.mNumVertices; ++i) {
@@ -60,22 +63,15 @@ Mesh::Mesh(const aiMesh& mesh) {
     Setup();
 }
 
-//void Mesh::CalcBounds() {
-//    Vec3f min{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() , std::numeric_limits<float>::max() };
-//    Vec3f max{ std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest() , std::numeric_limits<float>::lowest() };
-//
-//    for (auto& v : vertices_) {
-//        min = Vec3f::Min(min, v.position);
-//        max = Vec3f::Max(max, v.position);
-//    }
-//
-//    bounds_ = AABB(min, max);
-//}
+Mesh::Mesh(const std::shared_ptr<VertexBuffer>& vertex_buffer, const std::shared_ptr<IndexBuffer>& index_buffer) :
+    vertex_buffer_(vertex_buffer),
+    index_buffer_(index_buffer)
+{
 
-void Mesh::Setup() const {
-    InputLayoutDesc layout{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent };
+}
 
-    VertexData data(layout);
+void Mesh::Setup() {
+    VertexData data(kDefaultLayout);
     data.Reserve(vertices_.size());
 
     Vec3f min{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() , std::numeric_limits<float>::max() };
@@ -91,13 +87,14 @@ void Mesh::Setup() const {
 
     auto driver = GfxDriver::Get();
 
-    vertices_buf_ = driver->CreateVertexBuffer(data);//  std::make_shared<Buffer>(*driver, data);
-    indices_buf_ = driver->CreateIndexBuffer(indices_);
-    layout_ = driver->CreateInputLayout(layout); // std::make_shared<InputLayout>(gfx, layout);
+    vertex_buffer_ = driver->CreateVertexBuffer(data);
+    vertex_buffer_->SetName(TEXT("vertex buffer"));
+
+    index_buffer_ = driver->CreateIndexBuffer(indices_);
+    index_buffer_->SetName(TEXT("index buffer"));
 }
 
 void Mesh::RecalculateNormals() {
-    //std::fill_n(outNormals, vertexCount, Vector3f(0, 0, 0));
     for (auto& vertex : vertices_) {
         vertex.normal = Vec3f::zero;
     }
@@ -122,39 +119,14 @@ void Mesh::RecalculateNormals() {
     }
 }
 
-void Mesh::SetVertexBuffer(const VertexCollection& vertices, std::shared_ptr<VertexBuffer> vertices_buf) {
-    vertices_ = vertices_;
-    vertices_buf_ = vertices_buf;
-
-    Vec3f min{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() , std::numeric_limits<float>::max() };
-    Vec3f max{ std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest() , std::numeric_limits<float>::lowest() };
-
-    for (auto& v : vertices_) {
-        min = Vec3f::Min(min, v.position);
-        max = Vec3f::Max(max, v.position);
-    }
-
-    bounds_ = AABB(min, max);
-}
-
-void Mesh::SetIndexBuffer(const IndexCollection& indices, std::shared_ptr<IndexBuffer> indices_buf) {
-    indices_ = indices;
-    indices_buf_ = indices_buf;
-}
-
 void Mesh::Bind(GfxDriver* gfx) const {
-    if (!vertices_buf_) {
-        Setup();
-    }
-
-    vertices_buf_->Bind();
-    indices_buf_->Bind();
-    if (layout_) gfx->UpdateInputLayout(layout_);
+    vertex_buffer_->Bind();
+    index_buffer_->Bind();
 }
 
 void Mesh::Draw(GfxDriver* gfx) const {
     Bind(gfx);
-    gfx->DrawIndexed((uint32_t)indices_.size());
+    gfx->DrawIndexed((uint32_t)index_buffer_->count());
 }
 
 //void Mesh::Draw(CommandList* commandList, uint32_t instance_count, uint32_t start_instance) const {

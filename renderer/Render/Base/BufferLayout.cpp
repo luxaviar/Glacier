@@ -1,4 +1,4 @@
-#include "bufferlayout.h"
+#include "BufferLayout.h"
 #include <string>
 #include <algorithm>
 #include <cctype>

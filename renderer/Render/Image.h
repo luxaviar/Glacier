@@ -28,7 +28,7 @@ public:
     static constexpr DXGI_FORMAT kHdrFormat = DXGI_FORMAT::DXGI_FORMAT_R32G32B32A32_FLOAT;
 
     Image(const TCHAR* file_path, bool is_srgb = true);// , bool is_hdr = false);
-    Image(uint32_t width, uint32_t height);// , bool is_hdr = false);
+    Image(uint32_t width, uint32_t height, bool is_rgb =false);// , bool is_hdr = false);
     Image(Image&& source) noexcept = default;
     Image(Image&) = delete;
     ~Image() = default;

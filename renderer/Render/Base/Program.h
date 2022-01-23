@@ -5,9 +5,19 @@
 #include <array>
 #include "Shader.h"
 #include "PipelineState.h"
+#include "SamplerState.h"
 
 namespace glacier {
 namespace render {
+
+class Material;
+class MaterialTemplate;
+class GfxDriver;
+
+struct SamplerParameter {
+    SamplerState state;
+    const ShaderParameter* param;
+};
 
 class Program : private Uncopyable {
 public:
@@ -16,9 +26,9 @@ public:
 
     const std::string& name() const { return name_; }
 
-    //void SetPipelineStateObject(const std::shared_ptr<PipelineState>& pso) {
-    //    pso_ = pso;
-    //}
+    void SetRasterState(const RasterStateDesc& rs);
+    void SetInputLayout(const InputLayoutDesc& desc);
+    //void SetSampler(const char* name, const SamplerState& ss);
 
     void SetShader(const std::shared_ptr<Shader>& shader);
     const Shader* GetShader(ShaderType type) const {
@@ -35,8 +45,12 @@ public:
         return nullptr;
     }
 
-    void Bind();
-    void Unbind();
+    virtual void Bind(GfxDriver* gfx, Material* mat) = 0;
+    virtual void UnBind(GfxDriver* gfx, Material* mat) = 0;
+    virtual void ReBind(GfxDriver* gfx, Material* mat) {}
+
+    virtual void Bind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
+    virtual void UnBind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
 
     const ShaderParameter* FindParameter(const std::string& name) const {
         return FindParameter(name.c_str());
@@ -59,7 +73,9 @@ protected:
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
     std::unordered_map<std::string, ShaderParameter> params_;
-    //std::shared_ptr<PipelineState> pso_;
+    std::shared_ptr<PipelineState> pso_;
+
+    //std::vector<SamplerParameter> sampler_params_;
 };
 
 }

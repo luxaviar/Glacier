@@ -14,7 +14,6 @@ struct VertexPositionNormalTexture
     float3 Normal    : NORMAL;
     float2 TexCoord  : TEXCOORD;
     float3 Tangent    : TANGENT;
-    float3 BiTangent    : BITANGENT;
 };
 
 struct VertexShaderOutput
@@ -25,7 +24,7 @@ struct VertexShaderOutput
     float4 Position   : SV_Position;
 };
 
-VertexShaderOutput main(VertexPositionNormalTexture IN)
+VertexShaderOutput main_vs(VertexPositionNormalTexture IN)
 {
     VertexShaderOutput OUT;
 

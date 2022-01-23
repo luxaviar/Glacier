@@ -9,40 +9,41 @@
 #include "common/color.h"
 #include "Render/Mesh/geometry.h"
 #include "Render/Mesh/MeshRenderer.h"
-#include "render/base/vertexbuffer.h"
-#include "render/base/indexbuffer.h"
+#include "render/base/buffer.h"
 #include "render/base/inputlayout.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
 
 const Color Gizmos::kDefaultColor = { 1.0f, 1.0f, 1.0f, 1.0f };
 
+Gizmos::Gizmos() :
+    color_(kDefaultColor)
+{
+
+}
+
 void Gizmos::Setup(GfxDriver* gfx) {
-    vert_buffer_ = gfx->CreateVertexBuffer(nullptr, kMaxVertexCount * sizeof(GizmosVertex), 
+    auto vert_buffer = gfx->CreateVertexBuffer(nullptr, kMaxVertexCount * sizeof(GizmosVertex), 
         sizeof(GizmosVertex), UsageType::kDynamic);
-    input_layout_ = gfx->CreateInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Texture2D });
+    auto index_buffer = gfx->CreateIndexBuffer(nullptr, kMaxVertexCount * 2 * sizeof(uint32_t), IndexFormat::kUInt32, UsageType::kDynamic);
+
+    mesh_ = std::make_unique<Mesh>(vert_buffer, index_buffer);
+
+    auto input_layout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Float4Color };
 
     vert_data_.reserve(kMaxVertexCount * sizeof(GizmosVertex));
-    Material wrire_mat("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
+    index_data_.reserve(kMaxVertexCount * 2 * sizeof(uint32_t));
+    material_ = std::make_shared<Material>("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
 
-    RasterState rs;
+    RasterStateDesc rs;
     rs.depthWrite = false;
-    //rs.fillMode = FillMode::kSolid;
-    //rs.culling = CullingMode::kNone;
-
     rs.topology = TopologyType::kLine;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    materials_.push_back(wrire_mat);
+    material_->GetTemplate()->SetRasterState(rs);
+    material_->GetTemplate()->SetInputLayout(input_layout);
 
-    rs.topology = TopologyType::kTriangle;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    materials_.push_back(wrire_mat);
-
-    rs.topology = TopologyType::kLineStrip;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    materials_.push_back(wrire_mat);
-
+    occluded_material_ = std::make_shared<Material>("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
     rs.depthFunc = CompareFunc::kGreaterEqual;
     rs.blendEquationRGB = BlendEquation::kAdd;
     rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;
@@ -51,121 +52,72 @@ void Gizmos::Setup(GfxDriver* gfx) {
     rs.blendFunctionSrcAlpha = BlendFunction::kZero;
     rs.blendFunctionDstAlpha = BlendFunction::kDstAlpha;
 
-    rs.topology = TopologyType::kLine;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    occluded_materials_.push_back(wrire_mat);
-
-    rs.topology = TopologyType::kTriangle;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    occluded_materials_.push_back(wrire_mat);
-
-    rs.topology = TopologyType::kLineStrip;
-    wrire_mat.SetPipelineStateObject(gfx->CreatePipelineState(rs));
-    occluded_materials_.push_back(wrire_mat);
+    occluded_material_->GetTemplate()->SetRasterState(rs);
+    occluded_material_->GetTemplate()->SetInputLayout(input_layout);
 }
 
-Gizmos::Gizmos() :
-    color_(kDefaultColor)
-{
-    
+void Gizmos::OnDestroy() {
+    mesh_.release();
+
+    material_ = nullptr;
+    occluded_material_ = nullptr;
 }
 
 void Gizmos::Clear() {
     color_ = kDefaultColor;
 
-    batchs_.clear();
-    tasks_.clear();
     vert_data_.clear();
+    index_data_.clear();
 }
 
 void Gizmos::SetColor(const Color& color) {
-    color_ = LinearToGammaSpace(color);
-    //color_ = color;
+    //color_ = LinearToGammaSpace(color);
+    color_ = color;
 }
 
-void Gizmos::DrawPrimitive(PrimitiveType type, RenderMode mode, GizmosVertex* vertex, uint32_t count) {
-    if (!batchs_.empty()) {
-        auto& b = batchs_.back();
-        if (b.type == type && b.mode == mode && b.color == color_ && type != PrimitiveType::kLineStrip) {
-            vert_data_.insert(vert_data_.end(), (uint8_t*)vertex, (uint8_t*)vertex + count * sizeof(GizmosVertex));
-            b.vertex_count += count;
-            return;
-        }
+void Gizmos::Draw(const GizmosVertex* vertex, uint32_t vert_count, const uint32_t* index, uint32_t index_count) {
+    uint32_t index_offset = vert_data_.size();
+
+    vert_data_.insert(vert_data_.end(), vertex, vertex + vert_count);
+    for (uint32_t i = 0; i < index_count; ++i) {
+        index_data_.push_back(index_offset + index[i]);
     }
-
-    GizmosBatch batch;
-    batch.type = type;
-    batch.mode = mode;
-    batch.color = color_;
-    batch.vertex_offset = (uint32_t)(vert_data_.size() / sizeof(GizmosVertex));
-    batch.vertex_count = count;
-
-    batchs_.push_back(batch);
-    vert_data_.insert(vert_data_.end(), (uint8_t*)vertex, (uint8_t*)vertex + count * sizeof(GizmosVertex));
 }
 
-void Gizmos::Render(GfxDriver* gfx) {
+void Gizmos::Render(GfxDriver* gfx, bool late) {
+    if (vert_data_.empty()) return;
+
     assert(vert_data_.size() <= kMaxVertexCount && "Too large gizmo vertex count");
 
-    if (tasks_.empty()) return;
-    EndLast();
-
     auto& view_mat = gfx->view();
-    std::sort(tasks_.begin(), tasks_.end(), [&view_mat](const GizmosTask& a, const GizmosTask& b) {
-        auto va = view_mat.MultiplyPoint3X4(a.center);
-        auto vb = view_mat.MultiplyPoint3X4(b.center);
-        return va.z < vb.z;
-    });
 
     const auto& vp = gfx->projection() * view_mat;
-    for (auto& mat : materials_) {
-        mat.SetProperty("mvp_matrix", vp);
+    material_->SetProperty("mvp_matrix", vp);
+    occluded_material_->SetProperty("mvp_matrix", vp);
+
+    {
+        PerfSample("Update Buffer");
+        mesh_->vertex_buffer()->Update(vert_data_.data(), vert_data_.size() * sizeof(GizmosVertex));
+        mesh_->index_buffer()->Update(index_data_.data(), index_data_.size() * sizeof(uint32_t));
     }
 
-    for (auto& mat : occluded_materials_) {
-        mat.SetProperty("mvp_matrix", vp);
+    {
+        PerfSample("Render");
+        BatchRender(gfx, material_.get(), 1.0f);
     }
 
-    gfx->UpdateInputLayout(input_layout_);
-    vert_buffer_->Update(vert_data_.data());
-    vert_buffer_->Bind();
-
-    BatchRender(gfx, materials_, 1.0f);
-    BatchRender(gfx, occluded_materials_, 0.3f);
-}
-
-void Gizmos::BatchRender(GfxDriver* gfx, std::vector<Material>& mats, float alpha) {
-    for (auto& task : tasks_) {
-        for (auto i = task.begin; i < task.end; ++i) {
-            auto& batch = batchs_[i];
-            auto& mat = mats[(int)batch.type];
-            batch.color.a = alpha;
-
-            mat.SetProperty("line_color", batch.color);
-
-            MaterialGuard guard(gfx, &mat);
-            gfx->Draw(batch.vertex_count, batch.vertex_offset);
-        }
+    {
+        PerfSample("Occluded Render");
+        BatchRender(gfx, occluded_material_.get(), 0.3f);
     }
+
+    Clear();
 }
 
-void Gizmos::Begin(const Vec3f& pos) {
-    EndLast();
-
-    GizmosTask task{
-        pos,
-        batchs_.size(),
-        batchs_.size()
-    };
-
-    tasks_.push_back(task);
-}
-
-void Gizmos::EndLast() {
-    if (tasks_.empty()) return;
-
-    auto& t = tasks_.back();
-    t.end = batchs_.size();
+void Gizmos::BatchRender(GfxDriver* gfx, Material* mat, float alpha) {
+    mat->SetProperty("line_color", Color{0,0, 0, alpha});
+    MaterialGuard guard(gfx, mat);
+    mesh_->Draw(gfx);
 }
 
 void Gizmos::DrawWireArc(const Vec3f& center, const Vec3f& normal, const Vec3f& from, float angle, 
@@ -173,6 +125,7 @@ void Gizmos::DrawWireArc(const Vec3f& center, const Vec3f& normal, const Vec3f& 
 {
     constexpr int kArcPoints = 60;
     Vec3f points[kArcPoints];
+    GizmosVertex vertices[kArcPoints];
     geometry::CreateArcPoint(points, kArcPoints, center, normal, from, angle, radius);
 
     if (translate != Vec3f::zero || rot != Quaternion::identity) {
@@ -183,87 +136,68 @@ void Gizmos::DrawWireArc(const Vec3f& center, const Vec3f& normal, const Vec3f& 
 
     //we don't use LineStrip, Line mode is batch friendly
     constexpr int kArcLinePoints = (kArcPoints - 1) * 2;
-    GizmosVertex vertices[kArcLinePoints];
+    uint32_t indices[kArcLinePoints];
     for (int i = 0; i < kArcPoints - 1; ++i) {
-        vertices[i * 2].pos = points[i];
-        vertices[i * 2 + 1].pos = points[i + 1];
+        vertices[i] = { points[i], color_ };
+        indices[i * 2] = i;
+        indices[i * 2 + 1] = i + 1;
     }
 
-    if (tasks_.empty()) {
-        Begin(center);
-    }
+    vertices[kArcPoints - 1] = { points[kArcPoints - 1], color_ };
 
-    DrawPrimitive(PrimitiveType::kLine, RenderMode::kWire, vertices, kArcLinePoints);
+    Draw(vertices, indices);
 }
 
 void Gizmos::DrawLine(const Vec3f& v0, const Vec3f& v1, const Vec3f& translate, const Quaternion& rot) {
     GizmosVertex vert[2];
     if (translate != Vec3f::zero || rot != Quaternion::identity) {
-        vert[0].pos = rot * v0 + translate;
-        vert[1].pos = rot * v1 + translate;
+        vert[0] = { rot * v0 + translate, color_ };
+        vert[1] = { rot * v1 + translate, color_ };
     } else {
-        vert[0].pos = v0;
-        vert[1].pos = v1;
+        vert[0] = { v0, color_ };
+        vert[1] = { v1, color_ };
     }
 
-    if (tasks_.empty()) {
-        Begin((vert[0].pos + vert[1].pos) / 2.0f);
-    }
-
-    DrawPrimitive(PrimitiveType::kLine, RenderMode::kWire, vert, 2);
+    Draw(vert, { 0, 1 });
 }
 
 void Gizmos::DrawCube(const Vec3f& center, const Vec3f extent, const Quaternion& rot) {
-    Begin(center);
-
-    Vec3f corner_points[] = {
-        { -extent.x, -extent.y, -extent.z }, //p000 - 0
-        { -extent.x, -extent.y, extent.z }, //p001 - 1
-        { -extent.x, extent.y, -extent.z }, //p010 - 2
-        { -extent.x, extent.y, extent.z }, //p011 - 3
-        { extent.x, -extent.y, -extent.z }, //p100 - 4
-        { extent.x, -extent.y, extent.z }, //p101 - 5
-        { extent.x, extent.y, -extent.z }, //p110 - 6
-        { extent.x, extent.y, extent.z } //p111 - 7
+    GizmosVertex corner_points[] = {
+        {{ -extent.x, -extent.y, -extent.z }, color_ }, //p000 - 0
+        {{ -extent.x, -extent.y, extent.z }, color_ }, //p001 - 1
+        {{ -extent.x, extent.y, -extent.z }, color_ }, //p010 - 2
+        {{ -extent.x, extent.y, extent.z }, color_ }, //p011 - 3
+        {{ extent.x, -extent.y, -extent.z }, color_ }, //p100 - 4
+        {{ extent.x, -extent.y, extent.z }, color_ }, //p101 - 5
+        {{ extent.x, extent.y, -extent.z }, color_ }, //p110 - 6
+        {{ extent.x, extent.y, extent.z }, color_ } //p111 - 7
     };
 
     if (rot != Quaternion::identity) {
         for (auto& p : corner_points) {
-            p = rot * p + center;
+            p.pos = rot * p.pos + center;
         }
     }
     else {
         for (auto& p : corner_points) {
-            p = p + center;
+            p.pos = p.pos + center;
         }
     }
 
-    DrawLine(corner_points[0], corner_points[1]);
-    DrawLine(corner_points[1], corner_points[3]);
-    DrawLine(corner_points[3], corner_points[2]);
-    DrawLine(corner_points[2], corner_points[0]);
-
-    DrawLine(corner_points[4], corner_points[5]);
-    DrawLine(corner_points[5], corner_points[7]);
-    DrawLine(corner_points[7], corner_points[6]);
-    DrawLine(corner_points[6], corner_points[4]);
-
-    DrawLine(corner_points[0], corner_points[4]);
-    DrawLine(corner_points[1], corner_points[5]);
-    DrawLine(corner_points[2], corner_points[6]);
-    DrawLine(corner_points[3], corner_points[7]);
+    Draw(corner_points,
+        {0, 1, 1, 3, 3, 2, 2, 0,
+        4, 5, 5, 7, 7, 6, 6, 4,
+        0, 4, 1, 5, 2, 6, 3, 7}
+    );
 }
 
 void Gizmos::DrawSphere(const Vec3f& center, float radius) {
-    Begin(center);
     DrawWireArc(center, Vec3f::up, Vec3f(1, 0, 0), 360.0f, radius);
     DrawWireArc(center, Vec3f::forward, Vec3f(1, 0, 0), 360.0f, radius);
     DrawWireArc(center, Vec3f::right, Vec3f(0, 1, 0), 360.0f, radius); 
 }
 
 void Gizmos::DrawCapsule(const Vec3f& center, float height, float radius, const Quaternion& rot) {
-    Begin(center);
-
     float half_height = height * 0.5f;
 
     // lower cap
@@ -284,8 +218,6 @@ void Gizmos::DrawCapsule(const Vec3f& center, float height, float radius, const 
 }
 
 void Gizmos::DrawCylinder(const Vec3f& center, float height, float radius, const Quaternion& rot) {
-    Begin(center);
-
     float half_height = height * 0.5f;
 
     // lower cap
@@ -322,8 +254,6 @@ void Gizmos::DrawFrustum(const Vec3f& position, float fov_degree, float aspect, 
 }
 
 void Gizmos::DrawFrustum(Vec3f corners[(int)FrustumCorner::kCount]) {
-    Begin((corners[(int)FrustumCorner::kNearBottomLeft] + corners[(int)FrustumCorner::kFarTopRight]) / 2);
-
     DrawLine(corners[(int)FrustumCorner::kNearBottomLeft], corners[(int)FrustumCorner::kNearTopLeft]);
     DrawLine(corners[(int)FrustumCorner::kNearTopLeft], corners[(int)FrustumCorner::kNearTopRight]);
     DrawLine(corners[(int)FrustumCorner::kNearTopRight], corners[(int)FrustumCorner::kNearBottomRight]);
@@ -345,8 +275,7 @@ void Gizmos::DrawWireMesh(const MeshRenderer& mesh_renderer) {
     auto& m = mesh_renderer.transform().LocalToWorldMatrix();
 
     auto center = mesh_renderer.world_bounds().Center();
-    Begin(center);
-
+    
     for (auto& mesh : meshes) {
         DrawWireMesh(*mesh, m);
     }

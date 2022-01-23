@@ -29,8 +29,16 @@ void MeshRenderer::RecalcBounds() {
 
 }
 
-void MeshRenderer::Render(GfxDriver* gfx) const {
-    Bind(gfx, nullptr);
+void MeshRenderer::Render(GfxDriver* gfx, Material* mat) const {
+    UpdateTransform(gfx);
+
+    MaterialGuard guard(gfx, mat ? mat : material_);
+    for (auto& mesh : meshes_) {
+        mesh->Draw(gfx);
+    }
+}
+
+void MeshRenderer::Draw(GfxDriver* gfx) const {
     for (auto& mesh : meshes_) {
         mesh->Draw(gfx);
     }

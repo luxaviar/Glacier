@@ -6,9 +6,9 @@
 namespace glacier {
 namespace render {
 
-struct RasterState {
-    RasterState() noexcept {
-        static_assert(sizeof(RasterState) == sizeof(uint64_t),
+struct RasterStateDesc {
+    RasterStateDesc() noexcept {
+        static_assert(sizeof(RasterStateDesc) == sizeof(uint64_t),
             "RasterState size not what was intended");
         culling = CullingMode::kBack;
         fillMode = FillMode::kSolid;
@@ -34,8 +34,8 @@ struct RasterState {
         blendFunctionDstAlpha = BlendFunction::kZero;
     }
 
-    bool operator == (RasterState rhs) const noexcept { return u == rhs.u; }
-    bool operator != (RasterState rhs) const noexcept { return u != rhs.u; }
+    bool operator == (RasterStateDesc rhs) const noexcept { return u == rhs.u; }
+    bool operator != (RasterStateDesc rhs) const noexcept { return u != rhs.u; }
 
     void DisableBlending() noexcept {
         blendEquationRGB = BlendEquation::kAdd;
@@ -67,7 +67,7 @@ struct RasterState {
             depthStencilPassOp == StencilOp::kKeep);
     }
 
-    bool SameBlending(RasterState rs) const noexcept {
+    bool SameBlending(RasterStateDesc rs) const noexcept {
         return (blendEquationRGB == rs.blendEquationRGB &&
             blendEquationAlpha == rs.blendEquationAlpha &&
             blendFunctionSrcRGB == rs.blendFunctionSrcRGB &&

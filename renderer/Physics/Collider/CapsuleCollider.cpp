@@ -119,6 +119,25 @@ bool CapsuleCollider::Intersects(const Ray& ray, float max, float& t) {
     return false;
 }
 
+//https://wickedengine.net/2020/04/26/capsule-collision-detection
+bool CapsuleCollider::Intersects(CapsuleCollider& other) {
+    const LineSegment& ls = Segment();
+    const LineSegment& other_ls = other.Segment();
+
+    float d1, d2;
+    LineSegment::ClosestPointSegmentSegment(ls.a, ls.b, other_ls.a, other_ls.b, d1, d2);
+    Vector3 point1 = ls.a * d1;
+    Vector3 point2 = other_ls.a * d2;
+
+    Vector3 penetration_normal = point1 - point2;
+    float len = penetration_normal.Magnitude();
+    penetration_normal /= len;  // normalize
+    float penetration_depth = radius_ + other.radius_ - len;
+    bool intersects = penetration_depth > 0;
+
+    return intersects;
+}
+
 AABB CapsuleCollider::CalcAABB() {
     const LineSegment& ls = Segment();
     Vec3f d(radius_);

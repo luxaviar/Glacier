@@ -11,9 +11,6 @@ namespace render {
 D3D11RenderTarget::D3D11RenderTarget(uint32_t width, uint32_t height) :
     RenderTarget(width, height)
 {
-    colors_.resize((size_t)AttachmentPoint::kNumAttachmentPoints - 1);
-    color_views_.resize((size_t)AttachmentPoint::kNumAttachmentPoints - 1);
-
     viewport_.Width = (float)width_;
     viewport_.Height = (float)height_;
     viewport_.MinDepth = 0.0f;
@@ -60,7 +57,7 @@ void D3D11RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr
     }
 
     auto& view = color_views_[idx];
-    GfxThrowIfFailed(GfxDriverD3D11::Instance()->GetDevice()->CreateRenderTargetView(
+    GfxThrowIfFailed(D3D11GfxDriver::Instance()->GetDevice()->CreateRenderTargetView(
         tex_ptr, &rtv_desc, &view
     ));
 }
@@ -69,7 +66,8 @@ void D3D11RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& tex) 
     assert(height_ <= tex->height());
     assert(width_ <= tex->width());
 
-    depth_stencil_ = tex;
+    //depth_stencil_ = tex;
+    colors_[(int)AttachmentPoint::kDepthStencil] = tex;
 
     D3D11_TEXTURE2D_DESC tex_desc;
     auto tex_ptr = static_cast<ID3D11Texture2D*>(tex->underlying_resource());
@@ -85,7 +83,7 @@ void D3D11RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& tex) 
     else {
         dsv_desc.ViewDimension = D3D11_DSV_DIMENSION_TEXTURE2D;
     }
-    GfxThrowIfFailed(GfxDriverD3D11::Instance()->GetDevice()->CreateDepthStencilView(
+    GfxThrowIfFailed(D3D11GfxDriver::Instance()->GetDevice()->CreateDepthStencilView(
         tex_ptr, &dsv_desc, &depth_stencil_view_
     ));
 }
@@ -100,10 +98,10 @@ void D3D11RenderTarget::DetachColor(AttachmentPoint point) {
 
 void D3D11RenderTarget::DetachDepthStencil() {
     depth_stencil_view_.Reset();
-    depth_stencil_.reset();
+    colors_[(int)AttachmentPoint::kDepthStencil].reset();
 }
 
-void D3D11RenderTarget::Bind() {
+void D3D11RenderTarget::Bind(GfxDriver* gfx) {
     constexpr int kMaxTarget = (int)AttachmentPoint::kNumAttachmentPoints - 1;
     UINT rtv_num = 0;
     ID3D11RenderTargetView* rt_views[kMaxTarget];
@@ -115,7 +113,7 @@ void D3D11RenderTarget::Bind() {
         }
     }
 
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto context = static_cast<D3D11GfxDriver*>(gfx)->GetContext();
 
     ID3D11UnorderedAccessView* null_uav = nullptr;
     GfxThrowIfAny(context->OMSetRenderTargetsAndUnorderedAccessViews(
@@ -128,9 +126,9 @@ void D3D11RenderTarget::Bind() {
     }
 }
 
-void D3D11RenderTarget::BindDepthStencil() {
+void D3D11RenderTarget::BindDepthStencil(GfxDriver* gfx) {
     ID3D11RenderTargetView* null_rtv = nullptr;
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto context = static_cast<D3D11GfxDriver*>(gfx)->GetContext();
 
     GfxThrowIfAny(context->OMSetRenderTargets(1, &null_rtv, depth_stencil_view_.Get()));
 
@@ -141,16 +139,17 @@ void D3D11RenderTarget::BindDepthStencil() {
     }
 }
 
-void D3D11RenderTarget::UnBind() {
+void D3D11RenderTarget::UnBind(GfxDriver* gfx) {
     ID3D11RenderTargetView* null_rtv = nullptr;
     ID3D11UnorderedAccessView* null_uav = nullptr;
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto context = static_cast<D3D11GfxDriver*>(gfx)->GetContext();
+
     GfxThrowIfAny(context->OMSetRenderTargetsAndUnorderedAccessViews(
         0, &null_rtv, nullptr, 0, 0, &null_uav, nullptr));
 }
 
 void D3D11RenderTarget::Clear(const Color& color, float depth, uint8_t stencil) {
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto context = D3D11GfxDriver::Instance()->GetContext();
     for (int i = 0; i < (int)AttachmentPoint::kNumAttachmentPoints - 1; ++i) {
         auto& rtv = color_views_[i];
         if (rtv) {
@@ -169,12 +168,12 @@ void D3D11RenderTarget::ClearColor(AttachmentPoint point, const Color& color) {
     auto& rt_view = color_views_[(int)point];
     if (!rt_view) return;
 
-    GfxThrowIfAny(GfxDriverD3D11::Instance()->GetContext()->ClearRenderTargetView(rt_view.Get(), &color));
+    GfxThrowIfAny(D3D11GfxDriver::Instance()->GetContext()->ClearRenderTargetView(rt_view.Get(), &color));
 }
 
 void D3D11RenderTarget::ClearDepthStencil(float depth, uint8_t stencil) {
     if (!depth_stencil_view_) return;
-    GfxThrowIfAny(GfxDriverD3D11::Instance()->GetContext()->ClearDepthStencilView(depth_stencil_view_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, depth, stencil));
+    GfxThrowIfAny(D3D11GfxDriver::Instance()->GetContext()->ClearDepthStencilView(depth_stencil_view_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, depth, stencil));
 }
 
 
@@ -194,44 +193,6 @@ void D3D11RenderTarget::EnableScissor(const ScissorRect& rect) {
 void D3D11RenderTarget::DisableScissor() {
     scissor_enable_ = false;
 }
-
-//ID3D11Texture2D* RenderTarget::underlying_texture(AttachmentPoint point) const {
-//    assert(point < AttachmentPoint::kNumAttachmentColor);
-//    auto& target_view = color_views_[(int)point];
-//    if (!target_view) 
-//        return nullptr;
-//
-//    ComPtr<ID3D11Resource> res_ptr;
-//    target_view->GetResource(&res_ptr);
-//    if (!res_ptr)
-//        return nullptr;
-//
-//    D3D11_RESOURCE_DIMENSION res_type;
-//    res_ptr->GetType(&res_type);
-//    if (res_type != D3D11_RESOURCE_DIMENSION_TEXTURE2D)
-//        return nullptr;
-//
-//    ID3D11Texture2D* tex_ptr = static_cast<ID3D11Texture2D*>(res_ptr.Get());
-//    return tex_ptr;
-//}
-
-//ID3D11Texture2D* RenderTarget::underlying_depthstencil() const {
-//    ComPtr<ID3D11Resource> res_ptr = nullptr;
-//    if (!depth_stencil_view_)
-//        return nullptr;
-//
-//    depth_stencil_view_->GetResource(&res_ptr);
-//    if (!res_ptr)
-//        return nullptr;
-//
-//    D3D11_RESOURCE_DIMENSION res_type;
-//    res_ptr->GetType(&res_type);
-//    if (res_type != D3D11_RESOURCE_DIMENSION_TEXTURE2D)
-//        return nullptr;
-//
-//    ID3D11Texture2D* tex_ptr = static_cast<ID3D11Texture2D*>(res_ptr.Get());
-//    return tex_ptr;
-//}
 
 }
 

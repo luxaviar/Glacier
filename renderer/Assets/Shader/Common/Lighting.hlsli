@@ -46,19 +46,6 @@ struct Light
     //--------------------------------------------------------------( 16 * 4 + 64 = 128 bytes )
 };
 
-cbuffer LightList : register(b1)
-{
-    Light lights[NUM_LIGHTS];
-    float radiance_max_lod;
-    float3 padding;
-}
-
-Texture2D brdf_lut_tex : register(t1);
-TextureCube radiance_tex : register(t2);
-TextureCube irradiance_tex : register(t3);
-
-// sampler linear_sampler : register(s1);
-
 struct AppData
 {
     float3 position : POSITION;

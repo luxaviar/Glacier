@@ -41,18 +41,15 @@ public:
 
     Light(LightType type, const Color& color, float intensity);
 
-    void OnAwake() override;
     void OnEnable() override;
     void OnDisable() override;
 
     virtual void Update(GfxDriver* gfx) noexcept = 0;
-    virtual void UpdateShadowInfo(const Camera& camera, Matrix4x4& view, Matrix4x4& proj) noexcept = 0;
 
     bool HasShadow() const { return data_.shadow_enable; }
     void EnableShadow() { data_.shadow_enable = true; }
     void DisableShadow() { data_.shadow_enable = false; }
 
-    Camera& camera() { return *camera_; }
     LightType type() const { return data_.type; }
 
     Vec3f direction() const { return data_.position; }
@@ -67,8 +64,6 @@ public:
 protected:
     LightData data_;
     Color color_; //gamma color
-    //bool enable_shadow_ = false;
-    Camera* camera_;
 };
 
 class DirectionalLight : public Light {
@@ -76,7 +71,6 @@ public:
     DirectionalLight(const Color& color, float intensity);
 
     void Update(GfxDriver* gfx) noexcept override;
-    void UpdateShadowInfo(const Camera& camera, Matrix4x4& view, Matrix4x4& proj) noexcept override;
 };
 
 class PointLight : public Light {
@@ -84,14 +78,12 @@ public:
     PointLight(float range, const Color& color, float intensity);
     
     void Update(GfxDriver* gfx) noexcept override;
-    void UpdateShadowInfo(const Camera& camera, Matrix4x4& view, Matrix4x4& proj) noexcept override;
 };
 
 class OldPointLight
 {
 public:
     OldPointLight( GfxDriver& gfx, Vec3f pos = { 10.0f,9.0f,2.5f },float radius = 0.5f );
-    //void SpawnControlWindow() noexcept;
 
     void Bind(const Matrix4x4& view) const noexcept;
 

@@ -19,6 +19,8 @@ public:
     float Distance(const Vec3f& point) override;
     Vec3f FarthestPoint(const Vec3f& wdir) override;
     bool Intersects(const Ray& ray, float max, float& t) override;
+    bool Intersects(CapsuleCollider& other);
+
     Matrix3x3 CalcInertiaTensor(float mass) override;
     void OnDrawSelectedGizmos() override;
 

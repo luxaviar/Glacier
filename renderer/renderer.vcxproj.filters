@@ -109,6 +109,12 @@
     <Filter Include="Source\3rdParty\imguizmo">
       <UniqueIdentifier>{e683fa48-37f6-47cc-a4c7-acd72cd73832}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Inspect">
+      <UniqueIdentifier>{bdc24996-6b53-467c-bd22-f202117ba996}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Render\Backend\D3D12">
+      <UniqueIdentifier>{f8813e8b-e441-45b8-a49b-d103fa070377}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="3rdparty\assimp\color4.inl">
@@ -154,6 +160,9 @@
       <Filter>Source\Exception</Filter>
     </None>
     <None Include="packages.config" />
+    <None Include="Assets\Shader\Common\LightingData.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rdparty\imgui\imgui.cpp">
@@ -202,12 +211,6 @@
       <Filter>Source\Common</Filter>
     </ClCompile>
     <ClCompile Include="Common\pch.cpp">
-      <Filter>Source\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Common\Statistic.cpp">
-      <Filter>Source\Common</Filter>
-    </ClCompile>
-    <ClCompile Include="Common\Timer.cpp">
       <Filter>Source\Common</Filter>
     </ClCompile>
     <ClCompile Include="Common\Util.cpp">
@@ -366,39 +369,6 @@
     <ClCompile Include="Render\Renderer.cpp">
       <Filter>Source\Render</Filter>
     </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\ConstantBuffer.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\GfxDriver.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\IndexBuffer.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Query.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\RenderTarget.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Sampler.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Shader.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Texture.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\VertexBuffer.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
     <ClCompile Include="Render\Base\BufferLayout.cpp">
       <Filter>Source\Render\Base</Filter>
     </ClCompile>
@@ -418,9 +388,6 @@
       <Filter>Source\Render\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Render\Editor\Gizmos.cpp">
-      <Filter>Source\Render\Editor</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Editor\Picking.cpp">
       <Filter>Source\Render\Editor</Filter>
     </ClCompile>
     <ClCompile Include="Render\Graph\PassNode.cpp">
@@ -471,14 +438,116 @@
     <ClCompile Include="3rdParty\imguizmo\ImSequencer.cpp">
       <Filter>Source\3rdParty\imguizmo</Filter>
     </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
     <ClCompile Include="Render\Base\Program.cpp">
       <Filter>Source\Render\Base</Filter>
     </ClCompile>
+    <ClCompile Include="Geometry\Plane.cpp">
+      <Filter>Source\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Inspect\Profiler.cpp">
+      <Filter>Source\Inspect</Filter>
+    </ClCompile>
+    <ClCompile Include="Inspect\Statistic.cpp">
+      <Filter>Source\Inspect</Filter>
+    </ClCompile>
+    <ClCompile Include="Inspect\Timer.cpp">
+      <Filter>Source\Inspect</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Buffer.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\CommandList.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\CommandQueue.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\DescriptorHeapAllocator.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\DescriptorTableHeap.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\GfxDriver.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\LinearAllocator.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\MemoryHeapAllocator.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\MipsGenerator.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\PipelineState.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Program.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Query.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\RenderTarget.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Resource.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Sampler.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Shader.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\SwapChain.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\Texture.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Buffer.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\GfxDriver.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
     <ClCompile Include="Render\Backend\D3D11\Program.cpp">
       <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Query.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\RenderTarget.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Sampler.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Shader.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D11\Texture.cpp">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\Shader.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\MaterialProperty.cpp">
+      <Filter>Source\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\MaterialTemplate.cpp">
+      <Filter>Source\Render</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -797,12 +866,6 @@
     <ClInclude Include="Common\Singleton.h">
       <Filter>Source\Common</Filter>
     </ClInclude>
-    <ClInclude Include="Common\Statistic.h">
-      <Filter>Source\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\Timer.h">
-      <Filter>Source\Common</Filter>
-    </ClInclude>
     <ClInclude Include="Common\TypeTraits.h">
       <Filter>Source\Common</Filter>
     </ClInclude>
@@ -1031,45 +1094,6 @@
     <ClInclude Include="Render\Renderer.h">
       <Filter>Source\Render</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\ConstantBuffer.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\GfxDriver.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\IndexBuffer.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\InputLayout.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\PipelineState.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Query.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\RenderTarget.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Sampler.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Shader.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Texture.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Util.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\VertexBuffer.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Base\ConstantBuffer.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Base\BufferLayout.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
@@ -1077,9 +1101,6 @@
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\GfxDriver.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Base\Indexbuffer.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\InputLayout.h">
@@ -1094,9 +1115,6 @@
     <ClInclude Include="Render\Base\Query.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Base\RasterState.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Base\Renderable.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
@@ -1104,9 +1122,6 @@
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\Resource.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Base\Sampler.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\SamplerState.h">
@@ -1118,9 +1133,6 @@
     <ClInclude Include="Render\Base\Texture.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Base\VertexBuffer.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Base\VertexLayout.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
@@ -1128,9 +1140,6 @@
       <Filter>Source\Render\Editor</Filter>
     </ClInclude>
     <ClInclude Include="Render\Editor\Gizmos.h">
-      <Filter>Source\Render\Editor</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Editor\Picking.h">
       <Filter>Source\Render\Editor</Filter>
     </ClInclude>
     <ClInclude Include="Render\Graph\PassExecutor.h">
@@ -1202,14 +1211,128 @@
     <ClInclude Include="Render\Base\SwapChain.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\SwapChain.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Base\Program.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
+    <ClInclude Include="Inspect\PerfLog.h">
+      <Filter>Source\Inspect</Filter>
+    </ClInclude>
+    <ClInclude Include="Inspect\Profiler.h">
+      <Filter>Source\Inspect</Filter>
+    </ClInclude>
+    <ClInclude Include="Inspect\Statistic.h">
+      <Filter>Source\Inspect</Filter>
+    </ClInclude>
+    <ClInclude Include="Inspect\Timer.h">
+      <Filter>Source\Inspect</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Buffer.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\CommandList.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\CommandQueue.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\d3dx12.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\DescriptorHeapAllocator.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\DescriptorTableHeap.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\GfxDriver.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\LinearAllocator.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\MemoryHeapAllocator.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\MipsGenerator.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\PipelineState.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Program.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Query.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\RenderTarget.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Resource.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Sampler.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Shader.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\SwapChain.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Texture.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\Util.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\Buffer.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Buffer.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\GfxDriver.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\InputLayout.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\PipelineState.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
     <ClInclude Include="Render\Backend\D3D11\Program.h">
       <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Query.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\RenderTarget.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Sampler.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Shader.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\SwapChain.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Texture.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D11\Util.h">
+      <Filter>Source\Render\Backend\D3D11</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\RasterStateDesc.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\MaterialProperty.h">
+      <Filter>Source\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\MaterialTemplate.h">
+      <Filter>Source\Render</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -1262,6 +1385,9 @@
       <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="Assets\Shader\MSAAResolve.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GenerateMipsCS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>

@@ -58,7 +58,7 @@ Image::Image(const TCHAR* file_path, bool is_srgb) : is_srgb_(is_srgb) {
         hr = DirectX::LoadFromTGAFile(file_path, nullptr, scratch);
     }
     else {
-        hr = DirectX::LoadFromWICFile(file_path, DirectX::WIC_FLAGS_IGNORE_SRGB, nullptr, scratch);
+        hr = DirectX::LoadFromWICFile(file_path, DirectX::WIC_FLAGS_FORCE_RGB, nullptr, scratch);
     }
 
     if (FAILED(hr)) {
@@ -89,7 +89,7 @@ Image::Image(const TCHAR* file_path, bool is_srgb) : is_srgb_(is_srgb) {
     //}
 }
 
-Image::Image(uint32_t width,uint32_t height) {
+Image::Image(uint32_t width, uint32_t height, bool is_rgb) : is_srgb_(is_rgb) {
     HRESULT hr = scratch_.Initialize2D(kFormat, width, height, 1u, 1u);
     if (FAILED(hr)) {
         throw ImageException( __LINE__,TEXT(__FILE__),TEXT("Failed to initialize ScratchImage"),hr );

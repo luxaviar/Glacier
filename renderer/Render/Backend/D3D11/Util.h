@@ -23,6 +23,20 @@ inline D3D11_USAGE ToUsage(UsageType type) {
     }
 }
 
+inline uint32_t ToBindFlag(BufferType type) {
+    switch (type)
+    {
+    case BufferType::kConstantBuffer:
+        return D3D11_BIND_CONSTANT_BUFFER;
+    case BufferType::kVertexBuffer:
+        return D3D11_BIND_VERTEX_BUFFER;
+    case BufferType::kIndexBuffer:
+        return D3D11_BIND_INDEX_BUFFER;
+    default:
+        throw std::exception{ "Bad BufferType to BindFlag." };
+    }
+}
+
 inline D3D11_FILTER GetUnderlyingFilter(FilterMode filter) {
     switch (filter)
     {
@@ -181,11 +195,30 @@ inline D3D11_PRIMITIVE_TOPOLOGY GetTopology(TopologyType type) {
         return D3D11_PRIMITIVE_TOPOLOGY_POINTLIST;
     case TopologyType::kLine:
         return D3D11_PRIMITIVE_TOPOLOGY_LINELIST;
-    case TopologyType::kLineStrip:
-        return D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP;
     default:
         throw std::exception{ "Bad TopologyType to D3D11_PRIMITIVE_TOPOLOGY." };
     }
+}
+
+inline uint32_t GetCreateFlags(uint32_t flags) {
+    uint32_t flag = 0;
+    if (flags & (uint32_t)CreateFlags::kDepthStencil) {
+        flag |= D3D11_BIND_DEPTH_STENCIL;
+    }
+
+    if (flags & (uint32_t)CreateFlags::kRenderTarget) {
+        flag |= D3D11_BIND_RENDER_TARGET;
+    }
+
+    if (flags & (uint32_t)CreateFlags::kShaderResource) {
+        flag |= D3D11_BIND_SHADER_RESOURCE;
+    }
+
+    if (flags & (uint32_t)CreateFlags::kUav) {
+        flag |= D3D11_BIND_UNORDERED_ACCESS;
+    }
+
+    return flag;
 }
 
 

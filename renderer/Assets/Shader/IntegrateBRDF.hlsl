@@ -1,16 +1,4 @@
-struct VSOut
-{
-    float2 uv : Texcoord;
-    float4 pos : SV_Position;
-};
-
-VSOut main_vs(float3 pos : Position)
-{
-    VSOut vso;
-    vso.pos = float4(pos.x, pos.y, 0.0f, 1.0f);
-    vso.uv = float2((pos.x + 1) / 2.0f, -(pos.y - 1) / 2.0f);
-    return vso;
-}
+#include "PostProcessCommon.hlsl"
 
 static const uint SAMPLE_COUNT = 1024u;
 static const float PI= 3.14159265359;

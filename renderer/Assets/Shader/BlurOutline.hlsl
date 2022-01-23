@@ -1,13 +1,13 @@
 #include "PostProcessCommon.hlsl"
 
-cbuffer Kernel
+cbuffer Kernel : register(b3)
 {
     uint nTaps;
     //float coefficients[15];
     float4 coefficients_packed[4];
 }
 
-cbuffer Control
+cbuffer Control : register(b4)
 {
     bool horizontal;
 }

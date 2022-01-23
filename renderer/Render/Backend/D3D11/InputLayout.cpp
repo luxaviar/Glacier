@@ -25,7 +25,7 @@ ComPtr<ID3DBlob> D3D11InputLayout::GenBlobFromLayout(const InputLayoutDesc& layo
     auto str = ss.str();
     ComPtr<ID3DBlob> blob;
     GfxThrowIfFailed(D3DCompile(str.c_str(), str.size(),
-        nullptr, nullptr, nullptr, "main", "vs_5_0",
+        nullptr, nullptr, nullptr, "main", "vs_5_1",
         D3DCOMPILE_ENABLE_STRICTNESS, 0, &blob, nullptr));
 
     return blob;
@@ -48,19 +48,26 @@ void D3D11InputLayout::Clear() {
 }
 
 D3D11InputLayout::D3D11InputLayout(const InputLayoutDesc& layout) : InputLayout(layout) {
-    const auto d3dLayout = layout_desc_.layout_desc();
+    const auto layout_desc = layout_desc_.layout_desc<D3D11_INPUT_ELEMENT_DESC>();
+    if (layout_desc.empty()) return;
+
     auto ptr = GenBlobFromLayout(layout);
 
-    GfxThrowIfFailed(GfxDriverD3D11::Instance()->GetDevice()->CreateInputLayout(
-        d3dLayout.data(), (UINT)d3dLayout.size(),
+    GfxThrowIfFailed(D3D11GfxDriver::Instance()->GetDevice()->CreateInputLayout(
+        layout_desc.data(), (UINT)layout_desc.size(),
         ptr->GetBufferPointer(),
         ptr->GetBufferSize(),
         &layout_
     ));
 }
 
-void D3D11InputLayout::Bind() const {
-    GfxThrowIfAny(GfxDriverD3D11::Instance()->GetContext()->IASetInputLayout(layout_.Get()));
+void D3D11InputLayout::Bind(GfxDriver* gfx) const {
+    if (gfx->layout_signature() == layout_desc_.signature()) {
+        return;
+    }
+
+    gfx->layout_signature(layout_desc_.signature());
+    GfxThrowIfAny(static_cast<D3D11GfxDriver*>(gfx)->GetContext()->IASetInputLayout(layout_.Get()));
 }
 
 }

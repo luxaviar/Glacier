@@ -4,26 +4,25 @@
 namespace glacier {
 namespace render {
 
-D3D11QueryElement::D3D11QueryElement(GfxDriverD3D11* gfx, QueryType type) :  type_(type) {
+D3D11QueryElement::D3D11QueryElement(D3D11GfxDriver* gfx, QueryType type) :  type_(type) {
     D3D11_QUERY_DESC query_desc = {};
     switch (type)
     {
-    case QueryType::kTimer:
+    case QueryType::kTimeStamp:
         query_desc.Query = D3D11_QUERY_TIMESTAMP;
         break;
-    case QueryType::kCountSamples:
+    case QueryType::kOcclusion:
         query_desc.Query = D3D11_QUERY_OCCLUSION;
         break;
-    case QueryType::kCountSamplesPredicate:
+    case QueryType::kBinaryOcclusion:
         query_desc.Query = D3D11_QUERY_OCCLUSION_PREDICATE;
         break;
-    case QueryType::kCountRenderPrimitives:
+    case QueryType::kPipelineStatistics:
         query_desc.Query = D3D11_QUERY_PIPELINE_STATISTICS;
         break;
     default:
-    //case QueryType::kCountPrimitives:
-    //case QueryType::kCountTransformFeedbackPrimitives:
         query_desc.Query = D3D11_QUERY_SO_STATISTICS;
+        throw std::exception{ "Bad QueryType to D3D11QueryElement." };
         break;
     }
     
@@ -31,7 +30,7 @@ D3D11QueryElement::D3D11QueryElement(GfxDriverD3D11* gfx, QueryType type) :  typ
     device->CreateQuery(&query_desc, &query_);
 
     // For timer queries, we also need to create the disjoint timer queries.
-    if (type == QueryType::kTimer) {
+    if (type == QueryType::kTimeStamp) {
         D3D11_QUERY_DESC disjoint_query_desc = {};
         disjoint_query_desc.Query = D3D11_QUERY_TIMESTAMP_DISJOINT;
 
@@ -41,8 +40,8 @@ D3D11QueryElement::D3D11QueryElement(GfxDriverD3D11* gfx, QueryType type) :  typ
 }
 
 void D3D11QueryElement::Begin() {
-    auto context = GfxDriverD3D11::Instance()->GetContext();
-    if (type_ == QueryType::kTimer) {
+    auto context = D3D11GfxDriver::Instance()->GetContext();
+    if (type_ == QueryType::kTimeStamp) {
         context->Begin(disjoint_query_.Get());
         context->End(query_.Get());
     } else {
@@ -51,8 +50,8 @@ void D3D11QueryElement::Begin() {
 }
 
 void D3D11QueryElement::End() {
-    auto context = GfxDriverD3D11::Instance()->GetContext();
-    if (type_ == QueryType::kTimer) {
+    auto context = D3D11GfxDriver::Instance()->GetContext();
+    if (type_ == QueryType::kTimeStamp) {
         context->End(query_end_.Get());
         context->End(disjoint_query_.Get());
     } else {
@@ -61,9 +60,9 @@ void D3D11QueryElement::End() {
 }
 
 bool D3D11QueryElement::QueryResultAvailable() {
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto context = D3D11GfxDriver::Instance()->GetContext();
     HRESULT result;
-    if (type_ == QueryType::kTimer) {
+    if (type_ == QueryType::kTimeStamp) {
         result = context->GetData(disjoint_query_.Get(), nullptr, 0, 0);
     } else {
         result = context->GetData(query_.Get(), nullptr, 0, 0);
@@ -74,9 +73,10 @@ bool D3D11QueryElement::QueryResultAvailable() {
 
 QueryResult D3D11QueryElement::GetQueryResult() {
     QueryResult result = {};
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    result.is_valid = true;
+    auto context = D3D11GfxDriver::Instance()->GetContext();
 
-    if (type_ == QueryType::kTimer) { //Vsync have significant impact about GPU time
+    if (type_ == QueryType::kTimeStamp) { //Vsync have significant impact about GPU time
         while (context->GetData(disjoint_query_.Get(), nullptr, 0, 0) == S_FALSE) {
             Sleep(1L);
         }
@@ -89,7 +89,6 @@ QueryResult D3D11QueryElement::GetQueryResult() {
                 context->GetData(query_end_.Get(), &endTime, sizeof(UINT64), 0) == S_OK)
             {
                 result.elapsed_time = (endTime - beginTime) / double(timeStampDisjoint.Frequency);
-                result.is_valid = true;
             }
         }
     } else {
@@ -100,49 +99,45 @@ QueryResult D3D11QueryElement::GetQueryResult() {
 
         switch (type_)
         {
-        case QueryType::kCountSamples:
+        case QueryType::kOcclusion:
         {
             UINT64 numSamples = 0;
             if (context->GetData(query_.Get(), &numSamples, sizeof(UINT64), 0) == S_OK)
             {
                 result.num_samples = numSamples;
-                result.is_valid = true;
             }
         }
         break;
-        case QueryType::kCountSamplesPredicate:
+        case QueryType::kBinaryOcclusion:
         {
             BOOL anySamples = FALSE;
             if (context->GetData(query_.Get(), &anySamples, sizeof(UINT64), 0) == S_OK)
             {
                 result.any_samples = anySamples == TRUE;
-                result.is_valid = true;
             }
         }
         break;
-        case QueryType::kCountRenderPrimitives:
+        case QueryType::kPipelineStatistics:
         {
             D3D11_QUERY_DATA_PIPELINE_STATISTICS pipeline_stats = {};
             if (context->GetData(query_.Get(), &pipeline_stats, sizeof(D3D11_QUERY_DATA_PIPELINE_STATISTICS), 0) == S_OK)
             {
                 result.primitives_rendered = pipeline_stats.IAPrimitives;
                 result.vertices_rendered = pipeline_stats.IAVertices;
-                result.is_valid = true;
             }
         }
         break;
-        case QueryType::kCountStreamOutPrimitives:
-        case QueryType::kCountTransformFeedbackPrimitives:
+        case QueryType::kStreamOutputStaticstics:
         {
             D3D11_QUERY_DATA_SO_STATISTICS streamOutStats = {};
             if (context->GetData(query_.Get(), &streamOutStats, sizeof(D3D11_QUERY_DATA_SO_STATISTICS), 0) == S_OK)
             {
-                result.primitives_generated = result.transform_feedback_primitives = streamOutStats.NumPrimitivesWritten;
-                result.is_valid = true;
+                result.transform_feedback_primitives = streamOutStats.NumPrimitivesWritten;
             }
         }
         break;
         default:
+            result.is_valid = false;
             break;
         }
     }
@@ -150,10 +145,9 @@ QueryResult D3D11QueryElement::GetQueryResult() {
     return result;
 }
 
-D3D11Query::D3D11Query(QueryType type, int capacity) : Query(type, capacity) {
+D3D11Query::D3D11Query(D3D11GfxDriver* gfx, QueryType type, int capacity) : Query(type, capacity) {
     assert(capacity > 0);
 
-    auto gfx = GfxDriverD3D11::Instance();
     for (size_t i = 0; i < capacity; ++i) {
         queue_.emplace_back(gfx, type);
     }
@@ -170,7 +164,7 @@ void D3D11Query::End() {
 }
 
 bool D3D11Query::QueryResultAvailable() {
-    auto idx = frame_ - capacity_; //always get the last available
+    auto idx = frame_ - capacity_ + 1; //always get the last available
     if (idx >= 0) {
         idx %= capacity_;
         return queue_[idx].QueryResultAvailable();
@@ -180,8 +174,8 @@ bool D3D11Query::QueryResultAvailable() {
 }
 
 QueryResult D3D11Query::GetQueryResult() {
-    auto idx = frame_ - (capacity_ - 1); //always get the last available
-    if (idx > 0) {
+    auto idx = frame_ - capacity_ + 1; //always get the last available
+    if (idx >= 0) {
         idx %= capacity_;
         return queue_[idx].GetQueryResult();
     } else {

@@ -9,9 +9,7 @@
 #include "render/camera.h"
 #include "render/material.h"
 #include "inputlayout.h"
-#include "indexbuffer.h"
-#include "vertexbuffer.h"
-#include "ConstantBuffer.h"
+#include "Buffer.h"
 #include "pipelinestate.h"
 #include "sampler.h"
 #include "shader.h"
@@ -25,17 +23,14 @@
 namespace glacier {
 namespace render {
 
-//GfxDriverD3D11* GfxDriverD3D11::self_ = nullptr;
-
-void GfxDriverD3D11::Init(HWND hWnd, int width, int height ) {
+void D3D11GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format) {
     assert(!device_);
     assert(!driver_);
 
     driver_ = this;
-    //self_ = this;
 
-    width_ = width;
-    height_ = height;
+    //width_ = width;
+    //height_ = height;
 
 
     D3D_FEATURE_LEVEL feature_level[] = {
@@ -89,7 +84,7 @@ void GfxDriverD3D11::Init(HWND hWnd, int width, int height ) {
     }
 #endif
 
-    swap_chain_ = std::make_unique<D3D11SwapChain>(this, hWnd, width, height);
+    swap_chain_ = std::make_unique<D3D11SwapChain>(this, hWnd, width, height, format);
     swap_chain_->CreateRenderTarget();
 
     // Init ImGui Win32 Impl
@@ -98,7 +93,7 @@ void GfxDriverD3D11::Init(HWND hWnd, int width, int height ) {
     ImGui_ImplDX11_Init(device_.Get(), context_.Get());
 }
 
-GfxDriverD3D11::~GfxDriverD3D11() {
+D3D11GfxDriver::~D3D11GfxDriver() {
     ImGui_ImplDX11_Shutdown();
     ImGui_ImplWin32_Shutdown();
 
@@ -111,7 +106,7 @@ GfxDriverD3D11::~GfxDriverD3D11() {
 #endif
 
     D3D11InputLayout::Clear();
-    D3D11PipelineState::Clear();
+    D3D11RasterState::Clear();
     D3D11Sampler::Clear();
     D3D11Shader::Clear();
 
@@ -119,7 +114,7 @@ GfxDriverD3D11::~GfxDriverD3D11() {
     //self_ = nullptr;
 }
 
-void GfxDriverD3D11::Present() {
+void D3D11GfxDriver::Present() {
     if (imgui_enable_) {
         ImGui::Render();
         ImGui_ImplDX11_RenderDrawData( ImGui::GetDrawData() );
@@ -132,7 +127,7 @@ void GfxDriverD3D11::Present() {
     swap_chain_->Present();
 }
 
-void GfxDriverD3D11::BeginFrame() {
+void D3D11GfxDriver::BeginFrame() {
     if (imgui_enable_) {
         ImGui_ImplDX11_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -141,13 +136,13 @@ void GfxDriverD3D11::BeginFrame() {
     }
 }
 
-void GfxDriverD3D11::EndFrame() {
+void D3D11GfxDriver::EndFrame() {
 
 }
 
-void GfxDriverD3D11::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) {
+void D3D11GfxDriver::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) {
     uint32_t target_sample_count = (uint32_t)msaa;
-    auto backbuffer_format = swap_chain_->GetFormate();
+    auto backbuffer_format = GetUnderlyingFormat(swap_chain_->GetFormat());
     for (smaple_count = target_sample_count; smaple_count > 1; smaple_count--)
     {
         quality_level = 0;
@@ -166,67 +161,53 @@ void GfxDriverD3D11::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& 
     }
 }
 
-void GfxDriverD3D11::ResolveMSAA(std::shared_ptr<Texture>& src, std::shared_ptr<Texture>& dst, TextureFormat format) {
-    GfxThrowIfAny(context_->ResolveSubresource((ID3D11Texture2D*)dst->underlying_resource(), 0, 
-        (ID3D11Texture2D*)src->underlying_resource(), 0, GetUnderlyingFormat(format)));
-}
-
-void GfxDriverD3D11::DrawIndexed(uint32_t count) {
+void D3D11GfxDriver::DrawIndexed(uint32_t count) {
     GfxThrowIfAny(context_->DrawIndexed(count, 0u, 0u));
 }
 
-void GfxDriverD3D11::Draw(uint32_t count, uint32_t offset) {
+void D3D11GfxDriver::Draw(uint32_t count, uint32_t offset) {
     GfxThrowIfAny(context_->Draw(count, offset));
 }
 
-std::shared_ptr<InputLayout> GfxDriverD3D11::CreateInputLayout(const InputLayoutDesc& layout) {
-    auto ret = D3D11InputLayout::Create(layout);// std::make_shared<D3D11InputLayout>(layout);
-    return ret;
-}
-
-std::shared_ptr<IndexBuffer> GfxDriverD3D11::CreateIndexBuffer(const std::vector<uint32_t>& indices) {
+std::shared_ptr<IndexBuffer> D3D11GfxDriver::CreateIndexBuffer(const std::vector<uint32_t>& indices) {
     auto ret = std::make_shared<D3D11IndexBuffer>(indices);
     return ret;
 }
 
-std::shared_ptr<VertexBuffer> GfxDriverD3D11::CreateVertexBuffer(const VertexData& vertices) {
-    auto ret = std::make_shared<D3D11VertexBuffer>(vertices);
+std::shared_ptr<IndexBuffer> D3D11GfxDriver::CreateIndexBuffer(const void* data,
+    size_t size, IndexFormat type, UsageType usage) {
+    auto ret = std::make_shared<D3D11IndexBuffer>(data, size, type, usage);
     return ret;
 }
 
-std::shared_ptr<VertexBuffer> GfxDriverD3D11::CreateVertexBuffer(const void* data, 
+std::shared_ptr<VertexBuffer> D3D11GfxDriver::CreateVertexBuffer(const void* data, 
     size_t size, size_t stride, UsageType usage) 
 {
     auto ret = std::make_shared<D3D11VertexBuffer>(data, size, stride, usage);
     return ret;
 }
 
-std::shared_ptr<ConstantBuffer> GfxDriverD3D11::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
-    auto ret = std::make_shared<D3D11Buffer>(data, size, usage);
+std::shared_ptr<VertexBuffer> D3D11GfxDriver::CreateVertexBuffer(const VertexData& vertices) {
+    auto ret = std::make_shared<D3D11VertexBuffer>(vertices);
     return ret;
 }
 
-std::shared_ptr<ConstantBuffer> GfxDriverD3D11::CreateConstantBuffer(std::shared_ptr<BufferData>& data) {
-    auto ret = std::make_shared<D3D11Buffer>(data);
+std::shared_ptr<ConstantBuffer> D3D11GfxDriver::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
+    auto ret = std::make_shared<D3D11ConstantBuffer>(data, size, usage);
     return ret;
 }
 
-std::shared_ptr<PipelineState> GfxDriverD3D11::CreatePipelineState(RasterState rs) {
-    auto ret = D3D11PipelineState::Create(rs);
+std::shared_ptr<ConstantBuffer> D3D11GfxDriver::CreateConstantBuffer(std::shared_ptr<BufferData>& data, UsageType usage) {
+    auto ret = std::make_shared<D3D11ConstantBuffer>(data, usage);
     return ret;
 }
 
-std::shared_ptr<Sampler> GfxDriverD3D11::CreateSampler(const SamplerBuilder& builder) {
-    auto ret = std::make_shared<D3D11Sampler>(builder);
+std::shared_ptr<PipelineState> D3D11GfxDriver::CreatePipelineState(RasterStateDesc rs, const InputLayoutDesc& layout) {
+    auto ret = std::make_shared<D3D11PipelineState>(rs, layout);
     return ret;
 }
 
-std::shared_ptr<Sampler> GfxDriverD3D11::CreateSampler(const SamplerState& ss) {
-    auto ret = D3D11Sampler::Create(ss);
-    return ret;
-}
-
-std::shared_ptr<Shader> GfxDriverD3D11::CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point,
+std::shared_ptr<Shader> D3D11GfxDriver::CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point,
     const std::vector<ShaderMacroEntry>& macros, const char* target)
 {
     if (macros.empty()) {
@@ -238,7 +219,7 @@ std::shared_ptr<Shader> GfxDriverD3D11::CreateShader(ShaderType type, const TCHA
     }
 }
 
-std::shared_ptr<Program> GfxDriverD3D11::CreateProgram(const char* name, const TCHAR* vs, const TCHAR* ps) {
+std::shared_ptr<Program> D3D11GfxDriver::CreateProgram(const char* name, const TCHAR* vs, const TCHAR* ps) {
     auto program = std::make_shared<D3D11Program>(name);
     if (vs) {
         auto shader = CreateShader(ShaderType::kVertex, vs);
@@ -253,18 +234,59 @@ std::shared_ptr<Program> GfxDriverD3D11::CreateProgram(const char* name, const T
     return program;
 }
 
-std::shared_ptr<Texture> GfxDriverD3D11::CreateTexture(const TextureBuilder& builder) {
-    auto ret = std::make_shared<D3D11Texture>(builder);
+std::shared_ptr<Texture> D3D11GfxDriver::CreateTexture(const TextureDescription& desc) {
+    auto ret = std::make_shared<D3D11Texture>(desc);
     return ret;
 }
 
-std::shared_ptr<RenderTarget> GfxDriverD3D11::CreateRenderTarget(uint32_t width, uint32_t height) {
+std::shared_ptr<Texture> D3D11GfxDriver::CreateTexture(SwapChain* swapchain) {
+    return std::make_shared<D3D11Texture>(swapchain);
+}
+
+std::shared_ptr<RenderTarget> D3D11GfxDriver::CreateRenderTarget(uint32_t width, uint32_t height) {
     return std::make_shared<D3D11RenderTarget>(width, height);
 }
 
-std::shared_ptr<Query> GfxDriverD3D11::CreateQuery(QueryType type, int capacity) {
-    auto ret = std::make_shared<D3D11Query>(type, capacity);
+std::shared_ptr<Query> D3D11GfxDriver::CreateQuery(QueryType type, int capacity) {
+    auto ret = std::make_shared<D3D11Query>(this, type, capacity);
     return ret;
+}
+
+
+void D3D11GfxDriver::BindMaterial(Material* mat) {
+    if (!mat || material_ == mat) return;
+
+    auto temp = mat->GetTemplate().get();
+
+    if (temp != material_template_) {
+        if (material_template_) {
+            material_template_->UnBind(this);
+        }
+
+        temp->Bind(this);
+        material_template_ = temp;
+    }
+
+    if (material_) {
+        material_->UnBind(this);
+    }
+
+    material_ = mat;
+    material_->Bind(this);
+
+    return;
+}
+
+void D3D11GfxDriver::UnBindMaterial() {
+    if (material_) {
+        material_->UnBind(this);
+        material_ = nullptr;
+    }
+
+    if (material_template_) {
+        material_template_->UnBind(this);
+        material_template_ = nullptr;
+    }
 }
 
 }

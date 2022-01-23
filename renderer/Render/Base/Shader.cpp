@@ -11,6 +11,7 @@ HRESULT Shader::CompileFromFile(const TCHAR* file_path, ID3DBlob** ptr_blob, con
 {
 #if defined(DEBUG) || defined(_DEBUG)
     flags1 |= D3DCOMPILE_DEBUG;
+    flags1 |= D3DCOMPILE_SKIP_OPTIMIZATION;
 #endif
 
     ID3DBlob* error_blob = nullptr;

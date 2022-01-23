@@ -2,7 +2,7 @@
 
 #include <string>
 #include "gizmos.h"
-#include "picking.h"
+//#include "picking.h"
 
 namespace glacier {
 
@@ -22,21 +22,27 @@ public:
     bool IsSelected(Material* mat) { return mat == selected_mat_; }
 
     GameObject* GetSelected() { return selected_go_; }
+    void SetSelected(GameObject* go) { selected_go_ = go; }
 
     void Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt);
 
     void RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer);
 
-    void DoFrame();
+    void DrawGizmos();
+    void DrawPanel();
 
 private:
     void DrawInspectorPanel();
     void DrawScenePanel();
 
+    GfxDriver* gfx_;
+
     int width_;
     int height_;
 
-    Picking pick_;
+    //Picking pick_;
+    std::shared_ptr<ConstantBuffer> color_buf_;
+    std::shared_ptr<Material> mat_;
 
     //std::shared_ptr<RenderTarget> pick_rt_;
     GameObject* selected_go_ = nullptr;

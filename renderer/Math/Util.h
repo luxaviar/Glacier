@@ -24,29 +24,29 @@ inline constexpr bool IsPowOf2(T x) {
 }
 
 template<typename T>
-T Sign(T v) {
+constexpr T Sign(T v) {
     if (v >= 0) return 1;
     return -1;
 }
 
 template<typename T>
-T Abs(T v) {
+constexpr T Abs(T v) {
     if (v < 0) v = -v;
     return v;
 }
 
 template<typename T>
-T Max(T a, T b) {
+constexpr T Max(T a, T b) {
     return a > b ? a : b;
 }
 
 template<typename T>
-T Min(T a, T b) {
+constexpr T Min(T a, T b) {
     return a > b ? b : a;
 }
 
 template<typename T>
-T InverseSafe(T v) {
+constexpr T InverseSafe(T v) {
     if (Abs(v) > kEpsilon) {
         return 1.0f / v;
     } else {
@@ -55,25 +55,25 @@ T InverseSafe(T v) {
 }
 
 template<typename T>
-T Clamp(T v, T min, T max) {
+constexpr T Clamp(T v, T min, T max) {
     if (v < min) return min;
     else if (v > max) return max;
     return v;
 }
 
-inline float Clamp(float v, float min, float max) {
+inline constexpr float Clamp(float v, float min, float max) {
     return Clamp<float>(v, min, max);
 }
 
-inline float Saturate(float v) {
+inline constexpr float Saturate(float v) {
     return Clamp<float>(v, 0.0f, 1.0f);
 }
 
-inline double Saturate(double v) {
+inline constexpr double Saturate(double v) {
     return Clamp<double>(v, 0.0, 1.0);
 }
 
-inline int Round(float v) {
+inline constexpr int Round(float v) {
     if (v > 0) {
         return (int)(v + 0.5f);
     }
@@ -82,7 +82,7 @@ inline int Round(float v) {
     }
 }
 
-inline int64_t Round(double v) {
+inline constexpr int64_t Round(double v) {
     if (v > 0) {
         return (int64_t)(v + 0.5f);
     }
@@ -92,60 +92,60 @@ inline int64_t Round(double v) {
 }
 
 template<typename T>
-inline T Floor(T v) {
+inline constexpr T Floor(T v) {
     return ::floor(v);
 }
 
 template<typename T>
-inline T Ceil(T v) {
+inline constexpr T Ceil(T v) {
     return ::ceil(v);
 }
 
 
 template<typename T>
-inline T Fmod(T x, T y) {
+inline constexpr T Fmod(T x, T y) {
     return ::fmod(x, y);
 }
 
-inline float Repeat(float t, float length)
+inline constexpr float Repeat(float t, float length)
 {
     return Clamp(t - Floor(t / length) * length, 0.0f, length);
 }
 
-inline float Lerp(float a, float b, float t) {
+inline constexpr float Lerp(float a, float b, float t) {
     return a * (1.0f - t) + b * t;
 }
 
-inline double Lerp(double a, double b, double t) {
+inline constexpr double Lerp(double a, double b, double t) {
     return a * (1.0 - t) + b * t;
 }
 
-inline float InverseLerp(float a, float b, float value) {
+inline constexpr float InverseLerp(float a, float b, float value) {
     if (a != b)
         return Saturate((value - a) / (b - a));
     else
         return 0.0f;
 }
 
-inline float LerpAngle(float a, float b, float t) {
+inline constexpr float LerpAngle(float a, float b, float t) {
     float delta = Repeat((b - a), 360.0f);
     if (delta > 180.0f)
         delta -= 360.0f;
     return a + delta * Saturate(t);
 }
 
-inline float DeltaAngle(float current, float target) {
+inline constexpr float DeltaAngle(float current, float target) {
     float delta = Repeat((target - current), 360.0f);
     if (delta > 180.0f)
         delta -= 360.0f;
     return delta;
 }
 
-inline bool AlmostEqual(float left, float right, float epsilon = kEpsilon) {
+inline constexpr bool AlmostEqual(float left, float right, float epsilon = kEpsilon) {
     return Abs(left - right) < epsilon;
 }
 
-inline bool AlmostEqual(double left, double right, double epsilon = kEpsilon) {
+inline constexpr bool AlmostEqual(double left, double right, double epsilon = kEpsilon) {
     return Abs(left - right) < epsilon;
 }
 
@@ -161,7 +161,7 @@ inline float Sqrt(float a) {
     return ::sqrt(a);
 }
 
-inline double Sqrt(double a) {
+inline  double Sqrt(double a) {
     return ::sqrt(a);
 }
 
@@ -194,7 +194,7 @@ inline float ATan2(float y, float x) {
 }
 
 template<typename T>
-T WrapAngle(T theta) noexcept
+constexpr T WrapAngle(T theta) noexcept
 {
     constexpr T k2PI = (T)2.0 * (T)kPI;
     const T mod = (T)::fmod(theta, k2PI);
@@ -249,37 +249,37 @@ inline void FastSinCos(float* pSin, float* pCos, float value) {
 * Retrieved: January 13, 2016
 **************************************************************************/
 template <typename T>
-inline T AlignUpWithMask(T value, size_t mask)
+inline constexpr T AlignUpWithMask(T value, size_t mask)
 {
     return (T)(((size_t)value + mask) & ~mask);
 }
 
 template <typename T>
-inline T AlignDownWithMask(T value, size_t mask)
+inline constexpr T AlignDownWithMask(T value, size_t mask)
 {
     return (T)((size_t)value & ~mask);
 }
 
 template <typename T>
-inline T AlignUp(T value, size_t alignment)
+inline constexpr T AlignUp(T value, size_t alignment)
 {
     return AlignUpWithMask(value, alignment - 1);
 }
 
 template <typename T>
-inline T AlignDown(T value, size_t alignment)
+inline constexpr T AlignDown(T value, size_t alignment)
 {
     return AlignDownWithMask(value, alignment - 1);
 }
 
 template <typename T>
-inline bool IsAligned(T value, size_t alignment)
+inline constexpr bool IsAligned(T value, size_t alignment)
 {
     return 0 == ((size_t)value & (alignment - 1));
 }
 
 template <typename T>
-inline T DivideByMultiple(T value, size_t alignment)
+inline constexpr T DivideByMultiple(T value, size_t alignment)
 {
     return (T)((value + alignment - 1) / alignment);
 }

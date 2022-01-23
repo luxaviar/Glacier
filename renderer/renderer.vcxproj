@@ -71,7 +71,7 @@
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assimp-vc142-mtd.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>assimp-vc142-mtd.lib;%(AdditionalDependencies);dxgi.lib;dxguid.lib;d3dcompiler.lib;d3d11.lib;d3d12.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -96,7 +96,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>assimp-vc142-mt.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>assimp-vc142-mt.lib;%(AdditionalDependencies);dxgi.lib;dxguid.lib;d3dcompiler.lib;d3d11.lib;d3d12.lib</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -114,6 +114,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
     <None Include="assets\shader\common\Lighting.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="Assets\Shader\Common\LightingData.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
@@ -152,8 +156,6 @@
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="Common\Statistic.cpp" />
-    <ClCompile Include="Common\Timer.cpp" />
     <ClCompile Include="Common\Util.cpp" />
     <ClCompile Include="Component\MeshDrawer.cpp" />
     <ClCompile Include="Core\Behaviour.cpp" />
@@ -170,12 +172,16 @@
     <ClCompile Include="Geometry\Frustum.cpp" />
     <ClCompile Include="Geometry\Line.cpp" />
     <ClCompile Include="Geometry\LineSegment.cpp" />
+    <ClCompile Include="Geometry\Plane.cpp" />
     <ClCompile Include="Geometry\Rect.cpp" />
     <ClCompile Include="Geometry\Sector.cpp" />
     <ClCompile Include="Geometry\Triangle.cpp" />
     <ClCompile Include="Input\Input.cpp" />
     <ClCompile Include="Input\Keyboard.cpp" />
     <ClCompile Include="Input\Mouse.cpp" />
+    <ClCompile Include="Inspect\Profiler.cpp" />
+    <ClCompile Include="Inspect\Statistic.cpp" />
+    <ClCompile Include="Inspect\Timer.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Math\Random.cpp" />
     <ClCompile Include="Physics\Collider\BoxCollider.cpp" />
@@ -198,9 +204,8 @@
     <ClCompile Include="Physics\Dynamic\Rigidbody.cpp" />
     <ClCompile Include="Physics\LayerCollisionFilter.cpp" />
     <ClCompile Include="Physics\World.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\ConstantBuffer.cpp" />
+    <ClCompile Include="Render\Backend\D3D11\Buffer.cpp" />
     <ClCompile Include="Render\Backend\D3D11\GfxDriver.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\IndexBuffer.cpp" />
     <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp" />
     <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp" />
     <ClCompile Include="Render\Backend\D3D11\Program.cpp" />
@@ -210,25 +215,44 @@
     <ClCompile Include="Render\Backend\D3D11\Shader.cpp" />
     <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp" />
     <ClCompile Include="Render\Backend\D3D11\Texture.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\VertexBuffer.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Buffer.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\CommandList.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\CommandQueue.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\DescriptorHeapAllocator.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\DescriptorTableHeap.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\GfxDriver.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\LinearAllocator.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\MemoryHeapAllocator.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\MipsGenerator.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\PipelineState.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Program.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Query.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\RenderTarget.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Resource.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Sampler.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Shader.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\SwapChain.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\Texture.cpp" />
     <ClCompile Include="Render\Base\BufferLayout.cpp" />
     <ClCompile Include="Render\Base\GfxDriver.cpp" />
     <ClCompile Include="Render\Base\PerfStats.cpp" />
     <ClCompile Include="Render\Base\Program.cpp" />
     <ClCompile Include="Render\Base\Renderable.cpp" />
+    <ClCompile Include="Render\Base\Shader.cpp" />
     <ClCompile Include="Render\Base\Util.cpp" />
     <ClCompile Include="Render\Base\VertexLayout.cpp" />
     <ClCompile Include="Render\Camera.cpp" />
     <ClCompile Include="Render\CascadedShadowManager.cpp" />
     <ClCompile Include="Render\Editor\Editor.cpp" />
     <ClCompile Include="Render\Editor\Gizmos.cpp" />
-    <ClCompile Include="Render\Editor\Picking.cpp" />
     <ClCompile Include="Render\Graph\PassNode.cpp" />
     <ClCompile Include="Render\Graph\RenderGraph.cpp" />
     <ClCompile Include="Render\Image.cpp" />
     <ClCompile Include="Render\Light.cpp" />
     <ClCompile Include="Render\LightManager.cpp" />
     <ClCompile Include="Render\Material.cpp" />
+    <ClCompile Include="Render\MaterialProperty.cpp" />
+    <ClCompile Include="Render\MaterialTemplate.cpp" />
     <ClCompile Include="Render\Mesh\Geometry.cpp" />
     <ClCompile Include="Render\Mesh\Mesh.cpp" />
     <ClCompile Include="Render\Mesh\MeshRenderer.cpp" />
@@ -354,8 +378,6 @@
     <ClInclude Include="Common\ScopedBuffer.h" />
     <ClInclude Include="Common\Signal.h" />
     <ClInclude Include="Common\Singleton.h" />
-    <ClInclude Include="Common\Statistic.h" />
-    <ClInclude Include="Common\Timer.h" />
     <ClInclude Include="Common\TypeTraits.h" />
     <ClInclude Include="Common\Uncopyable.h" />
     <ClInclude Include="Common\Util.h" />
@@ -387,6 +409,10 @@
     <ClInclude Include="Input\Input.h" />
     <ClInclude Include="Input\Keyboard.h" />
     <ClInclude Include="Input\Mouse.h" />
+    <ClInclude Include="Inspect\PerfLog.h" />
+    <ClInclude Include="Inspect\Profiler.h" />
+    <ClInclude Include="Inspect\Statistic.h" />
+    <ClInclude Include="Inspect\Timer.h" />
     <ClInclude Include="Math\Axis.h" />
     <ClInclude Include="Math\Mat3.h" />
     <ClInclude Include="Math\Mat4.h" />
@@ -424,9 +450,8 @@
     <ClInclude Include="Physics\LayerCollisionFilter.h" />
     <ClInclude Include="Physics\Types.h" />
     <ClInclude Include="Physics\World.h" />
-    <ClInclude Include="Render\Backend\D3D11\ConstantBuffer.h" />
+    <ClInclude Include="Render\Backend\D3D11\Buffer.h" />
     <ClInclude Include="Render\Backend\D3D11\GfxDriver.h" />
-    <ClInclude Include="Render\Backend\D3D11\IndexBuffer.h" />
     <ClInclude Include="Render\Backend\D3D11\InputLayout.h" />
     <ClInclude Include="Render\Backend\D3D11\PipelineState.h" />
     <ClInclude Include="Render\Backend\D3D11\Program.h" />
@@ -437,35 +462,50 @@
     <ClInclude Include="Render\Backend\D3D11\SwapChain.h" />
     <ClInclude Include="Render\Backend\D3D11\Texture.h" />
     <ClInclude Include="Render\Backend\D3D11\Util.h" />
-    <ClInclude Include="Render\Backend\D3D11\VertexBuffer.h" />
-    <ClInclude Include="Render\Base\ConstantBuffer.h" />
+    <ClInclude Include="Render\Backend\D3D12\Buffer.h" />
+    <ClInclude Include="Render\Backend\D3D12\CommandList.h" />
+    <ClInclude Include="Render\Backend\D3D12\CommandQueue.h" />
+    <ClInclude Include="Render\Backend\D3D12\d3dx12.h" />
+    <ClInclude Include="Render\Backend\D3D12\DescriptorHeapAllocator.h" />
+    <ClInclude Include="Render\Backend\D3D12\DescriptorTableHeap.h" />
+    <ClInclude Include="Render\Backend\D3D12\GfxDriver.h" />
+    <ClInclude Include="Render\Backend\D3D12\LinearAllocator.h" />
+    <ClInclude Include="Render\Backend\D3D12\MemoryHeapAllocator.h" />
+    <ClInclude Include="Render\Backend\D3D12\MipsGenerator.h" />
+    <ClInclude Include="Render\Backend\D3D12\PipelineState.h" />
+    <ClInclude Include="Render\Backend\D3D12\Program.h" />
+    <ClInclude Include="Render\Backend\D3D12\Query.h" />
+    <ClInclude Include="Render\Backend\D3D12\RenderTarget.h" />
+    <ClInclude Include="Render\Backend\D3D12\Resource.h" />
+    <ClInclude Include="Render\Backend\D3D12\Sampler.h" />
+    <ClInclude Include="Render\Backend\D3D12\Shader.h" />
+    <ClInclude Include="Render\Backend\D3D12\SwapChain.h" />
+    <ClInclude Include="Render\Backend\D3D12\Texture.h" />
+    <ClInclude Include="Render\Backend\D3D12\Util.h" />
+    <ClInclude Include="Render\Base\Buffer.h" />
     <ClInclude Include="Render\Base\BufferLayout.h" />
     <ClInclude Include="Render\Base\Enums.h" />
     <ClInclude Include="Render\Base\GfxDriver.h" />
-    <ClInclude Include="Render\Base\Indexbuffer.h" />
     <ClInclude Include="Render\Base\InputLayout.h" />
     <ClInclude Include="Render\Base\PerfStats.h" />
     <ClInclude Include="Render\Base\PipelineState.h" />
     <ClInclude Include="Render\Base\Program.h" />
     <ClInclude Include="Render\Base\Query.h" />
-    <ClInclude Include="Render\Base\RasterState.h" />
+    <ClInclude Include="Render\Base\RasterStateDesc.h" />
     <ClInclude Include="Render\Base\Renderable.h" />
     <ClInclude Include="Render\Base\RenderTarget.h" />
     <ClInclude Include="Render\Base\Resource.h" />
-    <ClInclude Include="Render\Base\Sampler.h" />
     <ClInclude Include="Render\Base\SamplerState.h" />
     <ClInclude Include="Render\Base\Shader.h" />
     <ClInclude Include="Render\Base\SwapChain.h" />
     <ClInclude Include="Render\Base\Texture.h" />
     <ClInclude Include="Render\Base\Util.h" />
-    <ClInclude Include="Render\Base\VertexBuffer.h" />
     <ClInclude Include="Render\Base\VertexLayout.h" />
     <ClInclude Include="Render\Camera.h" />
     <ClInclude Include="Render\CascadedShadowManager.h" />
     <ClInclude Include="Render\Channels.h" />
     <ClInclude Include="Render\Editor\Editor.h" />
     <ClInclude Include="Render\Editor\Gizmos.h" />
-    <ClInclude Include="Render\Editor\Picking.h" />
     <ClInclude Include="Render\Graph\PassExecutor.h" />
     <ClInclude Include="Render\Graph\PassNode.h" />
     <ClInclude Include="Render\Graph\RenderGraph.h" />
@@ -474,6 +514,8 @@
     <ClInclude Include="Render\Light.h" />
     <ClInclude Include="Render\LightManager.h" />
     <ClInclude Include="Render\Material.h" />
+    <ClInclude Include="Render\MaterialProperty.h" />
+    <ClInclude Include="Render\MaterialTemplate.h" />
     <ClInclude Include="Render\Mesh\Geometry.h" />
     <ClInclude Include="Render\Mesh\Mesh.h" />
     <ClInclude Include="Render\Mesh\MeshRenderer.h" />
@@ -516,6 +558,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="assets\shader\EnvRadiance.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GenerateMipsCS.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

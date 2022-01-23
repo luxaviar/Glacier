@@ -15,6 +15,7 @@ class Camera;
 class Renderer;
 class Renderable;
 class Material;
+class MaterialTemplate;
 
 class LightManager : public Singleton<LightManager> {
 public:
@@ -23,23 +24,21 @@ public:
     void Add(Light* light);
     void Remove(Light* light);
 
-    void Setup(GfxDriver* gfx);
+    void Setup(GfxDriver* gfx, Renderer* renderer);
     void AddSkyboxPass(Renderer* renderer);
 
     void SortLight(const Vec3f& pos);
     //Get main directional light
     DirectionalLight* GetMainLight();
 
-    void Bind();
-    void UnBind();
+    void SetupMaterial(MaterialTemplate* mat);
+    void Update();
+
+    void Clear();
 
 private:
-    void BindLightList();
-    void BindEnv();
-    void UnBindEnv();
-
     void GenerateSkybox();
-    void GenerateBrdfLut();
+    void GenerateBrdfLut(Renderer* renderer);
     void GenerateIrradiance();
     void GenerateRadiance();
 

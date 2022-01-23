@@ -12,7 +12,7 @@ CameraController::CameraController(render::Camera* cam) noexcept :
 }
 
 void CameraController::Reset() {
-    auto dir = camera_->forward();
+    auto dir = camera_->forward().Normalized();
 
     pitch_ = (float)::asin(-dir.y);
     yaw_ = (float)::atan2(dir.x, dir.z);
@@ -42,10 +42,19 @@ void CameraController::Update(float dt) {
     if (!Input::IsRelativeMode()) {
         float delta = Input::GetMouseWheelDelta();
         if (delta == 0.0f) return;
-        float fov = camera_->fov();
-        fov -= delta;
-        fov = math::Clamp(fov, 30, 120);
-        camera_->fov(fov);
+
+        if (camera_->type() == render::CameraType::kPersp) {
+            float fov = camera_->fov();
+            fov -= delta;
+            fov = math::Clamp(fov, 30, 120);
+            camera_->fov(fov);
+        }
+        else {
+            float scale = camera_->scale();
+            scale -= delta * 0.1f;
+            scale = math::Clamp(scale, 0.1f, 20.0f);
+            camera_->scale(scale);
+        }
 
         return;
     }

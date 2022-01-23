@@ -14,7 +14,7 @@ public:
 
     D3D11InputLayout(const InputLayoutDesc& layout);
 
-    void Bind() const override;
+    void Bind(GfxDriver* gfx) const override;
 
     void* underlying_resource() const override { return layout_.Get(); }
 

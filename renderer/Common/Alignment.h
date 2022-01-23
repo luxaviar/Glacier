@@ -6,20 +6,36 @@
 namespace glacier
 {
 
+//for power of 2 alignment
 template<size_t alignment, typename T>
 inline constexpr T AlignUp(T val) noexcept
 {
-    assert(IsPowOf2(alignment));
+    assert(math::IsPowOf2(alignment));
     return (val + alignment - 1) & ~(alignment - 1);
 }
 
 template<size_t alignment, typename T>
 inline constexpr T AlignDown(T val) noexcept
 {
-    assert(IsPowOf2(alignment));
+    assert(math::IsPowOf2(alignment));
     return val & ~(alignment - 1);
 }
 
+template<typename T>
+inline constexpr T AlignUp(T val, size_t alignment) noexcept
+{
+    assert(math::IsPowOf2(alignment));
+    return (val + alignment - 1) & ~(alignment - 1);
+}
+
+template<typename T>
+inline constexpr T AlignDown(T val, size_t alignment) noexcept
+{
+    assert(math::IsPowOf2(alignment));
+    return val & ~(alignment - 1);
+}
+
+// for arbitrary alignment
 inline size_t AlignBoundary(size_t offset, size_t alignment) noexcept
 {
     return ((offset + alignment - 1) / alignment) * alignment;

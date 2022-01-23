@@ -10,36 +10,28 @@ namespace render {
 class Resource : private Uncopyable, public Identifiable<Resource> {
 public:
     virtual ~Resource() = default;
+    virtual void SetName(const TCHAR* name) {}
+    virtual const TCHAR* GetName(const TCHAR* name) const { return TEXT(""); }
 
     virtual void* underlying_resource() const { return nullptr; };
 };
 
-template<typename T>
-struct ResourceGuard {
-    ResourceGuard(T* t) : res(t) {
-        if (res) res->Bind();
-    }
-
-    ~ResourceGuard() {
-        if (res) res->UnBind();
-    }
-
-    T* res;
-};
+class GfxDriver;
 
 template<typename T>
-struct ResourceGuardEx {
-    ResourceGuardEx(T* t, ShaderType ty, uint16_t idx) : res(t), type(ty), slot(idx) {
-        if (res) res->Bind(type, slot);
+struct BindingGuard {
+    BindingGuard(GfxDriver* gfx, T* t) : gfx(gfx), res(t) {
+        if (res) res->Bind(gfx);
     }
 
-    ~ResourceGuardEx() {
-        if (res) res->UnBind(type, slot);
+    ~BindingGuard() {
+        if (res) {
+            res->UnBind(gfx);
+        }
     }
 
+    GfxDriver* gfx;
     T* res;
-    ShaderType type;
-    uint16_t slot;
 };
 
 }

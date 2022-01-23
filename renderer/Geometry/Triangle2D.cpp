@@ -37,12 +37,6 @@ Vector2 Triangle2D::CircumCenter(const Vector2& a, const Vector2& b, const Vecto
     return { x / D, y / D };
 }
 
-// https://artofproblemsolving.com/wiki/index.php/Circumradius
-float Triangle2D::CircumRadius(const Vector2& a, const Vector2& b, const Vector2& c) {
-    auto len = SideLength(a, b, c);
-    return (len.x * len.y * len.z) / QuatArea(len.x, len.y, len.z);
-}
-
 Vector3 Triangle2D::SideLength(const Vector2& a, const Vector2& b, const Vector2& c) {
     auto alen = (a - b).Magnitude();
     auto blen = (b - c).Magnitude();
@@ -156,10 +150,6 @@ Vector2 Triangle2D::Incenter() {
 
 Vector2 Triangle2D::CircumCenter() {
     return CircumCenter(a, b, c);
-}
-
-float Triangle2D::CircumRadius() {
-    return CircumRadius(a, b, c);
 }
 
 float Triangle2D::Area() {

@@ -145,13 +145,14 @@ DXGI_FORMAT GetUAVCompatableFormat( DXGI_FORMAT format ) {
     {
     case DXGI_FORMAT_R8G8B8A8_TYPELESS:
     case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-    case DXGI_FORMAT_B8G8R8A8_UNORM:
+        uavFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        break;
     case DXGI_FORMAT_B8G8R8X8_UNORM:
     case DXGI_FORMAT_B8G8R8A8_TYPELESS:
     case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
     case DXGI_FORMAT_B8G8R8X8_TYPELESS:
     case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
-        uavFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+        uavFormat = DXGI_FORMAT_B8G8R8A8_UNORM;
         break;
     case DXGI_FORMAT_R32_TYPELESS:
     case DXGI_FORMAT_D32_FLOAT:
@@ -348,7 +349,6 @@ size_t BitsPerPixel(DXGI_FORMAT fmt)
         return 0;
     }
 }
-
 
 }
 }

@@ -1,8 +1,8 @@
 #pragma once
 
 #include "render/base/query.h"
-#include "common/timer.h"
-#include "common/statistic.h"
+#include "Inspect/timer.h"
+#include "Inspect/statistic.h"
 
 namespace glacier {
 namespace render {

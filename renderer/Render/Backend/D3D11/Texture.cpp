@@ -7,16 +7,38 @@
 namespace glacier {
 namespace render {
 
-D3D11Texture::D3D11Texture(const TextureBuilder& builder) : Texture(builder) {
-    if (builder.backbuffer_index >= 0) {
-        CreateFromBackBuffer();
-    } else if (!builder.file.empty()) {
+D3D11Texture::D3D11Texture(const TextureDescription& desc) : Texture(desc) {
+    if (!desc.file.empty()) {
         CreateFromFile();
-    } else if (builder.use_color) {
+    } else if (desc.use_color) {
         CreateFromColor();
     } else {
         Create();
     }
+}
+
+D3D11Texture::D3D11Texture(SwapChain* swapchain) : Texture({}) {
+    texture_ = static_cast<D3D11SwapChain*>(swapchain)->GetBackBuffer();
+    D3D11_TEXTURE2D_DESC tex_desc;
+    texture_->GetDesc(&tex_desc);
+
+    detail_.is_backbuffer = true;
+    detail_.type = TextureType::kTexture2D;
+    detail_.width = tex_desc.Width;
+    detail_.height = tex_desc.Height;
+
+    CreateViews(tex_desc);
+}
+
+void D3D11Texture::Reset(const ComPtr<ID3D11Texture2D>& res) {
+    texture_ = res;
+    D3D11_TEXTURE2D_DESC tex_desc;
+    texture_->GetDesc(&tex_desc);
+
+    detail_.width = tex_desc.Width;
+    detail_.height = tex_desc.Height;
+
+    CreateViews(tex_desc);
 }
 
 uint32_t D3D11Texture::GetMipLevels() const {
@@ -27,24 +49,12 @@ uint32_t D3D11Texture::GetMipLevels() const {
     return desc.MipLevels;
 }
 
-void D3D11Texture::CreateFromBackBuffer() {
-    texture_ = GfxDriverD3D11::Instance()->GetUnderlyingSwapChain()->GetBackBuffer();
-    D3D11_TEXTURE2D_DESC tex_desc;
-    texture_->GetDesc(&tex_desc);
-
-    detail_.type = TextureType::kTexture2D;
-    detail_.width = tex_desc.Width;
-    detail_.height = tex_desc.Height;
-
-    CreateViews(tex_desc);
-}
-
 void D3D11Texture::CreateFromColor() {
     detail_.type = TextureType::kTexture2D;
 
     auto dxgi_format = DXGI_FORMAT_R8G8B8A8_UNORM;
     ColorRGBA32 col = detail_.color;
-    Image image(detail_.width, detail_.height);
+    Image image(detail_.width, detail_.height, false);
     image.Clear(col);
     
     bool gen_mips = detail_.gen_mips;
@@ -57,11 +67,11 @@ void D3D11Texture::CreateFromColor() {
     tex_desc.SampleDesc.Count = detail_.sample_count;
     tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
+    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | GetCreateFlags(detail_.create_flags);
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
     
     tex_desc.Width = detail_.width;
     tex_desc.Height = detail_.height;
@@ -77,7 +87,7 @@ void D3D11Texture::CreateFromColor() {
 
     // generate the mip chain using the gpu rendering pipeline
     if (gen_mips) {
-        auto context = GfxDriverD3D11::Instance()->GetContext();
+        auto context = D3D11GfxDriver::Instance()->GetContext();
         // write image data into top mip level
         context->UpdateSubresource(texture_.Get(), 0u, nullptr,
             image.GetRawPtr<uint8_t>(), image.row_pitch_bytes(), image.slice_pitch_bytes());
@@ -98,11 +108,11 @@ void D3D11Texture::Create() {
     tex_desc.SampleDesc.Count = detail_.sample_count;
     tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = detail_.create_flags;
+    tex_desc.BindFlags = GetCreateFlags(detail_.create_flags);
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
 
     UINT support;
     GfxThrowIfFailed(dev->CheckFormatSupport(dxgi_format, &support));
@@ -129,7 +139,7 @@ void D3D11Texture::Create() {
 }
 
 void D3D11Texture::CreateViews(const D3D11_TEXTURE2D_DESC& desc) {
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
     auto srv_fmt = GetSRVFormat(desc.Format);
 
     // create the resource view on the texture
@@ -184,11 +194,11 @@ void D3D11Texture::CreateTextureFromImage(const Image& image, ID3D11Texture2D** 
     tex_desc.SampleDesc.Count = detail_.sample_count;
     tex_desc.SampleDesc.Quality = detail_.sample_quality;
     tex_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
+    tex_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | GetCreateFlags(detail_.create_flags);
     tex_desc.CPUAccessFlags = 0;
     tex_desc.MiscFlags = gen_mips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0;
 
-    auto device = GfxDriverD3D11::Instance()->GetDevice();
+    auto device = D3D11GfxDriver::Instance()->GetDevice();
     UINT support;
     GfxThrowIfFailed(device->CheckFormatSupport(tex_desc.Format, &support));
     if (support & D3D11_FORMAT_SUPPORT_RENDER_TARGET) {
@@ -210,7 +220,7 @@ void D3D11Texture::CreateTextureFromImage(const Image& image, ID3D11Texture2D** 
     GfxThrowIfFailed(device->CreateShaderResourceView(*tex, &srv_desc, srv));
 
     if (gen_mips) {
-        auto context = GfxDriverD3D11::Instance()->GetContext();
+        auto context = D3D11GfxDriver::Instance()->GetContext();
 
         context->UpdateSubresource(*tex, 0u, nullptr,
             image.GetRawPtr<uint8_t>(), image.row_pitch_bytes(), image.slice_pitch_bytes());
@@ -219,8 +229,8 @@ void D3D11Texture::CreateTextureFromImage(const Image& image, ID3D11Texture2D** 
 }
 
 void D3D11Texture::CreateCubeMapFromImage(const Image& image) {
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
-    auto context = GfxDriverD3D11::Instance()->GetContext();
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
+    auto context = D3D11GfxDriver::Instance()->GetContext();
     bool gen_mips = detail_.gen_mips;
 
     ComPtr<ID3D11Texture2D> src_tex;
@@ -246,7 +256,7 @@ void D3D11Texture::CreateCubeMapFromImage(const Image& image) {
     tex_array_desc.SampleDesc.Count = 1;
     tex_array_desc.SampleDesc.Quality = 0;
     tex_array_desc.Usage = D3D11_USAGE_DEFAULT;
-    tex_array_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | detail_.create_flags;
+    tex_array_desc.BindFlags = D3D11_BIND_SHADER_RESOURCE | GetCreateFlags(detail_.create_flags);
     tex_array_desc.CPUAccessFlags = 0;
     tex_array_desc.MiscFlags = D3D11_RESOURCE_MISC_TEXTURECUBE;
 
@@ -330,8 +340,9 @@ void D3D11Texture::CreateCubeMapFromImage(const Image& image) {
 }
 
 void D3D11Texture::Bind(ShaderType shader_type, uint16_t slot) {
-    auto ctx = GfxDriverD3D11::Instance()->GetContext();
+    auto ctx = D3D11GfxDriver::Instance()->GetContext();
     //if (param_type == ShaderParameterType::kTexture && srv_) {
+        assert(srv_);
         switch (shader_type)
         {
         case ShaderType::kVertex:
@@ -369,7 +380,7 @@ void D3D11Texture::UnBind(ShaderType shader_type, uint16_t slot) {
     ID3D11UnorderedAccessView* uav = nullptr;
     ID3D11ShaderResourceView* srv = nullptr;
 
-    auto ctx = GfxDriverD3D11::Instance()->GetContext();
+    auto ctx = D3D11GfxDriver::Instance()->GetContext();
     //if (param_type == ShaderParameterType::kTexture) {
         switch (shader_type)
         {
@@ -405,7 +416,7 @@ void D3D11Texture::UnBind(ShaderType shader_type, uint16_t slot) {
 }
 
 void D3D11Texture::GenerateMipMaps() {
-    GfxDriverD3D11::Instance()->GetContext()->GenerateMips(srv_.Get());
+    D3D11GfxDriver::Instance()->GetContext()->GenerateMips(srv_.Get());
 }
 
 void D3D11Texture::ReleaseUnderlyingResource() {
@@ -416,10 +427,10 @@ void D3D11Texture::ReleaseUnderlyingResource() {
 
 bool D3D11Texture::Resize(uint32_t width, uint32_t height) {
     assert(width > 0 && height > 0);
-    assert(detail_.backbuffer_index < 0);
+    assert(!detail_.is_backbuffer);
     assert(detail_.file.empty());
 
-    if (detail_.backbuffer_index >= 0 || !detail_.file.empty()) {
+    if (detail_.is_backbuffer || !detail_.file.empty()) {
         return false;
     }
 
@@ -435,40 +446,14 @@ bool D3D11Texture::Resize(uint32_t width, uint32_t height) {
     return true;
 }
 
-bool D3D11Texture::RefreshBackBuffer() {
-    assert(detail_.backbuffer_index >= 0);
-
-    if (detail_.backbuffer_index < 0) {
-        return false;
-    }
-
-    CreateFromBackBuffer();
-    return true;
-}
-
-bool D3D11Texture::ReadBackImage(Image& image, int left, int top,
-    int width, int height, int destX, int destY) const {
-
-    return ReadBackImage(image, left, top, width, height, destX, destY, 
-        [](const uint8_t* texel, ColorRGBA32* pixel) {
-            *pixel = *((const ColorRGBA32*)texel);
-            return sizeof(ColorRGBA32);
-        });
-}
-
-// ref: DirectX Toolkit - ScreenGrab.cpp
-bool D3D11Texture::ReadBackImage(Image& image, int left, int top,
-    int width, int height, int destX, int destY, const ReadBackResolver& resolver) const
+void D3D11Texture::ReadBackImage(int left, int top,
+    int width, int height, int destX, int destY, ReadbackDelegate&& callback)
 {
     D3D11_TEXTURE2D_DESC res_desc;
     texture_->GetDesc(&res_desc);
 
-    auto dev = GfxDriverD3D11::Instance()->GetDevice();
-    auto ctx = GfxDriverD3D11::Instance()->GetContext();
-    
-    //Use ID3D11DeviceContext::ResolveSubresource to resolve a multisampled resource to a resource that is not multisampled.
-    //auto ptex = std::make_unique<Texture>(gfx, width_, height_, DXGI_FORMAT_R8G8B8A8_UNORM);
-    //ctx->ResolveSubresource(ptex->underlying_texture().Get(), 0, tex_ptr, 0, DXGI_FORMAT_R8G8B8A8_UNORM);
+    auto dev = D3D11GfxDriver::Instance()->GetDevice();
+    auto ctx = D3D11GfxDriver::Instance()->GetContext();
 
     D3D11_TEXTURE2D_DESC staging_desc;
     staging_desc.Width = width;
@@ -488,7 +473,8 @@ bool D3D11Texture::ReadBackImage(Image& image, int left, int top,
 
     if (res_desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) {
         GfxThrowIfAny(ctx->CopySubresourceRegion(staging_tex.Get(), 0, 0, 0, 0, texture_.Get(), 0, nullptr));
-    } else {
+    }
+    else {
         D3D11_BOX src_box;
         src_box.left = left;
         src_box.right = left + width;
@@ -502,21 +488,9 @@ bool D3D11Texture::ReadBackImage(Image& image, int left, int top,
     D3D11_MAPPED_SUBRESOURCE mapped;
     GfxThrowIfFailed(ctx->Map(staging_tex.Get(), 0, D3D11_MAP_READ, 0, &mapped));
 
-    const uint8_t* src = (const uint8_t*)mapped.pData;
+    callback((const uint8_t*)mapped.pData, mapped.RowPitch);
 
-    for (int y = 0; y < height; ++y) {
-        const uint8_t* texel = src;
-        auto pixel = image.GetRawPtr<ColorRGBA32>(destX, destY + y);
-        for (int x = 0; x < width; ++x) {
-            auto offset = resolver(texel, pixel);
-            texel += offset;
-            ++pixel;
-        }
-        src += mapped.RowPitch;
-    }
     ctx->Unmap(staging_tex.Get(), 0);
-
-    return true;
 }
 
 //void Texture::CreateCubeMapFromFiles(Graphics& gfx, const std::vector<std::wstring>& paths, D3D11_TEXTURE2D_DESC& tex_desc, bool gen_mips) {

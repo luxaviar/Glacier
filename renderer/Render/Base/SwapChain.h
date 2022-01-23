@@ -1,21 +1,20 @@
 #pragma once
 
-//#include <d3d12.h>
-//#include <dxgi1_6.h>
 #include "Common/Uncopyable.h"
+#include "Enums.h"
 
 namespace glacier {
 namespace render {
 
-//class DX12Texture;
 class RenderTarget;
 class GfxDriver;
 
 class SwapChain : private Uncopyable {
 public:
-    SwapChain(uint32_t width, uint32_t height) :
+    SwapChain(uint32_t width, uint32_t height, TextureFormat format) :
         width_(width),
-        height_(height)
+        height_(height),
+        format_(format)
     {
     }
 
@@ -23,6 +22,7 @@ public:
 
     uint32_t GetWidth() const { return width_; }
     uint32_t GetHeight() const { return height_; }
+    TextureFormat GetFormat() const { return format_; }
 
     virtual GfxDriver* GetDriver() const = 0;
     virtual std::shared_ptr<RenderTarget>& GetRenderTarget() = 0;
@@ -34,6 +34,7 @@ public:
 protected:
     uint32_t width_;
     uint32_t height_;
+    TextureFormat format_;
 
     bool full_screen_ = false;
     bool vsync_ = false;

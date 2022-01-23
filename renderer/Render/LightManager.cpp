@@ -11,21 +11,34 @@
 #include "Math/Vec4.h"
 #include "Render/Base/Texture.h"
 #include "Render/Base/RenderTarget.h"
-#include "Render/Base/ConstantBuffer.h"
-#include "Render/Base/Sampler.h"
+#include "Render/Base/SamplerState.h"
+#include "Render/Base/Buffer.h"
 
 namespace glacier {
 namespace render {
 
-void LightManager::Setup(GfxDriver* gfx) {
+void LightManager::Setup(GfxDriver* gfx, Renderer* renderer) {
     gfx_ = gfx;
 
     light_cbuffer_ = gfx->CreateConstantBuffer<LightList>();
+    skybox_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
     GenerateSkybox();
     GenerateIrradiance();
     GenerateRadiance();
-    GenerateBrdfLut();
+    GenerateBrdfLut(renderer);
+}
+
+void LightManager::Clear() {
+    light_cbuffer_ = nullptr;
+
+    skybox_material_ = nullptr;
+    skybox_matrix_ = nullptr;
+
+    skybox_texture_ = nullptr;
+    radiance_ = nullptr;
+    irradiance_ = nullptr;
+    brdf_lut_ = nullptr;
 }
 
 void LightManager::Add(Light* light) {
@@ -61,17 +74,14 @@ DirectionalLight* LightManager::GetMainLight() {
     return nullptr;
 }
 
-void LightManager::Bind() {
-    BindLightList();
-    BindEnv();
+void LightManager::SetupMaterial(MaterialTemplate* mat) {
+    mat->SetProperty("LightList", light_cbuffer_);
+    mat->SetProperty("brdf_lut_tex", brdf_lut_);
+    mat->SetProperty("radiance_tex", radiance_);
+    mat->SetProperty("irradiance_tex", irradiance_);
 }
 
-void LightManager::UnBind() {
-    light_cbuffer_->UnBind(ShaderType::kPixel, 1);
-    UnBindEnv();
-}
-
-void LightManager::BindLightList() {
+void LightManager::Update() {
     size_t i = 0;
     for (; i < lights_.size() && i < kMaxLightNum; ++i) {
         auto light = lights_[i];
@@ -85,35 +95,6 @@ void LightManager::BindLightList() {
     }
 
     light_cbuffer_->Update(&light_data_);
-    light_cbuffer_->Bind(ShaderType::kPixel, 1);
-}
-
-void LightManager::BindEnv() {
-    if (radiance_) {
-        radiance_->Bind(ShaderType::kPixel, 2);
-    }
-
-    if (irradiance_) {
-        irradiance_->Bind(ShaderType::kPixel, 3);
-    }
-
-    if (brdf_lut_) {
-        brdf_lut_->Bind(ShaderType::kPixel, 1);
-    }
-}
-
-void LightManager::UnBindEnv() {
-    if (radiance_) {
-        radiance_->UnBind(ShaderType::kPixel, 2);
-    }
-
-    if (irradiance_) {
-        irradiance_->UnBind(ShaderType::kPixel, 3);
-    }
-
-    if (brdf_lut_) {
-        brdf_lut_->UnBind(ShaderType::kPixel, 1);
-    }
 }
 
 void LightManager::AddSkyboxPass(Renderer* renderer) {
@@ -135,25 +116,23 @@ void LightManager::AddSkyboxPass(Renderer* renderer) {
 }
 
 void LightManager::GenerateSkybox() {
-    skybox_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();// std::make_shared<ConstantBuffer<Matrix4x4>>(gfx);
-
-    auto builder = Texture::Builder()
+    auto desc = Texture::Description()
         .SetFile(TEXT("assets\\images\\valley_skybox.dds"))
         .SetType(TextureType::kTextureCube);
-    skybox_texture_ = gfx_->CreateTexture(builder);
+    skybox_texture_ = gfx_->CreateTexture(desc);
 
-    auto skybox_sampler = gfx_->CreateSampler(SamplerState{});
     skybox_material_ = std::make_unique<Material>("skybox", TEXT("Skybox"), TEXT("Skybox"));
 
-    RasterState rs;
+    RasterStateDesc rs;
     rs.depthWrite = false;
     rs.depthFunc = CompareFunc::kLessEqual;
     rs.culling = CullingMode::kFront;
-    skybox_material_->SetPipelineStateObject(rs);
+    skybox_material_->GetTemplate()->SetRasterState(rs);
+    skybox_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
     skybox_material_->SetProperty("tex", skybox_texture_);
-    skybox_material_->SetProperty("tex_sam", skybox_sampler);
+    skybox_material_->SetProperty("tex_sam", SamplerState{});
 
     VertexCollection vertices;
     IndexCollection indices;
@@ -168,42 +147,29 @@ void LightManager::GenerateSkybox() {
     skybox_cube_->SetReciveShadow(false);
 }
 
-void LightManager::GenerateBrdfLut() {
-    RasterState rs;
+void LightManager::GenerateBrdfLut(Renderer* renderer) {
+    RasterStateDesc rs;
     rs.depthWrite = false;
     rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
 
-    auto integrate_material_ = std::make_unique<Material>("integrate", TEXT("IntegrateBRDF"), TEXT("IntegrateBRDF"));
-    integrate_material_->SetPipelineStateObject(rs);
+    auto integrate_material_ = std::make_unique<PostProcessMaterial>("integrate", TEXT("IntegrateBRDF"));
+    integrate_material_->GetTemplate()->SetRasterState(rs);
 
     constexpr int kSize = 512;
-    auto builder = Texture::Builder()
+    auto desc = Texture::Description()
         .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetCreateFlag(CreateFlags::kRenderTarget)
         .SetDimension(kSize, kSize);
-    brdf_lut_ = gfx_->CreateTexture(builder);
+    brdf_lut_ = gfx_->CreateTexture(desc);
+    brdf_lut_->SetName(TEXT("BRDF LUT texture"));
+
     auto lut_target = gfx_->CreateRenderTarget(kSize, kSize);
 
     lut_target->AttachColor(AttachmentPoint::kColor0, brdf_lut_);
 
-    VertexCollection vertices;
-    IndexCollection indices;
-    geometry::CreateQuad(vertices, indices);
-    auto fullscreen_quad_mesh = std::make_shared<Mesh>(vertices, indices);
-
-    auto& quad_go = GameObject::Create("fullscreen quad");
-    quad_go.DontDestroyOnLoad(true);
-    quad_go.Hide();
-
-    auto quad = quad_go.AddComponent<MeshRenderer>(fullscreen_quad_mesh);
-    quad->SetPickable(false);
-    quad->SetCastShadow(false);
-    quad->SetReciveShadow(false);
-
-    MaterialGuard mat_guard(gfx_, integrate_material_.get());
-    RenderTargetGuard rt_guard(lut_target.get());
-
-    quad->Render(gfx_);
+    renderer->GetPostProcessManager().Process(lut_target.get(), integrate_material_.get());
+    gfx_->Flush();
 }
 
 void LightManager::GenerateIrradiance() {
@@ -211,19 +177,19 @@ void LightManager::GenerateIrradiance() {
     ss.warpU = ss.warpV = WarpMode::kClamp;
 
     auto convolve_material_ = std::make_unique<Material>("convolve", TEXT("EnvIrradiance"), TEXT("EnvIrradiance"));
-    auto linear_sampler = gfx_->CreateSampler(ss);
     auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
-    convolve_material_->SetProperty("tex_sam", linear_sampler);
+    convolve_material_->SetProperty("tex_sam", ss);
     convolve_material_->SetProperty("tex", skybox_texture_);
     convolve_material_->SetProperty("vp_matrix", convolve_matrix_);
 
-    RasterState rs;
+    RasterStateDesc rs;
     rs.depthWrite = false;
     rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
-    convolve_material_->SetPipelineStateObject(rs);
+    convolve_material_->GetTemplate()->SetRasterState(rs);
+    convolve_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     auto constexpr count = toUType(CubeFace::kCount);
     Matrix4x4 view[count] = {
@@ -238,13 +204,16 @@ void LightManager::GenerateIrradiance() {
     Matrix4x4 project = Matrix4x4::PerspectiveFovLH(90.0f * math::kDeg2Rad, 1.0f, 0.1f, 10.0f);
 
     constexpr int kSize = 256;
-    auto builder = Texture::Builder()
+    auto desc = Texture::Description()
         .SetType(TextureType::kTextureCube)
         .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetCreateFlag(CreateFlags::kRenderTarget)
         .SetDimension(kSize, kSize)
         .EnableMips();
 
-    irradiance_ = gfx_->CreateTexture(builder);
+    irradiance_ = gfx_->CreateTexture(desc);
+    irradiance_->SetName(TEXT("Irradiance texture"));
+
     auto irrandiance_target = gfx_->CreateRenderTarget(kSize, kSize);
 
     for (int i = 0; i < count; ++i) {
@@ -252,35 +221,35 @@ void LightManager::GenerateIrradiance() {
         convolve_matrix_->Update(&vp);
         irrandiance_target->AttachColor(AttachmentPoint::kColor0, irradiance_, i);
 
-        MaterialGuard mat_guard(gfx_, convolve_material_.get());
-        RenderTargetGuard rt_guard(irrandiance_target.get());
-
-        skybox_cube_->Render(gfx_);
+        RenderTargetBindingGuard rt_guard(gfx_, irrandiance_target.get());
+        skybox_cube_->Render(gfx_, convolve_material_.get());
     }
 
     irradiance_->GenerateMipMaps();
+    gfx_->Flush();
 }
 
 void LightManager::GenerateRadiance() {
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
-    auto linear_sampler = gfx_->CreateSampler(ss);
-    auto prefiter_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
+
+    auto prefiter_matrix = gfx_->CreateConstantBuffer<Matrix4x4>();
     auto roughness = gfx_->CreateConstantBuffer<Vec4f>();
 
-    auto prefilter_material_ = std::make_unique<Material>("convolve", TEXT("EnvRadiance"), TEXT("EnvRadiance"));
+    auto prefilter_material = std::make_unique<Material>("convolve", TEXT("EnvRadiance"), TEXT("EnvRadiance"));
 
-    RasterState rs;
+    RasterStateDesc rs;
     rs.depthWrite = false;
     rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
-    prefilter_material_->SetPipelineStateObject(rs);
+    prefilter_material->GetTemplate()->SetRasterState(rs);
+    prefilter_material->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
-    prefilter_material_->SetProperty("tex_sam", linear_sampler);
-    prefilter_material_->SetProperty("tex", skybox_texture_);
-    prefilter_material_->SetProperty("vp_matrix", prefiter_matrix_);
-    prefilter_material_->SetProperty("Roughness", roughness);
+    prefilter_material->SetProperty("tex_sam", ss);
+    prefilter_material->SetProperty("tex", skybox_texture_);
+    prefilter_material->SetProperty("vp_matrix", prefiter_matrix);
+    prefilter_material->SetProperty("Roughness", roughness);
 
     auto constexpr count = toUType(CubeFace::kCount);
     Matrix4x4 view[count] = {
@@ -295,33 +264,37 @@ void LightManager::GenerateRadiance() {
     Matrix4x4 project = Matrix4x4::PerspectiveFovLH(90.0f * math::kDeg2Rad, 1.0f, 0.1f, 10.0f);
 
     constexpr int kSize = 512;
-    auto builder = Texture::Builder()
+    auto desc = Texture::Description()
         .SetType(TextureType::kTextureCube)
         .SetDimension(kSize, kSize)
         .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetCreateFlag(CreateFlags::kRenderTarget)
         .EnableMips();
-    radiance_ = gfx_->CreateTexture(builder);
-    auto randiance_target = gfx_->CreateRenderTarget(kSize, kSize);
+    radiance_ = gfx_->CreateTexture(desc);
+    radiance_->SetName(TEXT("Radiance texture"));
+
     uint32_t mip_levels = radiance_->GetMipLevels();
 
     light_data_.radiance_max_load = (float)mip_levels - 1;
 
     for (uint32_t j = 0; j < mip_levels; ++j) {
+        int size = kSize >> j;
+        auto randiance_target = gfx_->CreateRenderTarget(size, size);
         for (int i = 0; i < count; ++i) {
             Matrix4x4 vp = project * view[i];
-            prefiter_matrix_->Update(&vp);
+            prefiter_matrix->Update(&vp);
 
             Vec4f roughness_for_mip;
             roughness_for_mip.x = (float)j / (mip_levels - 1);
             roughness->Update(&roughness_for_mip);
-            randiance_target->AttachColor(AttachmentPoint::kColor0, radiance_, i, j);
+            randiance_target->AttachColor(AttachmentPoint::kColor0, radiance_, i , j);
 
-            MaterialGuard mat_guard(gfx_, prefilter_material_.get());
-            RenderTargetGuard rt_guard(randiance_target.get());
+            RenderTargetBindingGuard rt_guard(gfx_, randiance_target.get());
 
-            skybox_cube_->Render(gfx_);
+            skybox_cube_->Render(gfx_, prefilter_material.get());
         }
     }
+    gfx_->Flush();
 }
 
 }

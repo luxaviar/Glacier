@@ -2,6 +2,7 @@
 
 #include "light.h"
 #include "render/base/gfxdriver.h"
+#include "Render/Base/SamplerState.h"
 
 namespace glacier {
 namespace render {
@@ -10,6 +11,7 @@ class Texture;
 class RenderTarget;
 class Material;
 class Renderable;
+class MaterialTemplate;
 
 class CascadedShadowManager : public Uncopyable {
 public:
@@ -21,8 +23,8 @@ public:
     void Render(const Camera* camera, const std::vector<Renderable*> visibles,
         DirectionalLight* light);
 
-    void Bind();
-    void UnBind();
+    void SetupMaterial(MaterialTemplate* mat);
+    void Update();
 
     uint32_t pcf_size() const { return pcf_size_; }
     void pcf_size(uint32_t v);
@@ -66,7 +68,7 @@ private:
 
     CascadeShadowData shadow_data_;
     std::shared_ptr<ConstantBuffer> shadow_cbuffer_;
-    std::shared_ptr<Sampler> shadow_sampler_;
+    SamplerState shadow_sampler_;
 
     std::vector<Renderable*> casters_;
     std::vector<Frustum> frustums_;

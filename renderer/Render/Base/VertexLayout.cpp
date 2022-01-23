@@ -8,22 +8,20 @@ size_t InputLayoutDesc::data_size() const
     return elements_.empty() ? 0u : elements_.back().offset() + elements_.back().data_size();
 }
 
-std::vector<D3D11_INPUT_ELEMENT_DESC> InputLayoutDesc::layout_desc() const
-{
-    std::vector<D3D11_INPUT_ELEMENT_DESC> desc;
-    desc.reserve(elements_.size());
-    for( const auto& e : elements_ )
-    {
-        desc.push_back( e.desc() );
-    }
-    return desc;
-}
+//std::vector<D3D11_INPUT_ELEMENT_DESC> InputLayoutDesc::layout_desc() const {
+//    std::vector<D3D11_INPUT_ELEMENT_DESC> desc;
+//    desc.reserve(elements_.size());
+//    for( const auto& e : elements_ )
+//    {
+//        desc.push_back( e.desc() );
+//    }
+//    return desc;
+//}
 
-D3D11_INPUT_ELEMENT_DESC InputLayoutDesc::Element::desc() const noexcept {
-    D3D11_INPUT_ELEMENT_DESC desc = kMetaDescArray[(int)type_].gfx_desc;
-    desc.AlignedByteOffset = (UINT)offset_;	
-    return desc;
-}
+//D3D11_INPUT_ELEMENT_DESC InputLayoutDesc::Element::desc() const noexcept {
+//    D3D11_INPUT_ELEMENT_DESC desc = kMetaDescArray[(int)type_].d3d11_desc;
+//    return desc;
+//}
 
 size_t InputLayoutDesc::Element::data_size() const noexcept {
     return kMetaDescArray[(int)type_].size;

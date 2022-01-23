@@ -3,18 +3,18 @@
 #include "Texture.h"
 #include "RenderTarget.h"
 #include "GfxDriver.h"
+#include "Render/Base/Util.h"
 
 namespace glacier {
 namespace render {
 
-D3D11SwapChain::D3D11SwapChain(GfxDriverD3D11* driver, HWND hWnd, uint32_t width, uint32_t height) :
-    SwapChain(width, height),
+D3D11SwapChain::D3D11SwapChain(D3D11GfxDriver* driver, HWND hWnd, uint32_t width, uint32_t height, TextureFormat format) :
+    SwapChain(width, height, format),
     driver_(driver)
 {
     auto device = driver->GetDevice();
     auto context = driver->GetContext();
 
-    //ComPtr<IDXGIDevice1> dxgi_device;
     IDXGIDevice1* dxgi_device;
     GfxThrowIfFailed(device->QueryInterface(IID_PPV_ARGS(&dxgi_device)));// __uuidof(IDXGIDevice1), (void**)&dxgi_device));
 
@@ -30,7 +30,7 @@ D3D11SwapChain::D3D11SwapChain(GfxDriverD3D11* driver, HWND hWnd, uint32_t width
     DXGI_SWAP_CHAIN_DESC1 swapchain_desc = {};
     swapchain_desc.Width = width;
     swapchain_desc.Height = height;
-    swapchain_desc.Format = format_;
+    swapchain_desc.Format = GetUnderlyingFormat(format_);
     swapchain_desc.SampleDesc.Count = 1;
     swapchain_desc.SampleDesc.Quality = 0;
     swapchain_desc.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
@@ -74,15 +74,13 @@ void D3D11SwapChain::CreateRenderTarget() {
     assert(!render_target_);
 
     render_target_ = std::make_shared<D3D11RenderTarget>(width_, height_);
-    auto color_tex_builder = Texture::Builder()
-        .SetBackBufferTexture(0);
-    auto back_texture = driver_->CreateTexture(color_tex_builder);
+    auto back_texture = driver_->CreateTexture(this);
 
-    auto depth_tex_builder = Texture::Builder()
+    auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
         .SetFormat(TextureFormat::kD24S8_UINT)
-        .SetCreateFlag(D3D11_BIND_DEPTH_STENCIL);
-    auto depthstencil_texture = driver_->CreateTexture(depth_tex_builder);
+        .SetCreateFlag(CreateFlags::kDepthStencil);
+    auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
 
     render_target_->AttachColor(AttachmentPoint::kColor0, back_texture);
     render_target_->AttachDepthStencil(depthstencil_texture);
@@ -93,7 +91,7 @@ void D3D11SwapChain::OnResize(uint32_t width, uint32_t height) {
     height_ = height;
 
     //Reset render target
-    render_target_->UnBind();
+    render_target_->UnBind(D3D11GfxDriver::Instance());
     auto backbuffer_tex = render_target_->GetColorAttachment(AttachmentPoint::kColor0);
     auto depth_tex = render_target_->GetDepthStencil();
     render_target_->DetachColor(AttachmentPoint::kColor0);
@@ -109,7 +107,7 @@ void D3D11SwapChain::OnResize(uint32_t width, uint32_t height) {
     GfxThrowIfFailed(swap_chain_->GetBuffer(0, IID_PPV_ARGS(&back_buffer_)));
 
     //Rebuild render target
-    backbuffer_tex->RefreshBackBuffer();
+    static_cast<D3D11Texture*>(backbuffer_tex.get())->Reset(back_buffer_);
     depth_tex->Resize(width, height);
     render_target_->Resize(width, height);
     render_target_->AttachColor(AttachmentPoint::kColor0, backbuffer_tex);

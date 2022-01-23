@@ -57,6 +57,9 @@ public:
     float fov() const { return param_[0]; }
     void fov(float v) { param_[0] = v; }
 
+    float scale() const { return param_[4]; }
+    void scale(float v) { param_[4] = v; }
+
     float aspect() const { return param_[1]; }
     void aspect(float v) { param_[1] = v; }
 
@@ -79,8 +82,8 @@ public:
 private:
     CameraType type_ = CameraType::kPersp;
     //Persp: fov/aspect/near/far
-    //Orhto: width/height/near/far
-    float param_[4] = {60.0f, 16.0f / 10.0f, 0.5f, 150.0f};
+    //Orhto: width/height/near/far/scale
+    float param_[5] = {60.0f, 16.0f / 10.0f, 0.5f, 150.0f, 5.0f};
 };
 
 }

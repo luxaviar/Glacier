@@ -94,6 +94,10 @@ bool AABB::Contains(const Vec3f& point) const {
         point.z >= min.z && point.z <= max.z;
 }
 
+bool AABB::Contains(const Vec2f& point) const {
+    return Contains({ point.x, 0, point.y });
+}
+
 bool AABB::Contains(const AABB& other) const {
     return min.x < other.min.x && min.y < other.min.y && min.z < other.min.z &&
         max.x > other.max.x && max.y > other.max.y && max.z > other.max.z;
@@ -193,6 +197,11 @@ AABB AABB::Expand(float margin) const {
 void AABB::AddPoint(const Vector3& point) {
     min = Vector3::Min(min, point);
     max = Vector3::Max(max, point);
+}
+
+void AABB::AddPoint(const Vector2& point) {
+    min = Vector3::Min(min, { point.x, 0, point.y });
+    max = Vector3::Max(max, { point.x, 0, point.y });
 }
 
 void AABB::OnDrawGizmos() {

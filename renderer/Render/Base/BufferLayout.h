@@ -81,7 +81,7 @@ public:
         Element& Add(ElementType ty, size_t size, const char* key);
         size_t Bake(size_t offsetIn);
 
-        const ElementType type() const { return type_; }
+        ElementType type() const { return type_; }
         bool baked() const { return size_ > 0; }
 
         Element& operator[](const std::string& key);
@@ -111,10 +111,10 @@ public:
     private:
         using StructType = std::vector<std::pair<std::string, Element>>;
         struct ArrayType {
-            ArrayType(Element* e, size_t n) : element(e), size(n) {}
+            ArrayType(Element* e, size_t n) : element(e), size(n), element_size(0) {}
             std::unique_ptr<Element> element;
-            size_t element_size;
             size_t size;
+            size_t element_size;
         };
 
         size_t offset_ = 0;

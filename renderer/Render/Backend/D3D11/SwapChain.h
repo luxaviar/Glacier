@@ -8,16 +8,15 @@
 namespace glacier {
 namespace render {
 
-class GfxDriverD3D11;
+class D3D11GfxDriver;
 
 class D3D11SwapChain : public SwapChain {
 public:
-    D3D11SwapChain(GfxDriverD3D11* driver, HWND hWnd, uint32_t width, uint32_t height);
+    D3D11SwapChain(D3D11GfxDriver* driver, HWND hWnd, uint32_t width, uint32_t height, TextureFormat format);
     ~D3D11SwapChain();
 
     IDXGISwapChain1* GetSwapChain() { return swap_chain_.Get(); }
     ComPtr<ID3D11Texture2D>& GetBackBuffer() { return back_buffer_; }
-    DXGI_FORMAT GetFormate() const { return format_; }
 
     std::shared_ptr<RenderTarget>& GetRenderTarget() override;
     GfxDriver* GetDriver() const override;
@@ -31,8 +30,7 @@ public:
 
 private:
     //bool CheckTearingSupport();
-    DXGI_FORMAT format_ = DXGI_FORMAT_R8G8B8A8_UNORM;
-    GfxDriverD3D11* driver_;
+    D3D11GfxDriver* driver_;
     ComPtr<IDXGISwapChain1> swap_chain_;
     ComPtr<ID3D11Texture2D> back_buffer_;
 

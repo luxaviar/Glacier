@@ -28,8 +28,8 @@ public:
     void Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
     void Render(Renderer* renderer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
 
-    void PreRender(Renderer* renderer) const;
-    void PostRender(Renderer* renderer) const;
+    //void PreRender(Renderer* renderer) const;
+    //void PostRender(Renderer* renderer) const;
 
     void Reset();
 

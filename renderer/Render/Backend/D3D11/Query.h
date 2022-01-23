@@ -7,11 +7,11 @@
 namespace glacier {
 namespace render {
 
-class GfxDriverD3D11;
+class D3D11GfxDriver;
 
 class D3D11QueryElement {
 public:
-    D3D11QueryElement(GfxDriverD3D11* gfx, QueryType type);
+    D3D11QueryElement(D3D11GfxDriver* gfx, QueryType type);
 
     void Begin();
     void End();
@@ -30,7 +30,7 @@ private:
 
 class D3D11Query : public Query {
 public:
-    D3D11Query(QueryType type, int capacity);
+    D3D11Query(D3D11GfxDriver* gfx, QueryType type, int capacity);
 
     void Begin() override;
     void End() override;

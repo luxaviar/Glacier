@@ -42,7 +42,7 @@ Matrix4x4 Camera::projection() const noexcept {
     if (type_ == CameraType::kPersp) {
         return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[2], param_[3]);
     } else {
-        return Matrix4x4::OrthoLH(param_[0], param_[1], param_[2], param_[3]);
+        return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[2], param_[3]);
     }
 }
 
@@ -67,7 +67,12 @@ void Camera::FetchFrustumCorners(Vec3f corners[(int)FrustumCorner::kCount]) cons
 }
 
 void Camera::FetchFrustumCorners(Vec3f corners[(int)FrustumCorner::kCount], float n, float f) const {
-    geometry::FetchFrustumCorners(corners, type_, param_[0], param_[1], n, f);
+    if (type_ == CameraType::kPersp) {
+        geometry::FetchFrustumCorners(corners, type_, param_[0], param_[1], n, f);
+    }
+    else {
+        geometry::FetchFrustumCorners(corners, type_, param_[0] * param_[4], param_[1] * param_[4], n, f);
+    }
 
     for (int i = 0; i < (int)FrustumCorner::kCount; ++i) {
         corners[i] = CameraToWorld(corners[i]);
@@ -139,14 +144,16 @@ void Camera::DrawInspector() {
             ImGui::Text("Far");
             ImGui::SameLine(80); ImGui::DragFloat("##camera-far", &param_[3], 0.05f, param_[2] + 0.001f, 2000.0f);
         } else {
-            ImGui::Text("Width");
-            ImGui::SameLine(80); ImGui::DragFloat("##camera-width", &param_[0], 0.05f, 1.0f, 2000.0f);
-            ImGui::Text("Height");
-            ImGui::SameLine(80); ImGui::DragFloat("##camera-height", &param_[1], 0.01f, 1.0f, 2000.0f);
-            ImGui::Text("Near");
-            ImGui::SameLine(80); ImGui::DragFloat("##camera-near", &param_[2], 0.05f, 0.01f, param_[3]);
-            ImGui::Text("Far");
-            ImGui::SameLine(80); ImGui::DragFloat("##camera-far", &param_[3], 0.05f, param_[2] + 0.001f, 2000.0f);
+            //ImGui::Text("Width");
+            //ImGui::SameLine(80); ImGui::DragFloat("##camera-width", &param_[0], 0.05f, 1.0f, 2000.0f);
+            //ImGui::Text("Height");
+            //ImGui::SameLine(80); ImGui::DragFloat("##camera-height", &param_[1], 0.01f, 1.0f, 2000.0f);
+            //ImGui::Text("Near");
+            //ImGui::SameLine(80); ImGui::DragFloat("##camera-near", &param_[2], 0.05f, 0.01f, param_[3]);
+            //ImGui::Text("Far");
+            //ImGui::SameLine(80); ImGui::DragFloat("##camera-far", &param_[3], 0.05f, param_[2] + 0.001f, 2000.0f);
+            ImGui::Text("Scale");
+            ImGui::SameLine(80); ImGui::DragFloat("##camera-scale", &param_[4], 0.05f, 0.1f, 10.0f);
         }
     }
 }

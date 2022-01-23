@@ -57,12 +57,12 @@ protected:
 
     void AddSolidPass();
     void AddShadowPass();
-    void AddPhongPass();
-    void AddPbrPass();
+    //void AddPhongPass();
 
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
     GfxDriver* gfx_;
+    bool init_ = false;
     bool show_imgui_demo_ = false;
     bool show_gui_ = true;
     bool show_gizmo_ = true;
@@ -72,8 +72,9 @@ protected:
 
     RenderGraph render_graph_;
 
+    //linear render target
     std::shared_ptr<RenderTarget> render_target_;
-    //intermediate render target
+    //intermediate (MSAA) render target
     std::shared_ptr<RenderTarget> intermediate_target_;
 
     //for msaa resolve

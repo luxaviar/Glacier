@@ -3,20 +3,21 @@
 #include "exception/exception.h"
 #include "render/backend/d3d11/gfxdriver.h"
 #include "util.h"
+#include "InputLayout.h"
 
 namespace glacier {
 namespace render {
 
-std::map<uint64_t, std::shared_ptr<D3D11PipelineState>> D3D11PipelineState::cache_;
+std::map<uint64_t, std::shared_ptr<D3D11RasterState>> D3D11RasterState::cache_;
 
-const std::shared_ptr<D3D11PipelineState>& D3D11PipelineState::Create(const RasterState& rs) {
+const std::shared_ptr<D3D11RasterState>& D3D11RasterState::Create(const RasterStateDesc& rs) {
     auto sig = rs.u;
     auto it = cache_.find(sig);
     if (it != cache_.end()) {
         return it->second;
     }
 
-    auto ret = std::make_shared<D3D11PipelineState>(rs);
+    auto ret = std::make_shared<D3D11RasterState>(rs);
     cache_.emplace_hint(it, sig, ret);
     it = cache_.find(sig);
     assert(it != cache_.end());
@@ -24,11 +25,11 @@ const std::shared_ptr<D3D11PipelineState>& D3D11PipelineState::Create(const Rast
     return it->second;
 }
 
-void D3D11PipelineState::Clear() {
+void D3D11RasterState::Clear() {
     cache_.clear();
 }
 
-D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs) {
+D3D11RasterState::D3D11RasterState(const RasterStateDesc& rs) : state_(rs) {
     //rasterizer
     D3D11_RASTERIZER_DESC rasterDesc = CD3D11_RASTERIZER_DESC( CD3D11_DEFAULT{} );
     rasterDesc.CullMode =  GetUnderlyingCullMode(rs.culling);
@@ -36,7 +37,7 @@ D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs
     rasterDesc.FillMode = rs.fillMode == FillMode::kSolid ? D3D11_FILL_SOLID : D3D11_FILL_WIREFRAME;
     rasterDesc.MultisampleEnable = TRUE;
 
-    auto device = GfxDriverD3D11::Instance()->GetDevice();
+    auto device = D3D11GfxDriver::Instance()->GetDevice();
 
     GfxThrowIfFailed(device->CreateRasterizerState(&rasterDesc, &rasterizer_state_));
 
@@ -82,12 +83,11 @@ D3D11PipelineState::D3D11PipelineState(const RasterState& rs) : PipelineState(rs
     GfxThrowIfFailed(device->CreateBlendState(&blendDesc, &blender_state_));
 }
 
-void D3D11PipelineState::Bind() {
-    auto driver = GfxDriverD3D11::Instance();
-    auto last_rs = driver->raster_state();
+void D3D11RasterState::Bind(GfxDriver* gfx) {
+    auto last_rs = gfx->raster_state();
     if (last_rs == state_) return;
 
-    auto context = driver->GetContext();
+    auto context = static_cast<D3D11GfxDriver*>(gfx)->GetContext();
     if (state_.culling != last_rs.culling || state_.scissor != last_rs.scissor || state_.fillMode != last_rs.fillMode) {
         GfxThrowIfAny(context->RSSetState(rasterizer_state_.Get()));
     }
@@ -108,7 +108,44 @@ void D3D11PipelineState::Bind() {
         GfxThrowIfAny(context->IASetPrimitiveTopology(GetTopology(state_.topology)));
     }
 
-    driver->raster_state(state_);
+    gfx->raster_state(state_);
+}
+
+D3D11PipelineState::D3D11PipelineState(const RasterStateDesc& rs, const InputLayoutDesc& layout) :
+    PipelineState(rs, layout),
+    layout_desc_(layout)
+{
+
+}
+
+void D3D11PipelineState::Create() {
+    rso_ = D3D11RasterState::Create(state_);
+    layout_ = D3D11InputLayout::Create(layout_desc_);
+    dirty_ = false;
+}
+
+void D3D11PipelineState::SetInputLayout(const InputLayoutDesc& layout) {
+    if (layout.signature() == layout_signature_.u) return;
+
+    layout_desc_ = layout;
+    layout_signature_ = layout_desc_.signature();
+    dirty_ = true;
+}
+
+void D3D11PipelineState::SetRasterState(const RasterStateDesc& rs) {
+    if (state_ == rs) return;
+
+    state_ = rs;
+    dirty_ = true;
+}
+
+void D3D11PipelineState::Bind(GfxDriver* gfx) {
+    if (dirty_ || !layout_ || !rso_) {
+        Create();
+    }
+
+    layout_->Bind(gfx);
+    rso_->Bind(gfx);
 }
 
 }

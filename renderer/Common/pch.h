@@ -53,10 +53,3 @@
 #include <Windows.h>
 #include <wrl.h>
 using namespace Microsoft::WRL;
-
-#pragma comment(lib,"dxgi.lib")
-
-//When using runtime compiled HLSL shaders 
-//copy the D3dcompiler_47.dll to the same folder as the binary executable when distributing your project.
-//C:\Program Files (x86)\Windows Kits\10\Redist\D3D\.
-#pragma comment(lib,"D3DCompiler.lib")

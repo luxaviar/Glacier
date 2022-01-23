@@ -253,10 +253,11 @@ void Mouse::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam) {
         break;
 
     case WM_LBUTTONUP:
+        state_.left_button = false;
         if (imio.WantCaptureMouse) {
             break;
         }
-        state_.left_button = false;
+        //state_.left_button = false;
         break;
 
     case WM_RBUTTONDOWN:

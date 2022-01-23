@@ -1,13 +1,14 @@
 #include "PerfStats.h"
 #include "imgui/imgui.h"
 #include "GfxDriver.h"
+#include "SwapChain.h"
 
 namespace glacier {
 namespace render {
 
 PerfStats::PerfStats(GfxDriver* gfx) {
-    frame_query_ = std::move(gfx->CreateQuery(QueryType::kTimer, 3));
-    primitiv_query_ = std::move(gfx->CreateQuery(QueryType::kCountRenderPrimitives, 3));
+    frame_query_ = std::move(gfx->CreateQuery(QueryType::kTimeStamp, 3));
+    primitiv_query_ = std::move(gfx->CreateQuery(QueryType::kPipelineStatistics, 3));
 }
 
 void PerfStats::Reset() {
@@ -45,8 +46,8 @@ void PerfStats::PostRender() {
 
 void PerfStats::DrawStatsPanel() {
     auto gfx = GfxDriver::Get();
-    auto width_ = gfx->width();
-    auto height_ = gfx->height();
+    auto width_ = gfx->GetSwapChain()->GetWidth();
+    auto height_ = gfx->GetSwapChain()->GetHeight();
 
     auto h = height_ * 0.2f;
     auto w = width_ * 0.2f;

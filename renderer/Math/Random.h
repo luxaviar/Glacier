@@ -25,7 +25,8 @@ inline T Value() {
     return (T)g_rng.GetFloat();
 }
 
-inline int Range(int min, int max) {
+template<typename T, std::enable_if_t<std::is_integral_v<T>, int> = 0>
+T Range(T min, T max) {
     int dif;
     if (min < max) {
         dif = max - min + 1;
@@ -42,8 +43,8 @@ inline int Range(int min, int max) {
     }        
 }
 
-template<typename T>
-inline T Range(T min, T max) {
+template<typename T, std::enable_if_t<std::is_floating_point_v<T>, int> = 0>
+T Range(T min, T max) {
     T t = Value<T>();
     t = min * t + (1.0f - t) * max;
     return t;

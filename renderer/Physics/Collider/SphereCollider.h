@@ -1,6 +1,7 @@
 #pragma once
 
 #include "collider.h"
+#include "Geometry/Triangle.h"
 
 namespace glacier {
 
@@ -13,6 +14,8 @@ public:
 
     bool Contains(const Vec3f& point) override;
     bool Intersects(const Ray& ray, float max, float& t) override;
+    bool Intersect(const Triangle& tri, Vector3* closest_point = nullptr);
+
     float Distance(const Vec3f& point) override;
     Vec3f ClosestPoint(const Vec3f& point) override;
     Vec3f FarthestPoint(const Vec3f& wdir) override;

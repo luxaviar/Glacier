@@ -5,36 +5,37 @@
 #include "render/base/texture.h"
 #include "render/base/rendertarget.h"
 #include "render/material.h"
-#include "render/base/sampler.h"
+#include "Render/Base/Buffer.h"
 
 namespace glacier {
 namespace render {
 
-PostProcess::PostProcess(const PostProcessBuilder& builder, GfxDriver* gfx) :
-    screen_tex_(builder.src_tex),
-    depth_tex_(builder.depth_tex),
-    material_(builder.material)
+PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
+    //screen_tex_(builder.src_tex),
+    depth_tex_(desc.depth_tex),
+    material_(desc.material)
 {
-    assert(screen_tex_);
+    assert(desc.src_tex);
     assert(material_);
 
-    material_->SetProperty("tex_sam", builder.sampler);
+    material_->SetProperty("tex_sam", desc.sampler);
+    material_->SetProperty("tex", desc.src_tex);
 
-    if (!builder.dst_rt) {
-        auto& tex = builder.dst_tex;
+    if (!desc.dst_rt) {
+        auto& tex = desc.dst_tex;
         assert(tex);
         //TODO: reuse temp rendertarget
         render_target_ = gfx->CreateRenderTarget(tex->width(), tex->height());
         render_target_->AttachColor(AttachmentPoint::kColor0, tex);
     } else {
-        render_target_ = builder.dst_rt;
+        render_target_ = desc.dst_rt;
     }
 }
 
 void PostProcess::Render(GfxDriver* gfx) {
-    RenderTargetGuard rt_guard(render_target_.get());
+    RenderTargetBindingGuard rt_guard(gfx, render_target_.get());
     MaterialGuard mat_guard(gfx, material_.get());
-    TextureGurad tex_guard(screen_tex_.get(), ShaderType::kPixel, 0);
+    //TextureBindingGurad tex_guard(screen_tex_.get(), ShaderType::kPixel, 0);
 
     gfx->Draw(3, 0);
 }
@@ -42,16 +43,13 @@ void PostProcess::Render(GfxDriver* gfx) {
 PostProcessManager::PostProcessManager(GfxDriver* gfx) :
     gfx_(gfx)
 {
-    SamplerState ss;
-    ss.warpU = ss.warpV = WarpMode::kClamp;
-
-    linear_sampler_ = gfx->CreateSampler(ss);
+    linear_sampler_.warpU = linear_sampler_.warpV = WarpMode::kClamp;
 }
 
-void PostProcessManager::Push(PostProcessBuilder& builder) {
-    builder.sampler = linear_sampler_;
+void PostProcessManager::Push(PostProcessDescription& desc) {
+    desc.sampler = linear_sampler_;
 
-    jobs_.emplace_back(builder, gfx_);
+    jobs_.emplace_back(desc, gfx_);
 }
 
 void PostProcessManager::Render() {
@@ -60,11 +58,11 @@ void PostProcessManager::Render() {
     }
 }
 
-void PostProcessManager::Process(Texture* src, RenderTarget* dst, PostProcessMaterial* mat)
+void PostProcessManager::Process(RenderTarget* dst, PostProcessMaterial* mat)
 {
+    RenderTargetBindingGuard rt_guard(gfx_, dst);
     MaterialGuard mat_guard(gfx_, mat);
-    RenderTargetGuard rt_guard(dst);
-    TextureGurad tex_guard(src, ShaderType::kPixel, 0);
+    //TextureBindingGurad tex_guard(src, ShaderType::kPixel, 0);
 
     gfx_->Draw(3, 0);
 }

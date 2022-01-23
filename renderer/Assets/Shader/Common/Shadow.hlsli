@@ -11,14 +11,6 @@ struct CascadeShadowMapInfo
     matrix coord_trans[8];
 };
 
-cbuffer CascadeShadowData : register(b0)
-{
-    CascadeShadowMapInfo shadow_info;
-}
-
-Texture2D shadow_tex : register(t0);
-SamplerComparisonState cmp_sampler : register(s0);
-
 int CalcCascadeIndex(in float3 wpos, in CascadeShadowMapInfo info)
 {
     int index = 0;
@@ -114,7 +106,9 @@ void CalculateBlendFactorForInterval(
     blend_factor = blend_band_location / info.blend_band;
 }
 
-float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos)
+float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos, in CascadeShadowMapInfo shadow_info,
+    in Texture2D shadow_tex,
+    in SamplerComparisonState cmp_sampler)
 {
     float3 L = normalize(-light_dir);//    main_light.view_direction);
     float NdotL = max(dot(normal, L), 0);
