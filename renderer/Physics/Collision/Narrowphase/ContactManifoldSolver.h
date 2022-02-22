@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Common/Uncopyable.h"
-//#include "unico/geometry/shape.h"
 
 namespace glacier {
 

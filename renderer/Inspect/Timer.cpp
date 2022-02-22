@@ -13,13 +13,13 @@ double Timer::Mark() noexcept
 {
     auto old = last;
     last = ClockType::now();
-    duration<double> frameTime = last - old;
-    return frameTime.count();
+    auto frameTime = duration_cast<nanoseconds>(last - old);
+    return frameTime.count() / 1e9;
 }
 
 double Timer::Peek() const noexcept
 {
-    return duration<double>(ClockType::now() - last).count();
+    return duration_cast<nanoseconds>(ClockType::now() - last).count() / 1e9;
 }
 
 }

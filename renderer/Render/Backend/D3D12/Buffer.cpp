@@ -72,6 +72,7 @@ D3D12ConstantBuffer::D3D12ConstantBuffer(const void* data, size_t size, UsageTyp
     }
 
     gpu_address_ = location_.GetGpuAddress();
+    //location_.source_resource->SetDebugName(TEXT("constant buffer"));
     //resource_ = location_.resource;
 }
 
@@ -115,9 +116,7 @@ D3D12VertexBuffer::D3D12VertexBuffer(size_t size, size_t stride) :
     location_.name = "VertexBuffer";
 #endif
 
-    if (!location_.IsEmpty()) {
-        location_.source_resource->SetDebugName(TEXT("Vertex Buffer"));
-    }
+    location_.source_resource->SetDebugName(TEXT("Vertex Buffer"));
 }
 
 D3D12VertexBuffer::D3D12VertexBuffer(const void* data, size_t size, size_t stride) :
@@ -130,9 +129,7 @@ D3D12VertexBuffer::D3D12VertexBuffer(const void* data, size_t size, size_t strid
     location_.name = "VertexBuffer";
 #endif
 
-    if (!location_.IsEmpty()) {
-        location_.source_resource->SetDebugName(TEXT("Vertex Buffer"));
-    }
+    location_.source_resource->SetDebugName(TEXT("Vertex Buffer"));
 }
 
 D3D12VertexBuffer::D3D12VertexBuffer(const VertexData& vdata) :
@@ -142,8 +139,8 @@ D3D12VertexBuffer::D3D12VertexBuffer(const VertexData& vdata) :
 }
 
 void D3D12VertexBuffer::Bind(D3D12CommandList* command_list) const {
-    location_.GetLocationResource<D3D12DefaultBufferAllocator>().TransitionBarrier(command_list,
-        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    //location_.GetLocationResource<D3D12DefaultBufferAllocator>().TransitionBarrier(command_list,
+    //    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
 
     D3D12_VERTEX_BUFFER_VIEW VBV;
     VBV.BufferLocation = location_.GetGpuAddress();
@@ -166,9 +163,7 @@ D3D12IndexBuffer::D3D12IndexBuffer(const void* data, size_t size, IndexFormat fo
     location_.name = "IndexBuffer";
 #endif
 
-    if (!location_.IsEmpty()) {
-        location_.source_resource->SetDebugName(TEXT("Index Buffer"));
-    }
+    location_.source_resource->SetDebugName(TEXT("Index Buffer"));
 }
 
 D3D12IndexBuffer::D3D12IndexBuffer(const std::vector<uint32_t>& indices) :
@@ -183,7 +178,6 @@ D3D12IndexBuffer::D3D12IndexBuffer(const std::vector<uint16_t>& indices) :
 
 }
 
-
 void D3D12IndexBuffer::Update(const void* data, size_t size) {
     assert(size <= size_);
     UpdateResource(data, size);
@@ -192,8 +186,8 @@ void D3D12IndexBuffer::Update(const void* data, size_t size) {
 }
 
 void D3D12IndexBuffer::Bind(D3D12CommandList* command_list) const {
-    location_.GetLocationResource<D3D12DefaultBufferAllocator>().TransitionBarrier(command_list,
-        D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
+    //location_.GetLocationResource<D3D12DefaultBufferAllocator>().TransitionBarrier(command_list,
+    //    D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
 
     D3D12_INDEX_BUFFER_VIEW IBV;
     IBV.BufferLocation = location_.GetGpuAddress();

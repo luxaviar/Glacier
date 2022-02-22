@@ -10,78 +10,82 @@
 #include "spinlock.h"
 
 namespace glacier {
+namespace concurrent {
 
-#define UNICO_CACHE_LINE_SIZE 64
+#define CACHE_LINE_SIZE 64
 
-//In-place Single producer/Single consumer
-template<typename T>
+//Single producer/Single consumer
+template<typename T, size_t Capacity>
 class RingBuffer : private Uncopyable {
 public:
-    struct Entry {
-        Entry() : flag{ ATOMIC_FLAG_INIT }, written(false), v() {}
-        std::atomic_flag flag;
-        bool written;
-        T v;
-    };
+    constexpr size_t capacity() const { return Capacity; }
 
-    RingBuffer(uint32_t size) :
-        reader_idx_(0),
-        writer_idx_(0) {
-        size = size < 8 ? 8 : size;
-        capacity_ = next_power_of2(size);
-        assert(capacity_ > 0 && capacity_ <= 4096);
-        mask_ = capacity_ - 1;
-
-        ring_ = static_cast<Entry*>(std::malloc(capacity_ * sizeof(Entry)));
-        for (size_t i = 0; i < capacity_; ++i) {
-            new (&ring_[i]) Entry();
-        }
-    }
-
-    ~RingBuffer() {
-        for (size_t i = 0; i < capacity_; ++i) {
-            ring_[i].~Entry();
-        }
-
-        std::free(ring_);
-    }
-
-    template<typename PushFunc>
-    bool PushInplace(const PushFunc& func) {
-        uint32_t idx = (writer_idx_.fetch_add(1, std::memory_order_relaxed) - 1) & mask_;
-        Entry& en = ring_[idx];
-        SpinLock lock(en.flag);
-        bool overwrite = en.written;
-        func(en.v);
-        en.written = true;
-
-        return overwrite;
-    }
-
-    template<typename PopFunc>
-    bool PopInplace(const PopFunc& func) {
-        uint32_t idx = reader_idx_.load(std::memory_order_relaxed) & mask_;
-        Entry& en = ring_[idx];
-        SpinLock lock(en.flag);
-        if (en.written) {
-            func(en.v);
-            en.written = false;
-            reader_idx_.fetch_add(1, std::memory_order_relaxed);
+    bool Push(const T& v) {
+        SpinLockGuard gurad(lock_);
+        size_t next = (head_ + 1) % Capacity;
+        if (next != tail_) {
+            data[head_] = v;
+            head_ = next;
             return true;
         }
 
         return false;
     }
 
-    uint32_t capacity() const { return capacity_; }
+    bool Push(T&& v) {
+        SpinLockGuard gurad(lock_);
+        size_t next = (head_ + 1) % Capacity;
+        if (next != tail_) {
+            data[head_] = std::move(v);
+            head_ = next;
+            return true;
+        }
 
-private:
-    std::atomic<uint32_t> reader_idx_;
-    uint8_t cache_line_pad_[UNICO_CACHE_LINE_SIZE - sizeof(std::atomic<uint32_t>)];
-    std::atomic<uint32_t> writer_idx_;
-    uint32_t capacity_;
-    uint32_t mask_;
-    Entry* ring_;
+        return false;
+    }
+
+    template<typename F>
+    T* Push(const F& func) {
+        SpinLockGuard gurad(lock_);
+        size_t next = (head_ + 1) % Capacity;
+        if (next != tail_) {
+            auto& v = data[head_];
+            func(v);
+            head_ = next;
+            return &v;
+        }
+
+        return nullptr;
+    }
+
+    bool Pop(T& v) {
+        SpinLockGuard gurad(lock_);
+        if (tail_ != head_) {
+            std::swap(v, data[tail_]);
+            //v = data[tail_];
+            tail_ = (tail_ + 1) % Capacity;
+            return true;
+        }
+
+        return false;
+    }
+
+    template<typename F>
+    void Visit(size_t i, const F& f) {
+        assert(i < Capacity);
+        SpinLockGuard gurad(lock_);
+        f(data[i]);
+    }
+
+protected:
+    std::atomic<uint32_t> head_ = 0;
+    uint8_t cache_line_pad_[CACHE_LINE_SIZE - sizeof(std::atomic<uint32_t>)];
+    std::atomic<uint32_t> tail_ = 0;
+    
+    T data[Capacity];
+
+    SpinLock lock_;
 };
 
+}
 }

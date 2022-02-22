@@ -1,6 +1,5 @@
 #include "MinkowskiSum.h"
 #include "Physics/Collider/Collider.h"
-//#include "unico/geometry/shape.h"
 #include "Math/Util.h"
 
 namespace glacier {

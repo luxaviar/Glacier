@@ -2,7 +2,6 @@
 
 #include "stdint.h"
 #include "geometry/aabb.h"
-//#include "unico/geometry/shape.h"
 
 namespace glacier {
 

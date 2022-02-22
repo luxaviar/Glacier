@@ -1,7 +1,6 @@
 #pragma once
 
 #include "Physics/Collision/Narrowphase/NarrowphaseDetector.h"
-//#include "unico/geometry/shape.h"
 #include "Physics/Collider/Collider.h"
 
 namespace glacier {

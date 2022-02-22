@@ -26,6 +26,7 @@ public:
         uint32_t root_slot;
         uint32_t bind_count = 0;
         std::vector<D3D12ShaderParameter> params;
+        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> bindings;
 
         operator bool() const { return !params.empty(); }
         size_t size() const { return params.size(); }
@@ -59,9 +60,6 @@ protected:
     void AddParameter(ParameterBinding& list, const D3D12ShaderParameter& param);
 
     void BindProperty(GfxDriver* gfx, const MaterialProperty& prop);
-
-    D3D12_SHADER_VISIBILITY GetShaderVisibility(ShaderType type);
-    //std::vector<CD3DX12_STATIC_SAMPLER_DESC> CreateStaticSamplers() const;
 
     ComPtr<ID3D12RootSignature> root_signature_;
 

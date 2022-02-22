@@ -1,15 +1,12 @@
 #pragma once
 
 #include <vector>
-//#include "unico/uncopyable.h"
 #include "geometry/aabb.h"
-//#include "geometry/shape.h"
 #include "Physics/Collision/HitResult.h"
 #include "Physics/Collision/Narrowphase/MinkowskiSum.h"
 #include "Physics/Collision/ContactPoint.h"
 #include "Physics/Collision/CollidePair.h"
 #include "Physics/CollisionFilter.h"
-//#include "unico/lucid/klass.h"
 
 namespace glacier {
 

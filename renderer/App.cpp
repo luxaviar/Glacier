@@ -4,7 +4,6 @@
 #include "imgui/imgui.h"
 #include "Math/Util.h"
 #include "Common/Util.h"
-#include "Inspect/perflog.h"
 #include "render/camera.h"
 #include "Core/GameObject.h"
 #include "core/scene.h"
@@ -20,6 +19,7 @@
 #include "Inspect/Profiler.h"
 #include "Render/Material.h"
 #include "Render/LightManager.h"
+#include "jobs/JobSystem.h"
 
 namespace glacier {
 
@@ -75,6 +75,17 @@ bool App::HandleInput(float dt) {
 void App::DoFrame(float dt) {
     gfx_->BeginFrame();
 
+    int counter = 0;
+    auto job1 = jobs::JobSystem::Instance()->Schedule([&counter]() {
+        counter++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    });
+
+    auto job2 = jobs::JobSystem::Instance()->Schedule([&counter]() {
+        counter++;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    });
+
     renderer_->Setup();
     SceneManager::Instance()->Update(renderer_.get());
     Input::Instance()->keyboard().Update();
@@ -103,6 +114,9 @@ void App::DoFrame(float dt) {
     GameObjectManager::Instance()->CleanDead();
     Input::Instance()->EndFrame();
 
+    job1.WaitComplete();
+    job2.WaitComplete();
+
     gfx_->EndFrame();
 }
 
@@ -110,6 +124,7 @@ App::~App()
 {
     Profiler::Instance()->PrintAll();
     GameObjectManager::Instance()->OnExit();
+    gfx_->OnDestroy();
 }
 
 void App::OnStart() {
@@ -138,6 +153,8 @@ int App::Go() {
 
         DoFrame(dt);
     }
+
+    return 0;
 }
 
 }

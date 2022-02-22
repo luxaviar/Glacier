@@ -4,7 +4,6 @@
 #include <stdarg.h>
 #include "Math/Util.h"
 
-
 namespace glacier {
 
 Profiler::Node::Node(const char* name, Node* parent) :

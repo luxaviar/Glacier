@@ -3,7 +3,6 @@
 #include <limits>
 #include "Geometry/Triangle.h"
 #include "Physics/Collision/ContactPoint.h"
-//#include "unico/log.h"
 
 namespace glacier {
 namespace physics {

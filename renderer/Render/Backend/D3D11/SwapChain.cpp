@@ -75,12 +75,14 @@ void D3D11SwapChain::CreateRenderTarget() {
 
     render_target_ = std::make_shared<D3D11RenderTarget>(width_, height_);
     auto back_texture = driver_->CreateTexture(this);
+    back_texture->SetName(TEXT("swapchain color texture"));
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
         .SetFormat(TextureFormat::kD24S8_UINT)
         .SetCreateFlag(CreateFlags::kDepthStencil);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
+    depthstencil_texture->SetName(TEXT("swapchain depth texture"));
 
     render_target_->AttachColor(AttachmentPoint::kColor0, back_texture);
     render_target_->AttachDepthStencil(depthstencil_texture);

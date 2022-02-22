@@ -17,7 +17,7 @@ ImageException::ImageException(int line, const TCHAR* file, const TCHAR* filenam
 
 }
 
-ImageException::ImageException(int line, const TCHAR* file, const TCHAR* filename, const TCHAR* desc) noexcept :
+ImageException::ImageException(int line, const TCHAR* file, const TCHAR* filename, const char* desc) noexcept :
     BaseException(line, file, desc),
     file_name_(filename)
 {
@@ -108,7 +108,7 @@ void Image::Save( const TCHAR* filename, bool ignore_srgb) const {
     } else if( ext == ".bmp" ) {
         codec = DirectX::WIC_CODEC_BMP;
     } else {
-        throw ImageException(__LINE__, TEXT(__FILE__), filename, TEXT("Image format not supported"));
+        throw ImageException(__LINE__, TEXT(__FILE__), filename, "Image format not supported");
     }
 
     HRESULT hr = DirectX::SaveToWICFile(

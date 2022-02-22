@@ -11,8 +11,16 @@ namespace glacier {
 class BaseException : public std::exception {
 public:
     BaseException(int line, const TCHAR* file, HRESULT hr) noexcept;
-    BaseException(int line, const TCHAR* file, const TCHAR* desc) noexcept;
-    BaseException(int line, const TCHAR* file, std::string desc) noexcept;
+    BaseException(int line, const TCHAR* file, const char* desc) noexcept;
+    BaseException(int line, const TCHAR* file, const std::string& desc) noexcept;
+    BaseException(int line, const TCHAR* file, HRESULT hr, const char* desc) noexcept;
+
+    BaseException(const char* what) noexcept;
+    BaseException(const std::exception& exp) noexcept;
+
+    BaseException(const BaseException& other) = default;
+
+    virtual ~BaseException() {}
 
     const char* what() const noexcept override;
 
@@ -31,7 +39,7 @@ protected:
     EngineString file_;
 
     HRESULT hr_;
-    EngineString desc_;
+    std::string desc_;
     mutable std::string what_;
 };
 
@@ -44,11 +52,12 @@ public:
     }
 };
 
-class GraphicsException : public BaseException
-{
+class GraphicsException : public BaseException {
 public:
     GraphicsException(int line, const TCHAR* file, HRESULT hr, std::string&& detail = {}) noexcept;
     GraphicsException(int line, const TCHAR* file, std::string&& detail = {}) noexcept;
+
+    GraphicsException(const GraphicsException& other) = default;
 
     const TCHAR* type() const noexcept override {
         return TEXT("Graphics Exception");
@@ -64,10 +73,10 @@ private:
     std::string detail_;
 };
 
-class GraphicsDeviceRemovedException : public GraphicsException
-{
+class GraphicsDeviceRemovedException : public GraphicsException {
 public:
     GraphicsDeviceRemovedException(int line, const TCHAR* file, HRESULT hr);
+    GraphicsDeviceRemovedException(const GraphicsDeviceRemovedException& other) = default;
 
     const TCHAR* type() const noexcept {
         return TEXT("Graphics Exception [Device Removed] (DXGI_ERROR_DEVICE_REMOVED)");
@@ -77,6 +86,9 @@ public:
 }
 
 #define WinThrowLastExcept() throw WindowException(__LINE__,TEXT(__FILE__), GetLastError())
+#define ThrowIfLastExcept(what) if(HRESULT hr; FAILED(hr = (GetLastError()))) throw BaseException(__LINE__,TEXT(__FILE__), hr, what)
+#define ThrowAssert(call, what) if (!(call)) throw BaseException(__LINE__,TEXT(__FILE__), what)
+#define ThrowIfFailed(hrcall, what) if(HRESULT hr; FAILED(hr = (hrcall))) throw BaseException(__LINE__, TEXT(__FILE__), hr, what)
 
 #define GfxThrowIfFailedRaw(hrcall) if(HRESULT hr; FAILED(hr = (hrcall))) throw GraphicsException(__LINE__, TEXT(__FILE__), hr)
 

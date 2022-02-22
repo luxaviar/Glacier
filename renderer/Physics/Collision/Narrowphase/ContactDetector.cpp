@@ -1,7 +1,6 @@
 #include "ContactDetector.h"
 #include "ContactManifoldSolver.h"
 #include "CollisionDetector.h"
-//#include "unico/lucid.h"
 
 namespace glacier {
 namespace physics {

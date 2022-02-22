@@ -4,17 +4,37 @@
 #include "Common/Uncopyable.h"
 
 namespace glacier {
+namespace concurrent {
 
-struct SpinLock : private Uncopyable {
-    SpinLock(std::atomic_flag& flag_) : flag(flag_) {
-        while (flag.test_and_set(std::memory_order_acquire));
+class SpinLock : private Uncopyable {
+public:
+    void Lock() {
+        while (!TryLock()) {};
     }
 
-    ~SpinLock() {
-        flag.clear(std::memory_order_release);
+    bool TryLock() {
+        return !flag_.test_and_set(std::memory_order_acquire);
     }
 
-    std::atomic_flag& flag;
+    void Unlock() {
+        flag_.clear(std::memory_order_release);
+    }
+
+private:
+    std::atomic_flag flag_ = { ATOMIC_FLAG_INIT };
 };
 
+struct SpinLockGuard : private Uncopyable {
+    SpinLockGuard(SpinLock& lock) : lock(lock) {
+        lock.Lock();
+    }
+
+    ~SpinLockGuard() {
+        lock.Unlock();
+    }
+
+    SpinLock& lock;
+};
+
+}
 }

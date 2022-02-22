@@ -15,6 +15,7 @@ A personal toy game engine project based on D3D11 & D3D12
 * MSAA
 * Rigidbody Physics
 * Component-Based Architecture
+* Fiber-based Job System
 * Editor & Gizmo
 * Input System
 

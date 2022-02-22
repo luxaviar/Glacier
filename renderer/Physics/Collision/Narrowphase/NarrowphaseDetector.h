@@ -1,9 +1,7 @@
 #pragma once
 
-//#include "unico/lucid/klass.h"
 #include "Common/Uncopyable.h"
 #include "MinkowskiSum.h"
-//#include "unico/geometry/shape.h"
 
 namespace glacier {
 

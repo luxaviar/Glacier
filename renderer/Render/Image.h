@@ -13,7 +13,7 @@ class ImageException : public BaseException
 {
 public:
     ImageException(int line, const TCHAR* file, const TCHAR* filename, HRESULT hr) noexcept;
-    ImageException(int line, const TCHAR* file, const TCHAR* filename, const TCHAR* note) noexcept;
+    ImageException(int line, const TCHAR* file, const TCHAR* filename, const char* note) noexcept;
 
     const char* what() const noexcept override;
     const TCHAR* type() const noexcept override;

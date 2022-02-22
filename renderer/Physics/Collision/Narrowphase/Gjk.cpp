@@ -1,5 +1,4 @@
 #include "gjk.h"
-//#include "unico/lucid.h"
 
 namespace glacier {
 namespace physics {

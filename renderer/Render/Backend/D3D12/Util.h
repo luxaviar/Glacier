@@ -257,5 +257,29 @@ inline D3D12_RESOURCE_FLAGS GetCreateFlags(uint32_t flags) {
     return (D3D12_RESOURCE_FLAGS)flag;
 }
 
+inline D3D12_SHADER_VISIBILITY GetShaderVisibility(ShaderType type)
+{
+    D3D12_SHADER_VISIBILITY visibility;
+    if (type == ShaderType::kVertex)
+    {
+        visibility = D3D12_SHADER_VISIBILITY_VERTEX;
+    }
+    else if (type == ShaderType::kPixel)
+    {
+        visibility = D3D12_SHADER_VISIBILITY_PIXEL;
+    }
+    else if (type == ShaderType::kCompute)
+    {
+        visibility = D3D12_SHADER_VISIBILITY_ALL;
+    }
+    else
+    {
+        assert(0);
+    }
+
+    return visibility;
+}
+
+
 }
 }

@@ -115,6 +115,9 @@
     <Filter Include="Source\Render\Backend\D3D12">
       <UniqueIdentifier>{f8813e8b-e441-45b8-a49b-d103fa070377}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Jobs">
+      <UniqueIdentifier>{f0cc6f9c-6996-4b65-be77-e2ed0b5df995}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="3rdparty\assimp\color4.inl">
@@ -549,6 +552,18 @@
     <ClCompile Include="Render\MaterialTemplate.cpp">
       <Filter>Source\Render</Filter>
     </ClCompile>
+    <ClCompile Include="Concurrent\ThreadPool.cpp">
+      <Filter>Source\Concurrent</Filter>
+    </ClCompile>
+    <ClCompile Include="Jobs\Fiber.cpp">
+      <Filter>Source\Jobs</Filter>
+    </ClCompile>
+    <ClCompile Include="Jobs\Job.cpp">
+      <Filter>Source\Jobs</Filter>
+    </ClCompile>
+    <ClCompile Include="Jobs\JobSystem.cpp">
+      <Filter>Source\Jobs</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="3rdparty\imgui\imconfig.h">
@@ -855,9 +870,6 @@
       <Filter>Source\Common</Filter>
     </ClInclude>
     <ClInclude Include="Common\pch.h">
-      <Filter>Source\Common</Filter>
-    </ClInclude>
-    <ClInclude Include="Common\PerfLog.h">
       <Filter>Source\Common</Filter>
     </ClInclude>
     <ClInclude Include="Common\Signal.h">
@@ -1178,9 +1190,6 @@
     <ClInclude Include="Render\CascadedShadowManager.h">
       <Filter>Source\Render</Filter>
     </ClInclude>
-    <ClInclude Include="Concurrent\ThreadSafeQueue.h">
-      <Filter>Source\Concurrent</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Base\Util.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
@@ -1213,9 +1222,6 @@
     </ClInclude>
     <ClInclude Include="Render\Base\Program.h">
       <Filter>Source\Render\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Inspect\PerfLog.h">
-      <Filter>Source\Inspect</Filter>
     </ClInclude>
     <ClInclude Include="Inspect\Profiler.h">
       <Filter>Source\Inspect</Filter>
@@ -1333,6 +1339,21 @@
     </ClInclude>
     <ClInclude Include="Render\MaterialTemplate.h">
       <Filter>Source\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Concurrent\FixedBuffer.h">
+      <Filter>Source\Concurrent</Filter>
+    </ClInclude>
+    <ClInclude Include="Concurrent\ThreadPool.h">
+      <Filter>Source\Concurrent</Filter>
+    </ClInclude>
+    <ClInclude Include="Jobs\Fiber.h">
+      <Filter>Source\Jobs</Filter>
+    </ClInclude>
+    <ClInclude Include="Jobs\Job.h">
+      <Filter>Source\Jobs</Filter>
+    </ClInclude>
+    <ClInclude Include="Jobs\JobSystem.h">
+      <Filter>Source\Jobs</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

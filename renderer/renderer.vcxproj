@@ -158,6 +158,7 @@
     </ClCompile>
     <ClCompile Include="Common\Util.cpp" />
     <ClCompile Include="Component\MeshDrawer.cpp" />
+    <ClCompile Include="Concurrent\ThreadPool.cpp" />
     <ClCompile Include="Core\Behaviour.cpp" />
     <ClCompile Include="Core\Component.cpp" />
     <ClCompile Include="Core\GameObject.cpp" />
@@ -182,6 +183,9 @@
     <ClCompile Include="Inspect\Profiler.cpp" />
     <ClCompile Include="Inspect\Statistic.cpp" />
     <ClCompile Include="Inspect\Timer.cpp" />
+    <ClCompile Include="Jobs\Fiber.cpp" />
+    <ClCompile Include="Jobs\Job.cpp" />
+    <ClCompile Include="Jobs\JobSystem.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Math\Random.cpp" />
     <ClCompile Include="Physics\Collider\BoxCollider.cpp" />
@@ -374,7 +378,6 @@
     <ClInclude Include="Common\FreeList.h" />
     <ClInclude Include="Common\List.h" />
     <ClInclude Include="Common\pch.h" />
-    <ClInclude Include="Common\PerfLog.h" />
     <ClInclude Include="Common\ScopedBuffer.h" />
     <ClInclude Include="Common\Signal.h" />
     <ClInclude Include="Common\Singleton.h" />
@@ -382,9 +385,10 @@
     <ClInclude Include="Common\Uncopyable.h" />
     <ClInclude Include="Common\Util.h" />
     <ClInclude Include="Component\MeshDrawer.h" />
+    <ClInclude Include="Concurrent\FixedBuffer.h" />
     <ClInclude Include="Concurrent\RingBuffer.h" />
     <ClInclude Include="Concurrent\SpinLock.h" />
-    <ClInclude Include="Concurrent\ThreadSafeQueue.h" />
+    <ClInclude Include="Concurrent\ThreadPool.h" />
     <ClInclude Include="Core\Behaviour.h" />
     <ClInclude Include="Core\Component.h" />
     <ClInclude Include="Core\GameObject.h" />
@@ -409,10 +413,12 @@
     <ClInclude Include="Input\Input.h" />
     <ClInclude Include="Input\Keyboard.h" />
     <ClInclude Include="Input\Mouse.h" />
-    <ClInclude Include="Inspect\PerfLog.h" />
     <ClInclude Include="Inspect\Profiler.h" />
     <ClInclude Include="Inspect\Statistic.h" />
     <ClInclude Include="Inspect\Timer.h" />
+    <ClInclude Include="Jobs\Fiber.h" />
+    <ClInclude Include="Jobs\Job.h" />
+    <ClInclude Include="Jobs\JobSystem.h" />
     <ClInclude Include="Math\Axis.h" />
     <ClInclude Include="Math\Mat3.h" />
     <ClInclude Include="Math\Mat4.h" />

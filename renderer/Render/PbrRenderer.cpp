@@ -124,7 +124,27 @@ void PbrRenderer::InitDefaultPbr(GfxDriver* gfx) {
     auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
     pbr_mat->SetProperty("object_material", mat_cbuf);
 
+    auto red_pbr = std::make_unique<Material>(*pbr_mat);
+    red_pbr->name("red_pbr_default");
+    red_pbr->SetProperty("albedo_tex", nullptr, Color::kRed);
+
+    auto green_pbr = std::make_unique<Material>(*pbr_mat);
+    green_pbr->name("green_pbr_default");
+    green_pbr->SetProperty("albedo_tex", nullptr, Color::kGreen);
+
+    auto orange_pbr = std::make_unique<Material>(*pbr_mat);
+    orange_pbr->name("orange_pbr_default");
+    orange_pbr->SetProperty("albedo_tex", nullptr, Color::kOrange);
+
+    auto indigo_pbr = std::make_unique<Material>(*pbr_mat);
+    indigo_pbr->name("indigo_pbr_default");
+    indigo_pbr->SetProperty("albedo_tex", nullptr, Color::kIndigo);
+
     MaterialManager::Instance()->Add(std::move(pbr_mat));
+    MaterialManager::Instance()->Add(std::move(red_pbr));
+    MaterialManager::Instance()->Add(std::move(green_pbr));
+    MaterialManager::Instance()->Add(std::move(orange_pbr));
+    MaterialManager::Instance()->Add(std::move(indigo_pbr));
 }
 
 void PbrRenderer::InitFloorPbr(GfxDriver* gfx) {

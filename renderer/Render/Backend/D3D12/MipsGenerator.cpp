@@ -195,7 +195,7 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
     src_srv_desc.Texture2DArray.MipLevels = tex_desc.MipLevels;
     src_srv_desc.Texture2DArray.MostDetailedMip = 0;
 
-    for (int i = 0; i < 6; ++i) {
+    for (int i = 0; i < tex_desc.DepthOrArraySize; ++i) {
         auto src_slot = allocator->Allocate();
         D3D12_CPU_DESCRIPTOR_HANDLE src_srv = src_slot.GetDescriptorHandle();
 

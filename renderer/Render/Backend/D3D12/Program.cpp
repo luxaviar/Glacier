@@ -10,6 +10,7 @@
 #include "RenderTarget.h"
 #include "PipelineState.h"
 #include "Sampler.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
@@ -27,6 +28,7 @@ ID3D12RootSignature* D3D12Program::GetRootSignature() {
 }
 
 void D3D12Program::Bind(GfxDriver* gfx, Material* mat) {
+    PerfSample("Material Binding");
     auto& properties = mat->GetProperties();
     for (auto& prop : properties) {
         BindProperty(gfx, prop);
@@ -55,12 +57,11 @@ void D3D12Program::ReBind(GfxDriver* gfx, Material* mat) {
         assert(param.constant_buffer);
 
         driver->GetCommandList()->SetGraphicsRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
-        /// TODO: if (is computer shader)
-        //cmd_list->SetGraphicsRootConstantBufferView(param.root_slot, gpu_address);
     }
 }
 
 void D3D12Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
+    PerfSample("MaterialTemplate Binding");
     if (pso_) {
         auto d3d12pso = static_cast<D3D12PipelineState*>(pso_.get());
         d3d12pso->Check(gfx, this);
@@ -86,6 +87,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, const MaterialProperty& prop) {
                 .SetColor(prop.color)
                 .SetDimension(8, 8);
             prop.texture = gfx->CreateTexture(desc);
+            prop.texture->SetName(TEXT("color texture"));
         }
 
         auto tex = static_cast<D3D12Texture*>(prop.texture.get());
@@ -400,70 +402,47 @@ void D3D12Program::Bind(D3D12CommandList* cmd_list) {
     }
 
     if (srv_def_) {
-        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> srv_descriptors;
-        srv_descriptors.reserve(srv_def_.bind_count);
+        auto& bindings = srv_def_.bindings;
+        bindings.clear();
 
         for (auto& param : srv_def_.params) {
             for (uint32_t i = 0; i < param.srv_list.size(); ++i) {
-                srv_descriptors.push_back(param.srv_list[i]->GetDescriptorHandle());
+                bindings.push_back(param.srv_list[i]->GetDescriptorHandle());
             }
         }
 
-        auto gpu_address = srv_table->AppendDescriptors(srv_descriptors.data(), srv_descriptors.size());
+        auto gpu_address = srv_table->AppendDescriptors(bindings.data(), bindings.size());
         cmd_list->SetGraphicsRootDescriptorTable(srv_def_.root_slot, gpu_address);
     }
 
     if (uav_def_) {
-        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> uav_descriptors;
-        uav_descriptors.reserve(uav_def_.bind_count);
+        auto& uav_bindings = uav_def_.bindings;
+        uav_bindings.clear();
 
         for (auto& param : uav_def_.params) {
             for (uint32_t i = 0; i < param.srv_list.size(); ++i) {
-                uav_descriptors.push_back(param.srv_list[i]->GetDescriptorHandle());
+                uav_bindings.push_back(param.srv_list[i]->GetDescriptorHandle());
             }
         }
 
-        auto gpu_address = srv_table->AppendDescriptors(uav_descriptors.data(), uav_descriptors.size());
+        auto gpu_address = srv_table->AppendDescriptors(uav_bindings.data(), uav_bindings.size());
         cmd_list->SetGraphicsRootDescriptorTable(uav_def_.root_slot, gpu_address);
     }
 
     if (sampler_def_) {
-        auto sampler_table = D3D12GfxDriver::Instance()->GetSamplerTableHeap();
-        std::vector<D3D12_CPU_DESCRIPTOR_HANDLE> sampler_descriptors;
-        sampler_descriptors.reserve(sampler_def_.bind_count);
+        auto& sampler_bindings = sampler_def_.bindings;
+        sampler_bindings.clear();
 
         for (auto& param : sampler_def_.params) {
             for (uint32_t i = 0; i < param.srv_list.size(); ++i) {
-                sampler_descriptors.push_back(param.srv_list[i]->GetDescriptorHandle());
+                sampler_bindings.push_back(param.srv_list[i]->GetDescriptorHandle());
             }
         }
 
-        auto gpu_address = sampler_table->AppendDescriptors(sampler_descriptors.data(), sampler_descriptors.size());
+        auto sampler_table = D3D12GfxDriver::Instance()->GetSamplerTableHeap();
+        auto gpu_address = sampler_table->AppendDescriptors(sampler_bindings.data(), sampler_bindings.size());
         cmd_list->SetGraphicsRootDescriptorTable(sampler_def_.root_slot, gpu_address);
     }
-}
-
-D3D12_SHADER_VISIBILITY D3D12Program::GetShaderVisibility(ShaderType type)
-{
-    D3D12_SHADER_VISIBILITY visibility;
-    if (type == ShaderType::kVertex)
-    {
-        visibility = D3D12_SHADER_VISIBILITY_VERTEX;
-    }
-    else if (type == ShaderType::kPixel)
-    {
-        visibility = D3D12_SHADER_VISIBILITY_PIXEL;
-    }
-    else if (type == ShaderType::kCompute)
-    {
-        visibility = D3D12_SHADER_VISIBILITY_ALL;
-    }
-    else
-    {
-        assert(0);
-    }
-
-    return visibility;
 }
 
 }

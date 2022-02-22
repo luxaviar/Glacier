@@ -10,19 +10,37 @@ BaseException::BaseException(int line, const TCHAR* file, HRESULT hr) noexcept :
     hr_(hr)
 {}
 
-BaseException::BaseException(int line, const TCHAR* file, const TCHAR* desc) noexcept :
+BaseException::BaseException(int line, const TCHAR* file, const char* desc) noexcept :
     line_(line),
     file_(file),
     hr_(S_OK),
-    desc_(desc ? desc : TEXT(""))
+    desc_(desc ? desc : "")
 {}
 
-BaseException::BaseException(int line, const TCHAR* file, std::string desc) noexcept :
+BaseException::BaseException(int line, const TCHAR* file, const std::string& desc) noexcept :
     line_(line),
     file_(file),
     hr_(S_OK),
-    desc_(std::move(ToWide(desc)))
+    desc_(desc)
 {
+}
+
+BaseException::BaseException(int line, const TCHAR* file, HRESULT hr, const char* desc) noexcept :
+    line_(line),
+    file_(file),
+    hr_(hr),
+    desc_(desc)
+{}
+
+BaseException::BaseException(const std::exception& exp) noexcept :
+    BaseException(exp.what())
+{
+}
+
+BaseException::BaseException(const char* what) noexcept :
+    BaseException(0, TEXT(""), "")
+{
+    what_ = what;
 }
 
 // Window Exception Stuff
@@ -54,7 +72,7 @@ std::string BaseException::GetSource() const noexcept {
 }
 
 EngineString BaseException::GetDescription() const noexcept {
-    return hr_ == S_OK ? desc_ : TranslateErrorCode(hr_);
+    return hr_ == S_OK ? ToWide(desc_) : TranslateErrorCode(hr_);
 }
 
 const char* BaseException::what() const noexcept {

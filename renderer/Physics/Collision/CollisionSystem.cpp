@@ -3,7 +3,6 @@
 #include "Physics/Collision/Narrowphase/NarrowphaseDetector.h"
 #include "Physics/Collider/Collider.h"
 #include "Physics/Dynamic/Rigidbody.h"
-//#include "unico/lucid.h"
 
 namespace glacier {
 namespace physics {
