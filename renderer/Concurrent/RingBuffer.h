@@ -71,6 +71,20 @@ public:
     }
 
     template<typename F>
+    bool Pop(const F& func) {
+        SpinLockGuard gurad(lock_);
+        if (tail_ != head_) {
+            auto& v = data[tail_];
+            func(v);
+            tail_ = (tail_ + 1) % Capacity;
+            return true;
+        }
+
+        return false;
+    }
+
+
+    template<typename F>
     void Visit(size_t i, const F& f) {
         assert(i < Capacity);
         SpinLockGuard gurad(lock_);

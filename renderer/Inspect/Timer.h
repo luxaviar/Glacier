@@ -10,10 +10,12 @@ public:
         std::chrono::high_resolution_clock, std::chrono::steady_clock >::type;
 
     Timer() noexcept;
-    double Mark() noexcept;
-    double Peek() const noexcept;
+
+    void Mark() noexcept;
+    double DeltaTime() noexcept;
+
 private:
-    ClockType::time_point last;
+    ClockType::time_point prev_time_;
 };
 
 }

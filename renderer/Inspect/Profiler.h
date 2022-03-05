@@ -72,7 +72,7 @@ private:
 
     Node root_;
     Node* current_node_;
-    std::array<char, 256> indent_;
+    int ident_ = 0;
 };
 
 class PerfGuard : private Uncopyable {

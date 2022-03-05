@@ -23,7 +23,7 @@ void ThreadPool::Initialize(uint32_t thread_count) {
 
     for (uint32_t thread_id = 0; thread_id < num_threads; ++thread_id) {
         threads_.emplace_back([this] {
-            while (alive_.load(std::memory_order_acquire)) {
+            while (alive_.load(std::memory_order_relaxed)) {
                 if (!Execute()) {
                     // no job, put thread to sleep
                     std::unique_lock<std::mutex> lock(wake_mutex_);
@@ -111,7 +111,7 @@ void ThreadPool::WaitUntilFinish() {
 void ThreadPool::JoinAll() {
     {
         std::lock_guard gurad(wake_mutex_);
-        alive_.store(false, std::memory_order_release);
+        alive_.store(false, std::memory_order_relaxed);
     }
 
     WaitUntilFinish();

@@ -187,7 +187,7 @@ JobHandle JobSystem::Schedule(const ParallelJobDelegate& task, uint32_t job_coun
 }
 
 void JobSystem::Exit() noexcept {
-    keep_running_.store(false, std::memory_order_release);
+    keep_running_.store(false, std::memory_order_relaxed);
 }
 
 void JobSystem::WaitUntilFinish() {
@@ -278,6 +278,7 @@ JobFiber* JobSystem::PullActiveJob() {
 void JobSystem::FiberLoop(JobFiber* self_fiber) {
     FlsSetValue(job_fiber_cookie_, self_fiber);
     
+    Timer timer;
     while (keep_running_.load(std::memory_order_relaxed)) {
         auto self_job = self_fiber->job;
         if (self_job) {
@@ -297,6 +298,7 @@ void JobSystem::FiberLoop(JobFiber* self_fiber) {
 
             self_fiber->job = nullptr;
             job_queue_.Free(self_job);
+            timer.Mark();
 
             continue;
         }
@@ -308,6 +310,7 @@ void JobSystem::FiberLoop(JobFiber* self_fiber) {
                 if (!next_fiber->job->HasDependency()) {
                     fiber_pool_.FreeFiber(self_fiber);
                     SwitchToFiber(next_fiber->fiber.GetAddress());
+                    timer.Mark();
                     continue;
                 }
                 
@@ -326,7 +329,10 @@ void JobSystem::FiberLoop(JobFiber* self_fiber) {
             }
         }
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        if (timer.DeltaTime() > 0.015f) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            timer.Mark();
+        }
     }
 }
 

@@ -146,7 +146,8 @@ int App::Go() {
             return *ecode;
         }
         // execute the game logic
-        const auto dt = (float)timer_.Mark() * time_scale_;
+        const auto dt = (float)timer_.DeltaTime() * time_scale_;
+        timer_.Mark();
         if (HandleInput(dt)) {
             return 0;
         }

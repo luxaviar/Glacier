@@ -61,12 +61,13 @@
       <PreprocessorDefinitions>_DEBUG;_CONSOLE;IS_DEBUG=true;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\fmt\include;$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Common/pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Common/pch.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -84,12 +85,13 @@
       <PreprocessorDefinitions>NDEBUG;_CONSOLE;IS_DEBUG=false;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\fmt\include;$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <PrecompiledHeader>Use</PrecompiledHeader>
       <PrecompiledHeaderFile>Common/pch.h</PrecompiledHeaderFile>
       <ForcedIncludeFiles>Common/pch.h;%(ForcedIncludeFiles)</ForcedIncludeFiles>
       <ObjectFileName>$(IntDir)%(RelativeDir)</ObjectFileName>
       <AdditionalOptions>/utf-8 %(AdditionalOptions)</AdditionalOptions>
+      <DisableSpecificWarnings>4996</DisableSpecificWarnings>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -133,6 +135,8 @@
     <None Include="packages.config" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="3rdParty\fmt\src\format.cc" />
+    <ClCompile Include="3rdParty\fmt\src\os.cc" />
     <ClCompile Include="3rdParty\imguizmo\GraphEditor.cpp" />
     <ClCompile Include="3rdParty\imguizmo\ImCurveEdit.cpp" />
     <ClCompile Include="3rdParty\imguizmo\ImGradient.cpp" />
@@ -150,6 +154,7 @@
     <ClCompile Include="App.cpp" />
     <ClCompile Include="Behaviour\CameraController.cpp" />
     <ClCompile Include="Behaviour\Fall.cpp" />
+    <ClCompile Include="Common\ByteStream.cpp" />
     <ClCompile Include="Common\Clock.cpp" />
     <ClCompile Include="Common\Color.cpp" />
     <ClCompile Include="Common\pch.cpp">
@@ -186,6 +191,9 @@
     <ClCompile Include="Jobs\Fiber.cpp" />
     <ClCompile Include="Jobs\Job.cpp" />
     <ClCompile Include="Jobs\JobSystem.cpp" />
+    <ClCompile Include="Log\Asynclogging.cpp" />
+    <ClCompile Include="Log\Logger.cpp" />
+    <ClCompile Include="Log\Logging.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Math\Random.cpp" />
     <ClCompile Include="Physics\Collider\BoxCollider.cpp" />
@@ -349,6 +357,19 @@
     <ClInclude Include="3rdparty\assimp\XmlParser.h" />
     <ClInclude Include="3rdparty\assimp\XMLTools.h" />
     <ClInclude Include="3rdparty\assimp\ZipArchiveIOSystem.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\args.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\chrono.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\color.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\compile.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\core.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\format-inl.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\format.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\locale.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\os.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\ostream.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\printf.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\ranges.h" />
+    <ClInclude Include="3rdParty\fmt\include\fmt\xchar.h" />
     <ClInclude Include="3rdParty\imguizmo\GraphEditor.h" />
     <ClInclude Include="3rdParty\imguizmo\ImCurveEdit.h" />
     <ClInclude Include="3rdParty\imguizmo\ImGradient.h" />
@@ -373,10 +394,12 @@
     <ClInclude Include="Behaviour\Fall.h" />
     <ClInclude Include="Common\Alignment.h" />
     <ClInclude Include="Common\BitUtil.h" />
+    <ClInclude Include="Common\ByteStream.h" />
     <ClInclude Include="Common\Clock.h" />
     <ClInclude Include="Common\Color.h" />
     <ClInclude Include="Common\FreeList.h" />
     <ClInclude Include="Common\List.h" />
+    <ClInclude Include="Common\Log.h" />
     <ClInclude Include="Common\pch.h" />
     <ClInclude Include="Common\ScopedBuffer.h" />
     <ClInclude Include="Common\Signal.h" />
@@ -419,6 +442,9 @@
     <ClInclude Include="Jobs\Fiber.h" />
     <ClInclude Include="Jobs\Job.h" />
     <ClInclude Include="Jobs\JobSystem.h" />
+    <ClInclude Include="Log\Asynclogging.h" />
+    <ClInclude Include="Log\Logger.h" />
+    <ClInclude Include="Log\Logging.h" />
     <ClInclude Include="Math\Axis.h" />
     <ClInclude Include="Math\Mat3.h" />
     <ClInclude Include="Math\Mat4.h" />

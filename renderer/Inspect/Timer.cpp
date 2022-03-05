@@ -4,22 +4,17 @@ using namespace std::chrono;
 
 namespace glacier {
 
-Timer::Timer() noexcept
-{
-    last = ClockType::now();
+Timer::Timer() noexcept {
+    Mark();
 }
 
-double Timer::Mark() noexcept
-{
-    auto old = last;
-    last = ClockType::now();
-    auto frameTime = duration_cast<nanoseconds>(last - old);
-    return frameTime.count() / 1e9;
+void Timer::Mark() noexcept {
+    prev_time_ = ClockType::now();
 }
 
-double Timer::Peek() const noexcept
-{
-    return duration_cast<nanoseconds>(ClockType::now() - last).count() / 1e9;
+double Timer::DeltaTime() noexcept {
+    auto elapse_time = ClockType::now() - prev_time_;
+    return duration_cast<nanoseconds>(elapse_time).count() / 1e9;
 }
 
 }

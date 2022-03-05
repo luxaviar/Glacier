@@ -118,6 +118,18 @@
     <Filter Include="Source\Jobs">
       <UniqueIdentifier>{f0cc6f9c-6996-4b65-be77-e2ed0b5df995}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Log">
+      <UniqueIdentifier>{5f44e639-dca3-432c-a902-df5790981e52}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\3rdParty\fmt">
+      <UniqueIdentifier>{e13cf128-4308-4fb4-831d-a6d0ffaa32c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\3rdParty\fmt\include">
+      <UniqueIdentifier>{5eae7b5f-03f5-4a1a-b137-727c8c00f89c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\3rdParty\fmt\src">
+      <UniqueIdentifier>{1eaf0b72-15a9-457f-8e13-9ed404f7ea35}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="3rdparty\assimp\color4.inl">
@@ -563,6 +575,24 @@
     </ClCompile>
     <ClCompile Include="Jobs\JobSystem.cpp">
       <Filter>Source\Jobs</Filter>
+    </ClCompile>
+    <ClCompile Include="Log\Asynclogging.cpp">
+      <Filter>Source\Log</Filter>
+    </ClCompile>
+    <ClCompile Include="Log\Logger.cpp">
+      <Filter>Source\Log</Filter>
+    </ClCompile>
+    <ClCompile Include="Log\Logging.cpp">
+      <Filter>Source\Log</Filter>
+    </ClCompile>
+    <ClCompile Include="Common\ByteStream.cpp">
+      <Filter>Source\Common</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\fmt\src\os.cc">
+      <Filter>Source\3rdParty\fmt\src</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\fmt\src\format.cc">
+      <Filter>Source\3rdParty\fmt\src</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1354,6 +1384,60 @@
     </ClInclude>
     <ClInclude Include="Jobs\JobSystem.h">
       <Filter>Source\Jobs</Filter>
+    </ClInclude>
+    <ClInclude Include="Log\Asynclogging.h">
+      <Filter>Source\Log</Filter>
+    </ClInclude>
+    <ClInclude Include="Log\Logger.h">
+      <Filter>Source\Log</Filter>
+    </ClInclude>
+    <ClInclude Include="Log\Logging.h">
+      <Filter>Source\Log</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\ByteStream.h">
+      <Filter>Source\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Common\Log.h">
+      <Filter>Source\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\args.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\chrono.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\color.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\compile.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\core.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\format.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\format-inl.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\locale.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\os.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\ostream.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\printf.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\ranges.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\fmt\include\fmt\xchar.h">
+      <Filter>Source\3rdParty\fmt\include</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

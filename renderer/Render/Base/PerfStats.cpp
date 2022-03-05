@@ -2,6 +2,7 @@
 #include "imgui/imgui.h"
 #include "GfxDriver.h"
 #include "SwapChain.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
@@ -20,13 +21,14 @@ void PerfStats::Reset() {
 void PerfStats::PreRender() {
     frame_query_->Begin();
     primitiv_query_->Begin();
-    timer_.Mark();
 }
 
 void PerfStats::PostRender() {
     frame_query_->End();
     primitiv_query_->End();
-    auto elapsed_time = timer_.Peek();
+    auto elapsed_time = timer_.DeltaTime();
+    timer_.Mark();
+
     cpu_stats_.Sample(elapsed_time);
 
     auto result = frame_query_->GetQueryResult();
@@ -68,7 +70,7 @@ void PerfStats::DrawStatsPanel() {
     }
     ImGui::PopStyleColor();
 
-    auto elapsed_time = cpu_time_ == 0.0 ? timer_.Peek() : cpu_time_;
+    auto elapsed_time = cpu_time_ == 0.0 ? 0.01 : cpu_time_;
     auto fps = 1.0f / elapsed_time;
 
     constexpr int kLabelWidth = 140;

@@ -2,6 +2,7 @@
 #include "Exception/Exception.h"
 #include "Inspect/Timer.h"
 #include "JobSystem.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace jobs {

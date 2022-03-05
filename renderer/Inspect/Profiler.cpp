@@ -3,6 +3,7 @@
 #include <string.h>
 #include <stdarg.h>
 #include "Math/Util.h"
+#include "Common/Log.h"
 
 namespace glacier {
 
@@ -57,7 +58,6 @@ double Profiler::Node::total_time() const {
 Profiler::Profiler() : root_("Root", nullptr) {
     current_node_ = &root_;
     current_node_->BeginSample();
-    indent_.fill(0);
 }
 
 void Profiler::BeginSample(const char* name) {
@@ -115,15 +115,11 @@ void Profiler::Printf(const char* fmt, ...) {
     vsnprintf(buf, 1024, fmt, args);
     va_end(args);
 
-    OutputDebugStringA(indent_.data());
+    LOG_LOG("{:{}}{}", "", ident_, buf);
 }
 
 void Profiler::Indent(int spacing) {
-    for (int i = 0; i < spacing; ++i) {
-        indent_[i] = ' ';
-    }
-
-    indent_[spacing] = 0;
+    ident_ = spacing;
 }
 
 }
