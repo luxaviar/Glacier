@@ -85,7 +85,7 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
 
 ComPtr<ID3D12Device2> D3D12GfxDriver::CreateDevice(ComPtr<IDXGIAdapter4>& adapter) {
     ComPtr<ID3D12Device2> device;
-    GfxThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
+    GfxThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
 
     // Enable debug messages in debug mode.
 #if defined(_DEBUG)
@@ -153,7 +153,7 @@ ComPtr<IDXGIAdapter4> D3D12GfxDriver::CreateAdapter(bool use_warp) {
             // creating it. The adapter with the largest dedicated video memory
             // is favored.
             if ((dxgiAdapterDesc1.Flags & DXGI_ADAPTER_FLAG_SOFTWARE) == 0 &&
-                SUCCEEDED(D3D12CreateDevice(dxgiAdapter1.Get(), D3D_FEATURE_LEVEL_11_0, __uuidof(ID3D12Device), nullptr)) &&
+                SUCCEEDED(D3D12CreateDevice(dxgiAdapter1.Get(), D3D_FEATURE_LEVEL_12_0, __uuidof(ID3D12Device), nullptr)) &&
                 dxgiAdapterDesc1.DedicatedVideoMemory > maxDedicatedVideoMemory)
             {
                 maxDedicatedVideoMemory = dxgiAdapterDesc1.DedicatedVideoMemory;
@@ -440,7 +440,11 @@ std::shared_ptr<Texture> D3D12GfxDriver::CreateTexture(const TextureDescription&
         // Specify optimized clear values for the depth buffer.
         D3D12_CLEAR_VALUE optimizedClearValue = {};
         optimizedClearValue.Format = GetDSVFormat(GetUnderlyingFormat(desc.format));
+#ifdef GLACIER_REVERSE_Z
+        optimizedClearValue.DepthStencil = { 0.0F, 0 };
+#else
         optimizedClearValue.DepthStencil = { 1.0F, 0 };
+#endif
 
         return std::make_shared<D3D12Texture>(desc, &optimizedClearValue);
     }

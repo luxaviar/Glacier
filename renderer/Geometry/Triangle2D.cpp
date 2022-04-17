@@ -1,6 +1,7 @@
 #include <limits>
 #include <math.h>
 #include "Triangle2D.h"
+#include "Math/Random.h"
 
 namespace glacier {
 
@@ -45,9 +46,13 @@ Vector3 Triangle2D::SideLength(const Vector2& a, const Vector2& b, const Vector2
     return { alen, blen, clen };
 }
 
-float Triangle2D::QuatArea(float a, float b, float c) {
-    float p = (a + b + c) * (-a + b + c) * (a - b + c) * (a + b - c);
-    return math::Sqrt(p);
+float Triangle2D::Perimeter(const Vector2& a, const Vector2& b, const Vector2& c) {
+    auto len = SideLength(a, b, c);
+    return len.x + len.y + len.z;
+}
+
+float Triangle2D::Area(const Vector2& a, const Vector2& b, const Vector2& c) {
+    return (a.x - c.x) * (c.y - b.y) - (c.x - b.x) * (a.y - c.y);
 }
 
 Triangle2D::Triangle2D(const Vector2& a_, const Vector2& b_, const Vector2& c_) :
@@ -62,7 +67,7 @@ void Triangle2D::Barycentric(const Vector2& p, float& u, float& v, float& w) con
 }
 
 // https://stackoverflow.com/questions/2049582/how-to-determine-if-a-point-is-in-a-2d-triangle
-bool Triangle2D::Contains(const Vector2& p) {
+bool Triangle2D::Contains(const Vector2& p) const {
     auto s = (a.x - b.x) * (p.y - c.y) - (a.y - c.y) * (p.x - c.x);
     auto t = (b.x - a.x) * (p.y - a.y) - (b.y - a.y) * (p.x - a.x);
 
@@ -73,7 +78,7 @@ bool Triangle2D::Contains(const Vector2& p) {
     return d == 0 || (d < 0) == (s + t <= 0);
 }
 
-float Triangle2D::ClosestEdgeDist(const Vector2& point) {
+float Triangle2D::ClosestEdgeDist(const Vector2& point) const {
     return math::Min(math::Min(math::Abs((point - a).Dot(b - a)),
         math::Abs((point - b).Dot(c - b))),
         (point - a).Dot(c - a)
@@ -135,11 +140,34 @@ Vector2 Triangle2D::ClosestPoint(const Vector2& p) const {
     return a + ab * vv + ac * ww;
 }
 
-Vector3 Triangle2D::SideLength() {
+//https://stackoverflow.com/questions/68493050/sample-uniformly-random-points-within-a-triangle
+Vector2 Triangle2D::RandomPointInside() const {
+    float r1 = random::Range(0.0f, 1.0f);
+    float r2 = random::Range(0.0f, 1.0f);
+
+    Vector2 u = b - a;
+    Vector2 v = c - a;
+
+    Vector2 p;
+    if (r1 + r2 <= 1) {
+        p = r1 * u + r2 * v;
+    }
+    else {
+        p = (1 - r1) * u + (1 - r2) * v;
+    }
+
+    return p + a;
+}
+
+Vector3 Triangle2D::SideLength() const {
     return SideLength(a, b, c);
 }
 
-Vector2 Triangle2D::Incenter() {
+float Triangle2D::Perimeter() const {
+    return Perimeter(a, b, c);
+}
+
+Vector2 Triangle2D::Incenter() const {
     auto len = SideLength();
     auto inv_len = 1.0f / (len.x + len.y + len.z);
 
@@ -152,12 +180,11 @@ Vector2 Triangle2D::CircumCenter() {
     return CircumCenter(a, b, c);
 }
 
-float Triangle2D::Area() {
-    auto len = SideLength();
-    return QuatArea(len.x, len.y, len.z) / 4.0f;
+float Triangle2D::Area() const {
+    return Area(a, b, c);
 }
 
-bool Triangle2D::IsFlat() {
+bool Triangle2D::IsFlat() const {
     auto ab = b - a;
     auto ac = c - a;
 

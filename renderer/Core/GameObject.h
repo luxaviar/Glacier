@@ -38,7 +38,7 @@ public:
 
     static constexpr uint32_t kAllLayers = 0xFFFFFFFF;
 
-    static GameObject& Create(const char* name = nullptr);
+    static GameObject& Create(const char* name = nullptr, GameObject* parent = nullptr);
     static void Destroy(GameObject* go);
 
     template<typename T>
@@ -111,10 +111,12 @@ public:
     bool IsActive() const { return local_active_ && parent_active_ && !dying_; }
     bool IsDying() const { return dying_; }
     bool IsHidden() const { return (layer_ & toUType(GameObjectLayer::kHide)) != 0; }
+    bool IsStatic() const { return static_; }
 
     void Activate();
     void Deactivate();
     void Hide();
+    void ToggleStatic(bool on, bool recursively);
 
     const std::string& name() const { return name_; }
     void name(const char* name) { name_ = name; }
@@ -143,7 +145,7 @@ public:
     void DrawSelectedGizmos();
 
 private:
-    GameObject(const char* name = nullptr);
+    GameObject(const char* name = nullptr, GameObject* parent = nullptr);
     ~GameObject();
 
     void SetParent(GameObject* parent);
@@ -157,11 +159,14 @@ private:
     void DisableComponent();
     void DestroyComponent();
 
+    bool dying_ = false;
     bool dont_destroy_onload_ = false;
     bool is_scene_node_ = false;
+
     bool local_active_ = true;
     bool parent_active_ = true;
-    bool dying_ = false;
+
+    bool static_ = false;
 
     uint32_t tag_;
     uint32_t layer_;

@@ -7,8 +7,8 @@
 
 namespace glacier {
 
-GameObject& GameObject::Create(const char* name) {
-    GameObject* go = new GameObject(name);
+GameObject& GameObject::Create(const char* name, GameObject* parent) {
+    GameObject* go = new GameObject(name, parent);
 
     return *go;
 }
@@ -17,11 +17,17 @@ void GameObject::Destroy(GameObject* go) {
     GameObjectManager::Instance()->Destroy(go);
 }
 
-GameObject::GameObject(const char* name) : 
+GameObject::GameObject(const char* name, GameObject* parent) : 
     name_(name ? name : "GameObject") 
 {
     transform_.game_object_ = this;
-    GameObjectManager::Instance()->AddSceneNode(this);
+
+    if (!parent) {
+        GameObjectManager::Instance()->AddSceneNode(this);
+    }
+    else {
+        transform_.SetParent(&parent->transform_);
+    }
 }
 
 GameObject::~GameObject() {
@@ -32,6 +38,29 @@ GameObject::~GameObject() {
 
 void GameObject::Hide() {
     layer(GameObjectLayer::kHide);
+}
+
+void GameObject::ToggleStatic(bool on, bool recursively) {
+    if (dying_) return;
+
+    if (static_ != on) {
+        for (auto& c : components_) {
+            if (on) {
+                c->OnStatic();
+            }
+            else {
+                c->OnNotStatic();
+            }
+        }
+        static_ = on;
+    }
+
+    if (!recursively) return;
+
+    auto children = transform_.children();
+    for (auto ch : children) {
+        ch->game_object()->ToggleStatic(on, recursively);
+    }
 }
 
 GameObject* GameObject::parent() {

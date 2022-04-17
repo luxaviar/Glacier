@@ -18,6 +18,11 @@ void ConsoleLogger::Append(int8_t level, ByteStream& stream) {
     OutputDebugStringA(static_cast<const char*>(stream.rbegin()));
 }
 
+void ConsoleLogger::Write(ByteStream& stream) {
+    stream << '\0';
+    OutputDebugStringA(static_cast<const char*>(stream.rbegin()));
+}
+
 FileLogger::FileLogger(const char* file) :
     file_path_(file)
 {
@@ -35,7 +40,7 @@ FileLogger::~FileLogger() {
 void FileLogger::Open() {
     Close();
 
-    fopen_s(&file_, file_path_.c_str(), "ae");
+    fopen_s(&file_, file_path_.c_str(), "a");
     assert(file_ != nullptr);
 
 #ifdef __linux__
@@ -66,9 +71,13 @@ void FileLogger::Close() {
 void FileLogger::Append(int8_t level, ByteStream& stream) {
     fwrite(stream.rbegin(), stream.ReadableBytes(), 1, file_);
 
-    if (level > L_WARNING) {
+    if (level > Logging::L_WARNING) {
         Flush();
     }
+}
+
+void FileLogger::Write(ByteStream& stream) {
+    fwrite(stream.rbegin(), stream.ReadableBytes(), 1, file_);
 }
 
 }

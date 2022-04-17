@@ -11,6 +11,7 @@
 #include "Common/List.h"
 #include "Physics/Collision/ContactPoint.h"
 #include "Physics/Dynamic/Rigidbody.h"
+#include "Algorithm/Bvh.h"
 
 namespace glacier {
 
@@ -119,7 +120,7 @@ protected:
 
     //dynamic
     Rigidbody* rigidbody_ = nullptr;
-    physics::BvhNode* node_ = nullptr;
+    BvhNode<Collider*>* node_ = nullptr;
 
     //material
     float mass_ = 0.0f;

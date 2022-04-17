@@ -35,14 +35,26 @@ constexpr T Abs(T v) {
     return v;
 }
 
-template<typename T>
-constexpr T Max(T a, T b) {
-    return a > b ? a : b;
+template<typename T0, typename T1, typename... Args>
+constexpr auto Min(T0&& head0, T1&& head1, Args &&... tail)
+{
+    if constexpr (sizeof...(tail) == 0) {
+        return head0 < head1 ? head0 : head1;
+    }
+    else {
+        return Min(Min(head0, head1), tail...);
+    }
 }
 
-template<typename T>
-constexpr T Min(T a, T b) {
-    return a > b ? b : a;
+template<typename T0, typename T1, typename... Args>
+constexpr auto Max(T0&& head0, T1&& head1, Args &&... tail)
+{
+    if constexpr (sizeof...(tail) == 0) {
+        return head0 > head1 ? head0 : head1;
+    }
+    else {
+        return Max(Max(head0, head1), tail...);
+    }
 }
 
 template<typename T>

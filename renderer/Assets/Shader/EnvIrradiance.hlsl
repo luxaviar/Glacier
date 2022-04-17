@@ -18,7 +18,7 @@ VSOut main_vs(float3 pos : Position)
 }
 
 TextureCube tex : register(t0);
-SamplerState tex_sam : register(s0);
+SamplerState tex_sam;// : register(s0);
 
 static const float PI= 3.14159265359;
 

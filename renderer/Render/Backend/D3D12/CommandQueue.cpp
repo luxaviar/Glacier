@@ -3,6 +3,7 @@
 #include "GfxDriver.h"
 #include "Exception/Exception.h"
 #include "Common/Util.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {

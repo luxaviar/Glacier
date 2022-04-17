@@ -24,6 +24,7 @@ public:
         DirectionalLight* light);
 
     void SetupMaterial(MaterialTemplate* mat);
+    void SetupMaterial(Material* mat);
     void Update();
 
     uint32_t pcf_size() const { return pcf_size_; }
@@ -63,6 +64,7 @@ private:
     std::vector<std::shared_ptr<RenderTarget>> render_targets_;
     std::unique_ptr<Material> material_;
 
+    Vector3 shadow_position_;
     Matrix4x4 shadow_view_;
     Matrix4x4 shadow_proj_[kMaxCascadedLevel];
 

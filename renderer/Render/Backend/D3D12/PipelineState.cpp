@@ -4,6 +4,7 @@
 #include "Util.h"
 #include "Program.h"
 #include "RenderTarget.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {

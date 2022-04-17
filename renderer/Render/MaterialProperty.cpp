@@ -4,7 +4,7 @@
 namespace glacier {
 namespace render {
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shared_ptr<Texture>& tex, const Color& default_color) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const std::shared_ptr<Texture>& tex, const Color& default_color) :
     shader_param(param),
     prop_type(MaterialPropertyType::kTexture),
     default_color(default_color),
@@ -13,7 +13,7 @@ MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shar
 {
 }
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shared_ptr<Buffer>& buf) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const std::shared_ptr<Buffer>& buf) :
     shader_param(param),
     buffer(buf)
 {
@@ -41,28 +41,28 @@ MaterialProperty::MaterialProperty(const ShaderParameter* param, const std::shar
 //    sampler(sm)
 //{}
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const Color& color) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const Color& color) :
     shader_param(param),
     prop_type(MaterialPropertyType::kColor),
     color(color)
 {
 }
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const Vec4f& float4) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const Vec4f& float4) :
     shader_param(param),
     prop_type(MaterialPropertyType::kFloat4),
     float4(float4)
 {
 }
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const Matrix4x4& matrix) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const Matrix4x4& matrix) :
     shader_param(param),
     prop_type(MaterialPropertyType::kMatrix),
     matrix(matrix)
 {
 }
 
-MaterialProperty::MaterialProperty(const ShaderParameter* param, const SamplerState& ss) :
+MaterialProperty::MaterialProperty(const ShaderParameterSet* param, const SamplerState& ss) :
     shader_param(param),
     prop_type(MaterialPropertyType::kSampler),
     sampler_state(ss)

@@ -61,7 +61,7 @@ float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
 
 
 TextureCube tex : register(t0);
-SamplerState tex_sam : register(s0);
+SamplerState tex_sam;// : register(s0);
 
 cbuffer Roughness : register(b1)
 {

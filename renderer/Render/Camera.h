@@ -43,7 +43,7 @@ public:
 
     Vec3f forward() const;
     Matrix4x4 view() const noexcept;
-    Matrix4x4 projection() const noexcept;
+    Matrix4x4 projection(bool raw=false) const noexcept;
 
     Vec3f position() const noexcept { return transform().position(); }
     void position(const Vec3f& pos) noexcept { transform().position(pos); }

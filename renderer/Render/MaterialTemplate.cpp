@@ -3,6 +3,7 @@
 #include "imgui/imgui.h"
 #include "Render/Base/GfxDriver.h"
 #include "Render/Graph/PassNode.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
@@ -58,7 +59,10 @@ void MaterialTemplate::SetProgram(const std::shared_ptr<Program>& program) {
 //TODO: check duplicate?
 void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<ConstantBuffer>& buf) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (prop.shader_param == param && prop.prop_type == MaterialPropertyType::kConstantBuffer) {
@@ -74,7 +78,10 @@ void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<Const
 void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color) 
 {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param)
@@ -92,7 +99,10 @@ void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<Textu
 
 void MaterialTemplate::SetProperty(const char* name, const SamplerState& ss) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : samplers_) {
         if (param == prop.shader_param) {
@@ -104,11 +114,25 @@ void MaterialTemplate::SetProperty(const char* name, const SamplerState& ss) {
     }
 
     samplers_.emplace_back(param, ss);
+
+    //for (auto& prop : properties_) {
+    //    if (param == prop.shader_param) {
+    //        assert(prop.prop_type == MaterialPropertyType::kSampler);
+    //        prop.sampler_state = ss;
+    //        prop.dirty = true;
+    //        return;
+    //    }
+    //}
+
+    //properties_.emplace_back(param, ss);
 }
 
 void MaterialTemplate::SetProperty(const char* name, const Color& color) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -124,7 +148,10 @@ void MaterialTemplate::SetProperty(const char* name, const Color& color) {
 
 void MaterialTemplate::SetProperty(const char* name, const Vec4f& v) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -140,7 +167,10 @@ void MaterialTemplate::SetProperty(const char* name, const Vec4f& v) {
 
 void MaterialTemplate::SetProperty(const char* name, const Matrix4x4& v) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -156,7 +186,10 @@ void MaterialTemplate::SetProperty(const char* name, const Matrix4x4& v) {
 
 void MaterialTemplate::UpdateProperty(const char* name, const void* data) {
     auto param = program_->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {

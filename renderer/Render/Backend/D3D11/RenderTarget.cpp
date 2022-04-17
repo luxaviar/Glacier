@@ -20,15 +20,29 @@ D3D11RenderTarget::D3D11RenderTarget(uint32_t width, uint32_t height) :
 }
 
 void D3D11RenderTarget::Resize(uint32_t width, uint32_t height) {
+    if (width_ == width && height_ == height) {
+        return;
+    }
+
     width_ = width;
     height_ = height;
 
     viewport_.Width = (float)width_;
     viewport_.Height = (float)height_;
-    viewport_.MinDepth = 0.0f;
-    viewport_.MaxDepth = 1.0f;
-    viewport_.TopLeftX = 0.0f;
-    viewport_.TopLeftY = 0.0f;
+
+    for (int i = 0; i < (int)AttachmentPoint::kDepthStencil; ++i) {
+        auto& attachment = attachments_[i];
+        if (attachment) {
+            attachment.texture->Resize(width, height);
+            AttachColor((AttachmentPoint)i, attachment.texture, attachment.slice, attachment.mip_slice, attachment.srgb);
+        }
+    }
+
+    auto deptch_attachment = attachments_[(int)AttachmentPoint::kDepthStencil];
+    if (deptch_attachment) {
+        deptch_attachment.texture->Resize(width, height);
+        AttachDepthStencil(deptch_attachment.texture);
+    }
 }
 
 void D3D11RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr<Texture>& tex, int16_t slice, int16_t mip_slice, bool srgb) {
@@ -36,7 +50,7 @@ void D3D11RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr
     assert(width_ <= tex->width());
     
     int idx = (int)point;
-    colors_[idx] = tex;
+    attachments_[idx] = { tex, slice, mip_slice, srgb };
 
     D3D11_TEXTURE2D_DESC tex_desc;
     auto tex_ptr = static_cast<ID3D11Texture2D*>(tex->underlying_resource());
@@ -67,7 +81,7 @@ void D3D11RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& tex) 
     assert(width_ <= tex->width());
 
     //depth_stencil_ = tex;
-    colors_[(int)AttachmentPoint::kDepthStencil] = tex;
+    attachments_[(int)AttachmentPoint::kDepthStencil].texture = tex;
 
     D3D11_TEXTURE2D_DESC tex_desc;
     auto tex_ptr = static_cast<ID3D11Texture2D*>(tex->underlying_resource());
@@ -90,15 +104,15 @@ void D3D11RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& tex) 
 
 void D3D11RenderTarget::DetachColor(AttachmentPoint point) {
     int idx = (int)point;
-    if (colors_.size() <= idx) return;
+    if (attachments_.size() <= idx) return;
 
-    colors_[idx].reset();
+    attachments_[idx] = {};
     color_views_[idx].Reset();
 }
 
 void D3D11RenderTarget::DetachDepthStencil() {
     depth_stencil_view_.Reset();
-    colors_[(int)AttachmentPoint::kDepthStencil].reset();
+    attachments_[(int)AttachmentPoint::kDepthStencil] = {};
 }
 
 void D3D11RenderTarget::Bind(GfxDriver* gfx) {
@@ -121,6 +135,31 @@ void D3D11RenderTarget::Bind(GfxDriver* gfx) {
 
     GfxThrowIfAny(context->RSSetViewports(1u, &viewport_));
     
+    if (scissor_enable_) {
+        GfxThrowIfAny(context->RSSetScissorRects(1u, &scissor_rect_));
+    }
+}
+
+void D3D11RenderTarget::BindColor(GfxDriver* gfx) {
+    constexpr int kMaxTarget = (int)AttachmentPoint::kNumAttachmentPoints - 1;
+    UINT rtv_num = 0;
+    ID3D11RenderTargetView* rt_views[kMaxTarget];
+
+    for (int i = 0; i < kMaxTarget; ++i) {
+        auto& rtv = color_views_[i];
+        if (rtv) {
+            rt_views[rtv_num++] = rtv.Get();
+        }
+    }
+
+    auto context = static_cast<D3D11GfxDriver*>(gfx)->GetContext();
+
+    ID3D11UnorderedAccessView* null_uav = nullptr;
+    GfxThrowIfAny(context->OMSetRenderTargetsAndUnorderedAccessViews(
+        rtv_num, rt_views, nullptr, 0, 0, &null_uav, nullptr));
+
+    GfxThrowIfAny(context->RSSetViewports(1u, &viewport_));
+
     if (scissor_enable_) {
         GfxThrowIfAny(context->RSSetScissorRects(1u, &scissor_rect_));
     }

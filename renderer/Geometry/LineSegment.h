@@ -31,6 +31,12 @@ struct LineSegment2D {
 
     bool Intersects(const LineSegment2D& other, float* t = nullptr) const;
 
+    Vector2 ClosestPoint(const Vector2& point, float& d) const;
+    Vector2 ClosestPoint(const Vector2& point) const;
+
+    float Distance(const Vector2& point) const;
+    float DistanceSq(const Vector2& point) const;
+
     Vector2 a;
     Vector2 b;
 };

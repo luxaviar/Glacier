@@ -11,7 +11,7 @@ namespace glacier {
 class AsyncLogging : public Logging, public Singleton<AsyncLogging> {
 public:
     struct LogLine {
-        uint8_t lvl;
+        int8_t lvl;
         ByteStream stream;
     };
 
@@ -20,7 +20,8 @@ public:
 
     void Flush() override;
 
-    void Log(uint8_t lvl, ByteStream& stream) override;
+    void Log(int8_t lvl, ByteStream& stream) override;
+    void Write(ByteStream& stream) override;
 
 private:
     void Run();

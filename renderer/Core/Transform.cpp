@@ -124,7 +124,7 @@ Quaternion Transform::rotation() const {
 
 void Transform::rotation(const Quaternion& rot) {
     if (parent_ != nullptr) {
-        local_rotation_ = parent_->rotation().Inverse() * rot;
+        local_rotation_ = parent_->rotation().Inverted() * rot;
     } else {
         local_rotation_ = rot;
     }
@@ -176,9 +176,9 @@ Vec3f Transform::InverseTransform(const Vec3f& point) const {
     }
 
     result -= local_position_;
-    result = local_rotation_.Inverse() * result;
+    result = local_rotation_.Inverted() * result;
     if (!noscale_) {
-        result *= local_scale_.InverseSafe();
+        result *= local_scale_.InvertedSafe();
     }
 
     return result;
@@ -191,13 +191,13 @@ Vec3f Transform::ApplyTransformVector(const Vec3f& dir) const {
 
 //world -> local
 Vec3f Transform::InverseTransformVector(const Vec3f& dir) const {
-    return rotation().Inverse() * dir;
+    return rotation().Inverted() * dir;
 }
 
 void Transform::SetPositionAndRotation(const Vec3f& pos, const Quaternion& rot) {
     if (parent_ != nullptr) {
         local_position_ = parent_->InverseTransform(pos);
-        local_rotation_ = parent_->rotation().Inverse() * rot;
+        local_rotation_ = parent_->rotation().Inverted() * rot;
     } else {
         local_position_ = pos;
         local_rotation_ = rot;
@@ -226,9 +226,9 @@ const Matrix4x4& Transform::WorldToLocalMatrix() const {
     }
 
     world_to_local_ = Matrix4x4::TR(local_position_, local_rotation_);
-    world_to_local_.InverseOrthonormal();
+    world_to_local_.InvertOrthonormal();
     if (!noscale_) {
-        Matrix4x4 inv_scale = Matrix4x4::Scale(local_scale_.InverseSafe());
+        Matrix4x4 inv_scale = Matrix4x4::Scale(local_scale_.InvertedSafe());
         world_to_local_ = inv_scale * world_to_local_;
     }
 
@@ -293,9 +293,9 @@ void Transform::OnDrawSelectedGizmos() {
     auto camera = scene->GetMainCamera();
     if (!camera) return;
 
-    auto view = camera->view().Transpose();
-    auto proj = camera->projection().Transpose();
-    auto model = LocalToWorldMatrix().Transpose();
+    auto view = camera->view().Transposed();
+    auto proj = camera->projection().Transposed();
+    auto model = LocalToWorldMatrix().Transposed();
 
     if (!Input::IsRelativeMode()) {
         if (Input::IsJustKeyDown(Keyboard::T)) {
@@ -313,7 +313,7 @@ void Transform::OnDrawSelectedGizmos() {
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
     if (ImGuizmo::Manipulate(view, proj, op, ImGuizmo::LOCAL, model)) {
-        auto m = model.Transpose();
+        auto m = model.Transposed();
         Vec3f pos, scale;
         Quaternion rot;
         m.Decompose(pos, rot, scale);

@@ -5,6 +5,7 @@
 #include "CommandQueue.h"
 #include "Resource.h"
 #include "DescriptorHeapAllocator.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {

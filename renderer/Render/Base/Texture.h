@@ -10,6 +10,7 @@ namespace glacier {
 namespace render {
 
 class Image;
+class Texture;
 
 struct TextureDescription {
     TextureDescription& EnableSRGB(bool v = true) { srgb = v; return *this; }
@@ -31,7 +32,7 @@ struct TextureDescription {
 
     bool srgb = false;
     bool gen_mips = false;
-    TextureFormat format = TextureFormat::kR8G8B8A8_UNORM;
+    TextureFormat format = TextureFormat::kUnkown;
     uint32_t create_flags = 0;
     TextureType type = TextureType::kTexture2D;
 

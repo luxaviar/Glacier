@@ -1,10 +1,9 @@
-#include "Common/LightingData.hlsli"
+#include "Common/Lighting.hlsli"
 
 struct PbrMaterial
 {
-    // float4 ambient_color;
-    //--------------------------- ( 16 bytes )
     float3 f0;
+    //--------------------------- ( 16 bytes )
     bool use_normal_map;
     //--------------------------- ( 16 bytes )
 }; //--------------------------- ( 16 * 2 = 32 bytes )
@@ -18,7 +17,7 @@ Texture2D albedo_tex : register(t4);
 Texture2D normal_tex : register(t5);
 Texture2D metalroughness_tex : register(t6);
 Texture2D ao_tex : register(t7);
-Texture2D emission_tex : register(t8);
+Texture2D emissive_tex : register(t8);
 
 VSOut main_vs(AppData IN)
 {
@@ -56,7 +55,7 @@ float4 main_ps(VSOut IN) : SV_Target
     float ao = ao_tex.Sample(linear_sampler, IN.tex_coord).r;
     float3 f0 = lerp(mat.f0, albedo.rgb, metallic);
     
-    float3 color = emission_tex.Sample(linear_sampler, IN.tex_coord).rgb;
+    float3 final_color = emissive_tex.Sample(linear_sampler, IN.tex_coord).rgb;
 
     float3 eye = { 0, 0, 0 };
     float3 P = IN.view_position;
@@ -73,8 +72,8 @@ float4 main_ps(VSOut IN) : SV_Target
                 shadow_info, shadow_tex, shadow_cmp_sampler);
         }
         
-        //color += DoLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
-        color += DoPbrLighting(main_light, IN, P, V, normal, albedo.rgb, f0, roughness, metallic) * shadow_level;
+        //final_color += DoLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
+        final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic) * shadow_level;
     }
     
     for (int i = 1; i < NUM_LIGHTS; ++i)
@@ -82,18 +81,15 @@ float4 main_ps(VSOut IN) : SV_Target
         Light light = lights[i];
         if (light.enable)
         {
-            color += DoPbrLighting(main_light, IN, P, V, normal, albedo.rgb, f0, roughness, metallic);
+            final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic);
         }
     }
     
-    float3 ambient = EvaluateIBL(radiance_tex, irradiance_tex, brdf_lut_tex, linear_sampler, IN.tex_coord,
+    float3 ambient = EvaluateIBL(radiance_tex, irradiance_tex, brdf_lut_tex, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 
-    color += ambient;
-
-    //tone mapping
-    //gamma correct
+    final_color += ambient;
     
-    return float4(color.rgb, albedo.a) * visualize_cascade_color;
+    return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
 }

@@ -21,7 +21,6 @@ Editor::Editor(GfxDriver* gfx) :
     gfx_(gfx),
     width_(gfx->GetSwapChain()->GetWidth()),
     height_(gfx->GetSwapChain()->GetHeight())
-    //pick_(gfx)
 {
     color_buf_ = gfx->CreateConstantBuffer<Vec4f>();
 
@@ -127,8 +126,6 @@ void Editor::DrawPanel() {
 void Editor::DrawInspectorPanel() {
     if (!selected_go_) return;
 
-    //selected_go_->DrawSelectedGizmos();
-
     ImGui::SetNextWindowPos(ImVec2(width_ * 0.775f, height_ * 0.05f), ImGuiCond_Once);// ImGuiCond_FirstUseEver);
     ImGui::SetNextWindowSize(ImVec2(width_ * 0.20f, height_ * 0.7f), ImGuiCond_Once);// ImGuiCond_FirstUseEver);
 
@@ -195,7 +192,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
 
-            renderer->render_target()->BindDepthStencil(renderer->driver());
+            renderer->render_target()->BindDepthStencil(gfx_);
             pass.Render(renderer, mr, outline_mat.get());
         });
 
@@ -205,7 +202,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
         .SetFormat(TextureFormat::kR8G8B8A8_UNORM);
 
     auto outline_draw_tex = gfx->CreateTexture(desc);
-    outline_draw_tex->SetName(TEXT("outline draw texture"));
+    outline_draw_tex->SetName(TEXT("Outline draw texture"));
 
     auto outline_draw_rt = gfx->CreateRenderTarget(outline_draw_tex->width(), outline_draw_tex->height());
     outline_draw_rt->AttachColor(AttachmentPoint::kColor0, outline_draw_tex);
@@ -214,12 +211,10 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
     outline_solid_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx));
 
-    //Color Color{ 1.0f, 0.4f, 0.4f, 1.0f };
     outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
 
     render_graph.AddPass("outline draw",
         [&](PassNode& pass) {
-            //pass.SetRenderTarget(outline_draw_rt);
         },
         [this, outline_draw_rt, outline_solid_mat](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
@@ -227,7 +222,8 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             if (!mr) return;
 
             outline_draw_rt->Clear();
-            outline_draw_rt->Bind(renderer->driver());
+            RenderTargetBindingGuard gurad(gfx_, outline_draw_rt.get());
+
             pass.Render(renderer, mr, outline_solid_mat.get());
         });
 
@@ -253,7 +249,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     RasterStateDesc hblur_rs;
     hblur_rs.depthEnable = false;
     hblur_rs.depthWrite = true;
-    hblur_rs.depthFunc = CompareFunc::kLess;
+    hblur_rs.depthFunc = RasterStateDesc::kDefaultDepthFunc;
     
     auto hblur_mat = std::make_shared<PostProcessMaterial>("hightlight", TEXT("BlurOutline"));
 
@@ -270,8 +266,6 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
-
-            outline_draw_rt->UnBind(renderer->driver());
 
             outline_hrt->ClearColor(AttachmentPoint::kColor0);
             blur_dir_.isHorizontal = true;
@@ -291,6 +285,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     RasterStateDesc blur_rs;
     blur_rs.depthWrite = false;
     blur_rs.stencilEnable = true;
+    blur_rs.depthFunc = CompareFunc::kAlways;
     blur_rs.stencilFunc = CompareFunc::kNotEqual;
     blur_rs.depthStencilPassOp = StencilOp::kKeep;
     blur_rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;

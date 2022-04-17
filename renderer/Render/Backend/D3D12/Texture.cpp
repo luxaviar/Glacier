@@ -17,7 +17,7 @@ D3D12Texture::D3D12Texture(const TextureDescription& desc, const D3D12_CLEAR_VAL
         clear_value_ = *clear_value;
         clear_value_set_ = true;
     }
-    
+
     if (!desc.file.empty()) {
         CreateFromFile();
     }
@@ -380,7 +380,9 @@ void D3D12Texture::CreateViews() {
     auto driver = D3D12GfxDriver::Instance();
     auto device = driver->GetDevice();
     auto desc = resource_->GetDesc();
-    if (((desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0 && CheckFormatSupport(D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE)) ||
+
+    if (((desc.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0 && 
+        CheckFormatSupport(D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE)) ||
         (detail_.create_flags & (uint32_t)CreateFlags::kShaderResource) > 0)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
@@ -418,6 +420,10 @@ void D3D12Texture::CreateViews() {
             device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, uav_slot_.GetDescriptorHandle(i));
         }
     }
+
+    if (detail_.format == TextureFormat::kUnkown) {
+        detail_.format = GetTextureFormat(desc.Format);
+    }
 }
 
 bool D3D12Texture::Resize(uint32_t width, uint32_t height) {
@@ -426,6 +432,10 @@ bool D3D12Texture::Resize(uint32_t width, uint32_t height) {
     assert(detail_.file.empty());
 
     if (detail_.is_backbuffer || !detail_.file.empty()) {
+        return false;
+    }
+
+    if (detail_.width == width && detail_.height == height) {
         return false;
     }
 

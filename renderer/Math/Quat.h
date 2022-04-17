@@ -77,14 +77,14 @@ struct Quat {
         return Quat<T>(0.0f, 0.0f, 0.0f, 1.0f);
     }
 
-    Quat<T>& Inversed() {
+    Quat<T>& Inverse() {
         x = -x;
         y = -y;
         z = -z;
         return *this;
     }
 
-    Quat<T> Inverse() const {
+    Quat<T> Inverted() const {
         return Quat<T>(-x, -y, -z, w);
     }
 
@@ -189,31 +189,31 @@ struct Quat {
 
     Quat<T> operator *(const Quat<T>& v) const {
         return Quat<T>(
-                w * v.x + x * v.w + y * v.z - z * v.y,
-                w * v.y + y * v.w + z * v.x - x * v.z,
-                w * v.z + z * v.w + x * v.y - y * v.x,
-                w * v.w - x * v.x - y * v.y - z * v.z
+            w * v.x + x * v.w + y * v.z - z * v.y,
+            w * v.y + y * v.w + z * v.x - x * v.z,
+            w * v.z + z * v.w + x * v.y - y * v.x,
+            w * v.w - x * v.x - y * v.y - z * v.z
         );
     }
 
     Vec3<T> operator *(const Vec3<T>& v) const {
-            float num1 = x * 2.0f;
-            float num2 = y * 2.0f;
-            float num3 = z * 2.0f;
-            float num4 = x * num1;
-            float num5 = y * num2;
-            float num6 = z * num3;
-            float num7 = x * num2;
-            float num8 = x * num3;
-            float num9 = y * num3;
-            float num10 = w * num1;
-            float num11 = w * num2;
-            float num12 = w * num3;
-            return Vec3<T>(
-                (((T)1 - (num5 + num6)) * v.x + (num7 - num12) * v.y + (num8 + num11) * v.z),
-                ((num7 + num12) * v.x + ((T)1 - (num4 + num6)) * v.y + (num9 - num10) * v.z),
-                ((num8 - num11) * v.x + (num9 + num10) * v.y + ((T)1 - (num4 + num5)) * v.z)
-            );
+        float num1 = x * 2.0f;
+        float num2 = y * 2.0f;
+        float num3 = z * 2.0f;
+        float num4 = x * num1;
+        float num5 = y * num2;
+        float num6 = z * num3;
+        float num7 = x * num2;
+        float num8 = x * num3;
+        float num9 = y * num3;
+        float num10 = w * num1;
+        float num11 = w * num2;
+        float num12 = w * num3;
+        return Vec3<T>(
+            (((T)1 - (num5 + num6)) * v.x + (num7 - num12) * v.y + (num8 + num11) * v.z),
+            ((num7 + num12) * v.x + ((T)1 - (num4 + num6)) * v.y + (num9 - num10) * v.z),
+            ((num8 - num11) * v.x + (num9 + num10) * v.y + ((T)1 - (num4 + num5)) * v.z)
+        );
     }
 
     Quat<T> operator *(T v) const {
@@ -296,11 +296,13 @@ struct Quat {
         return ToMatrix().ToEuler();
     }
 
+    //x/y/z degree in radians
     static Quat<T> FromEuler(const Vec3<T>& euler_angles)
     {
         return FromEuler(euler_angles.x, euler_angles.y, euler_angles.z);
     }
 
+    //x/y/z degree in radians
     static Quat<T> FromEuler(T pitch, T yaw, T roll)
     {
         T cX(cos(pitch / 2.0f));

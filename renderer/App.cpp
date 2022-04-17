@@ -12,7 +12,8 @@
 #include "Scene/PbrScene.h"
 #include "Scene/PhysicsDemo.h"
 #include "physics/world.h"
-#include "Render/PbrRenderer.h"
+#include "Render/ForwardRenderer.h"
+#include "Render/DeferredRenderer.h"
 #include "Render/Base/GfxDriver.h"
 #include "Render/Backend/D3D11/GfxDriver.h"
 #include "Render/Backend/D3D12/GfxDriver.h"
@@ -20,6 +21,7 @@
 #include "Render/Material.h"
 #include "Render/LightManager.h"
 #include "jobs/JobSystem.h"
+#include "Common/Log.h"
 
 namespace glacier {
 
@@ -33,7 +35,9 @@ App::App( const std::string& commandLine ) :
     gfx_ = render::D3D12GfxDriver::Instance();
     gfx_->Init(wnd_.handle(), wnd_.width(), wnd_.height(), render::TextureFormat::kR8G8B8A8_UNORM);
 
-    renderer_ = std::make_unique<render::PbrRenderer>(gfx_, render::MSAAType::k4x);
+    renderer_ = std::make_unique<render::DeferredRenderer>(gfx_);
+    //renderer_ = std::make_unique<render::ForwardRenderer>(gfx_, render::MSAAType::k4x);
+
     wnd_.resize_signal().Connect([this] (uint32_t width, uint32_t height) {
         renderer_->OnResize(width, height);
     });
@@ -75,17 +79,20 @@ bool App::HandleInput(float dt) {
 void App::DoFrame(float dt) {
     gfx_->BeginFrame();
 
-    int counter = 0;
-    auto job1 = jobs::JobSystem::Instance()->Schedule([&counter]() {
-        counter++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    });
+    //int counter = 0;
+    //auto job1 = jobs::JobSystem::Instance()->Schedule([&counter]() {
+    //    auto now = std::chrono::steady_clock::now();
+    //    for (int i = 0; i < 10000; ++i) {
+    //        counter++;
+    //    }
+    //});
 
-    auto job2 = jobs::JobSystem::Instance()->Schedule([&counter]() {
-        counter++;
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    });
-
+    //auto job2 = jobs::JobSystem::Instance()->Schedule([&counter]() {
+    //    auto now = std::chrono::steady_clock::now();
+    //    for (int i = 0; i < 10000; ++i) {
+    //        counter++;
+    //    }
+    //});
     renderer_->Setup();
     SceneManager::Instance()->Update(renderer_.get());
     Input::Instance()->keyboard().Update();
@@ -102,7 +109,11 @@ void App::DoFrame(float dt) {
         }
         //animation update
         BehaviourManager::Instance()->LateUpdate(dt);
-        GameObjectManager::Instance()->DrawGizmos();
+
+        {
+            PerfSample("DrawGizmos Update");
+            GameObjectManager::Instance()->DrawGizmos();
+        }
     }
 
     {
@@ -114,8 +125,8 @@ void App::DoFrame(float dt) {
     GameObjectManager::Instance()->CleanDead();
     Input::Instance()->EndFrame();
 
-    job1.WaitComplete();
-    job2.WaitComplete();
+    //job1.WaitComplete();
+    //job2.WaitComplete();
 
     gfx_->EndFrame();
 }

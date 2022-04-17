@@ -20,7 +20,7 @@ BoxCollider::BoxCollider(const Vec3f& extents, float mass, float friction, float
 
 const Matrix3x3& BoxCollider::Axis() {
     if (rot_version_ != transform().version()) {
-        rotation_ = transform().rotation().Inverse().ToMatrix();
+        rotation_ = transform().rotation().Inverted().ToMatrix();
         rot_version_ = transform().version();
     }
 

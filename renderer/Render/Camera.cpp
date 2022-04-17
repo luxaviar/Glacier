@@ -17,10 +17,7 @@ Camera* Camera::Create(CameraType type) {
 
 Camera::Camera(CameraType type) noexcept :
     type_(type)
-    //position_(pos),
-    //param_{ type == CameraType::kPersp ? fov_degree * math::kDeg2Rad : fov_degree , aspect, n, f}
 {
-    //LookAt(target, up);
 }
 
 void Camera::LookAt(const Vec3f& target, const Vec3f& up) {
@@ -30,7 +27,6 @@ void Camera::LookAt(const Vec3f& target, const Vec3f& up) {
 }
 
 Vec3f Camera::forward() const {
-    //return rotation_ * Vec3f::forward;
     return transform().forward();
 }
 
@@ -38,28 +34,44 @@ Matrix4x4 Camera::view() const noexcept {
     return Matrix4x4::LookToLH(transform().position(), forward(), Vec3f::up);
 }
 
-Matrix4x4 Camera::projection() const noexcept {
+Matrix4x4 Camera::projection(bool raw) const noexcept {
+    if (raw) {
+        if (type_ == CameraType::kPersp) {
+            return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[2], param_[3]);
+        }
+        else {
+            return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[2], param_[3]);
+        }
+    }
+
+#ifdef GLACIER_REVERSE_Z
+    if (type_ == CameraType::kPersp) {
+        return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[3], param_[2]);
+    }
+    else {
+        return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[3], param_[2]);
+    }
+#else
     if (type_ == CameraType::kPersp) {
         return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[2], param_[3]);
-    } else {
+    }
+    else {
         return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[2], param_[3]);
     }
+#endif
 }
 
 Vec3f Camera::CameraToWorld(const Vec3f& pos) const {
-    //return rotation_ * pos + position_;
     return transform().ApplyTransform(pos);
 }
 
 Vec3f Camera::WorldToCamera(const Vec3f& pos) const {
-    //return rotation_.Inverse() * (pos - position_);
     return transform().InverseTransform(pos);
 }
 
 Vec3f Camera::ViewCenter() const {
     float z = nearz() + (farz() - nearz()) / 2.0f;
     return transform().ApplyTransform(Vec3f(0, 0, z));
-    //return transform().rotation() * (Vec3f(0, 0, z) + transform().position());
 }
 
 void Camera::FetchFrustumCorners(Vec3f corners[(int)FrustumCorner::kCount]) const {

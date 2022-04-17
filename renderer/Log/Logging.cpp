@@ -7,9 +7,9 @@
 #include "logger.h"
 
 #ifdef NDEBUG
-uint8_t g_log_level = L_LOG;
+uint8_t g_log_level = glacier::Logging::L_LOG;
 #else
-uint8_t g_log_level = L_DEBUG;
+uint8_t g_log_level = glacier::Logging::L_DEBUG;
 #endif
 
 namespace glacier {
@@ -22,6 +22,7 @@ Logging::Logging() : stream_(4096) {
     else {
         logger_ = std::make_unique<FileLogger>("game.log");
     }
+
 }
 
 Logging::~Logging() {
@@ -32,7 +33,7 @@ void Logging::Flush() {
     logger_->Flush();
 }
 
-void Logging::Log(uint8_t lvl, ByteStream& stream) {
+void Logging::Log(int8_t lvl, ByteStream& stream) {
     if (lvl < g_log_level) return;
 
     logger_->Append(lvl, stream);
@@ -44,6 +45,10 @@ void Logging::Log(uint8_t lvl, ByteStream& stream) {
     if (lvl == L_FATAL) {
         abort();
     }
+}
+
+void Logging::Write(ByteStream& stream) {
+    logger_->Write(stream);
 }
 
 }

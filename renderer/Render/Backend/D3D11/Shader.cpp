@@ -74,7 +74,19 @@ D3D11Shader::D3D11Shader(ShaderType type, const TCHAR* file_name, const char* en
     }
 
     UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
-    GfxThrowIfFailed(CompileFromFile(path.c_str(), &blob_, (const D3D_SHADER_MACRO*)macros.data(), entry_point ? entry_point : DefaultShaderEntry[(int)type], target, flags, 0));
+
+#ifdef GLACIER_REVERSE_Z
+    std::vector<ShaderMacroEntry> real_macros;
+    real_macros.reserve(macros.size() + 1);
+
+    real_macros.push_back({ "GLACIER_REVERSE_Z", "1" });
+    real_macros.insert(real_macros.end(), macros.begin(), macros.end());
+    auto macro_data = (const D3D_SHADER_MACRO*)real_macros.data();
+#else
+    auto macro_data = (const D3D_SHADER_MACRO*)macros.data();
+#endif
+
+    GfxThrowIfFailed(CompileFromFile(path.c_str(), &blob_, macro_data, entry_point ? entry_point : DefaultShaderEntry[(int)type], target, flags, 0));
 
     auto dev = D3D11GfxDriver::Instance()->GetDevice();
     switch (type_)

@@ -1,3 +1,6 @@
+#ifndef COMMON_SHADOW_
+#define COMMON_SHADOW_
+
 struct CascadeShadowMapInfo
 {
     uint cascade_levels;
@@ -11,13 +14,13 @@ struct CascadeShadowMapInfo
     matrix coord_trans[8];
 };
 
-int CalcCascadeIndex(in float3 wpos, in CascadeShadowMapInfo info)
+int CalcCascadeIndex(in float3 vpos, in CascadeShadowMapInfo info)
 {
     int index = 0;
     int cascade_count = info.cascade_levels;
     if (cascade_count > 1)
     {
-        float4 vCurrentPixelDepth = wpos.z;
+        float4 vCurrentPixelDepth = vpos.z;
         float4 fComparison = (vCurrentPixelDepth > info.cascade_interval[0]);
         float4 fComparison2 = (vCurrentPixelDepth > info.cascade_interval[1]);
         float fIndex = dot(float4(cascade_count > 0, cascade_count > 1, cascade_count > 2, cascade_count > 3)
@@ -71,7 +74,11 @@ float CalculatePCFShadow(in float4 shadow_coord,
     {
         for (int y = info.pcf_start; y < info.pcf_end; ++y)
         {
-            float depth = shadow_coord.z - bias; //info.bias;
+#ifdef GLACIER_REVERSE_Z
+            float depth = shadow_coord.z + bias;
+#else
+            float depth = shadow_coord.z - bias;
+#endif
             shadow_level += shadow_tex.SampleCmpLevelZero(cmp_sampler,
                 float2(shadow_coord.x + (((float) x) * info.texel_size.x),
                     shadow_coord.y + (((float) y) * info.texel_size.y)),
@@ -110,7 +117,7 @@ float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos,
     in Texture2D shadow_tex,
     in SamplerComparisonState cmp_sampler)
 {
-    float3 L = normalize(-light_dir);//    main_light.view_direction);
+    float3 L = normalize(-light_dir);
     float NdotL = max(dot(normal, L), 0);
     float bias = max(0.01f * (1.0 - NdotL), 0.005f);
     
@@ -137,3 +144,5 @@ float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos,
     
     return shadow_level;
 }
+
+#endif

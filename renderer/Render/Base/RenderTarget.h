@@ -27,6 +27,17 @@ struct ScissorRect {
 
 class GfxDriver;
 
+struct AttachmentTexture {
+    std::shared_ptr<Texture> texture;
+    int16_t slice = -1;
+    int16_t mip_slice = 0;
+    bool srgb = false;
+
+    operator bool() const {
+        return !!texture;
+    }
+};
+
 class RenderTarget : public Resource {
 public:
     RenderTarget(uint32_t width, uint32_t height) : width_(width), height_(height)
@@ -41,23 +52,29 @@ public:
     int target_num() const noexcept {
         int count = 0;
         for (int i = 0; i < (int)AttachmentPoint::kDepthStencil; ++i) {
-            if (colors_[i]) {
+            if (attachments_[i]) {
                 ++count;
             }
         }
         return count;
     }
 
-    std::shared_ptr<Texture>& GetColorAttachment(AttachmentPoint point) { return colors_[toUType(point)]; }
-    std::shared_ptr<Texture>& GetDepthStencil() { return  colors_[(int)AttachmentPoint::kDepthStencil]; }
+    std::shared_ptr<Texture>& GetColorAttachment(AttachmentPoint point) { return attachments_[toUType(point)].texture; }
+    std::shared_ptr<Texture>& GetDepthStencil() { return  attachments_[(int)AttachmentPoint::kDepthStencil].texture; }
 
     virtual void Bind(GfxDriver* gfx) = 0;
     virtual void UnBind(GfxDriver* gfx) = 0;
     virtual void BindDepthStencil(GfxDriver* gfx) = 0;
+    virtual void BindColor(GfxDriver* gfx) = 0;
 
-    virtual void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth=1.0f, uint8_t stencil=0u) = 0;
-    virtual void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) = 0;
+#ifdef GLACIER_REVERSE_Z
+    virtual void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 0.0f, uint8_t stencil = 0u) = 0;
+    virtual void ClearDepthStencil(float depth = 0.0f, uint8_t stencil = 0u) = 0;
+#else
+    virtual void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 1.0f, uint8_t stencil = 0u) = 0;
     virtual void ClearDepthStencil(float depth = 1.0f, uint8_t stencil = 0u) = 0;
+#endif
+    virtual void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) = 0;
 
     virtual ViewPort viewport() const = 0;
     virtual void viewport(const ViewPort& vp) = 0;
@@ -77,7 +94,7 @@ protected:
     uint32_t width_;
     uint32_t height_;
 
-    std::array<std::shared_ptr<Texture>, (size_t)AttachmentPoint::kNumAttachmentPoints> colors_;
+    std::array<AttachmentTexture, (size_t)AttachmentPoint::kNumAttachmentPoints> attachments_;
 };
 
 using RenderTargetBindingGuard = BindingGuard<RenderTarget>;

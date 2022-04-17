@@ -35,7 +35,7 @@ struct Plane {
 
     // Less efficient way to transform a plane (but handles affine transformations.)
     friend Plane operator* ( const Matrix4x4& mat, const Plane& plane ) {
-        Vec4f v = (mat.InverseOrthonormal().Transpose() * Vec4f(plane.normal, plane.d));
+        Vec4f v = (mat.InvertedOrthonormal().Transposed() * Vec4f(plane.normal, plane.d));
         return Plane(Vec3f(v.x, v.y, v.z), v.w);
     }
 

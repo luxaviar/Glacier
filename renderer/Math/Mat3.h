@@ -1,5 +1,6 @@
 #pragma once
 
+#include <optional>
 #include "util.h"
 #include "vec3.h"
 
@@ -15,7 +16,7 @@ struct Mat3x3 {
     static const Mat3x3<T> zero;
 
     union {
-        T m[rows][cols];
+        T value[rows][cols];
         struct { Vec3<T> r[rows]; };
         struct { Vec3<T> r0, r1, r2; };
     };
@@ -25,7 +26,7 @@ struct Mat3x3 {
     constexpr Mat3x3(T m00, T m01, T m02,
                       T m10, T m11, T m12,
                       T m20, T m21, T m22)
-        : m{m00, m01, m02,
+        : value{m00, m01, m02,
             m10, m11, m12,
             m20, m21, m22} {
     }
@@ -46,22 +47,22 @@ struct Mat3x3 {
 
     Vec3<T> ToEuler() const {
         Vec3<T> euler;
-        if (m[1][2] < 0.999f) {
-            if (m[1][2] > -0.999f) {
-                euler.x = math::ASin(-m[1][2]);
-                euler.y = math::ATan2(m[0][2], m[2][2]);
-                euler.z = math::ATan2(m[1][0], m[1][1]);
+        if (value[1][2] < 0.999f) {
+            if (value[1][2] > -0.999f) {
+                euler.x = math::ASin(-value[1][2]);
+                euler.y = math::ATan2(value[0][2], value[2][2]);
+                euler.z = math::ATan2(value[1][0], value[1][1]);
             }
             else {
                 // WARNING.  Not unique.  YA - ZA = atan2(r01,r00)
                 euler.x = math::kPI * 0.5f;
-                euler.y = math::ATan2(m[0][1], m[0][0]);
+                euler.y = math::ATan2(value[0][1], value[0][0]);
                 euler.z = 0.0f;
             }
         } else {
             // WARNING.  Not unique.  YA + ZA = atan2(-r01,r00)
             euler.x = -math::kPI * 0.5f;
-            euler.y = math::ATan2(m[0][1], m[0][0]);
+            euler.y = math::ATan2(value[0][1], value[0][0]);
             euler.z = 0.0f;
         }
 
@@ -86,12 +87,19 @@ struct Mat3x3 {
         return euler;
     }
 
-    Mat3x3<T> Transpose() const {
+    Mat3x3<T> Transposed() const {
         return Mat3x3<T>(
             r0.x, r1.x, r2.x,
             r0.y, r1.y, r2.y,
             r0.z, r1.z, r2.z
         );
+    }
+
+    Mat3x3<T>& Transpose() const {
+        std::swap(value[0][1], value[1][0]);
+        std::swap(value[0][2], value[2][0]);
+        std::swap(value[1][2], value[2][1]);
+        return *this;
     }
 
     T Determinant() const {
@@ -100,10 +108,10 @@ struct Mat3x3 {
             r0.z * (r1.x * r2.y - r2.x * r1.y));
     }
 
-    bool Inverse() {
+    std::optional<Mat3x3<T>> Inverted() {
         T determinant = Determinant();
         if (determinant < math::kEpsilon) {
-            return false;
+            return {};
         }
 
         T inv_det = 1.0f / determinant;
@@ -114,16 +122,33 @@ struct Mat3x3 {
 
         tmp *= inv_det;
 
-        *this = tmp;
+        return tmp;
+    }
+
+    bool Inverse() {
+        T determinant = Determinant();
+        if (determinant < math::kEpsilon) {
+            return false;
+        }
+
+        T inv_det = 1.0f / determinant;
+
+        r0 = { (r1.y * r2.z - r2.y * r1.z), -(r0.y * r2.z - r2.y * r0.z), (r0.y * r1.z - r0.z * r1.y) };
+        r1 = { -(r1.x * r2.z - r2.x * r1.z), (r0.x * r2.z - r2.x * r0.z), -(r0.x * r1.z - r1.x * r0.z) };
+        r2 = { (r1.x * r2.y - r2.x * r1.y), -(r0.x * r2.y - r2.x * r0.y), (r0.x * r1.y - r0.y * r1.x) };
+
+        (*this) *= inv_det;
+
         return true;
     }
 
+
     T operator()(int row, int col) const {
-        return m[row][col];
+        return value[row][col];
     }
 
     T& operator()(int row, int col) {
-        return m[row][col];
+        return value[row][col];
     }
 
     const Vec3<T>& operator[](int index) const {

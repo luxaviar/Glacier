@@ -32,6 +32,7 @@ public:
     DirectionalLight* GetMainLight();
 
     void SetupMaterial(MaterialTemplate* mat);
+    void SetupMaterial(Material* mat);
     void Update();
 
     void Clear();

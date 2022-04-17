@@ -1,11 +1,11 @@
-struct VSOut {
+struct PostProcessVSOut {
     float4 position : SV_Position;
     float2 uv : Texcoord;
 };
 
-VSOut main_vs(uint id : SV_VertexID)
+PostProcessVSOut main_vs(uint id : SV_VertexID)
 {
-   VSOut output;
+   PostProcessVSOut output;
 
    // Calculate the UV via the id
    output.uv = float2((id << 1) & 2, id & 2);
@@ -18,5 +18,5 @@ VSOut main_vs(uint id : SV_VertexID)
    return output;
 }
 
-Texture2D tex : register(t0);
-SamplerState tex_sam : register(s0);
+Texture2D tex;// : register(t0);
+SamplerState tex_sam;// : register(s0);

@@ -28,11 +28,17 @@ public:
     void Bind(GfxDriver* gfx) override;
     void UnBind(GfxDriver* gfx) override;
     void BindDepthStencil(GfxDriver* gfx) override;
+    void BindColor(GfxDriver* gfx) override;
 
+#ifdef GLACIER_REVERSE_Z
+    void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 0.0f, uint8_t stencil = 0u) override;
+    void ClearDepthStencil(float depth = 0.0f, uint8_t stencil = 0u) override;
+#else
     void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 1.0f, uint8_t stencil = 0u) override;
-    void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) override;
     void ClearDepthStencil(float depth = 1.0f, uint8_t stencil = 0u) override;
-
+#endif
+    void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) override;
+    
     void AttachColor(AttachmentPoint point, const std::shared_ptr<Texture>& tex, int16_t slice = -1, int16_t mip_slice = 0, bool srgb = false) override;
     void AttachDepthStencil(const std::shared_ptr<Texture>& tex) override;
 

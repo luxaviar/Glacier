@@ -26,110 +26,72 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
 #include "Inspect/Profiler.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
 
-Renderer::Renderer(GfxDriver* gfx, MSAAType msaa) :
-    msaa_(msaa),
+Renderer::Renderer(GfxDriver* gfx) :
     gfx_(gfx),
     editor_(gfx),
     post_process_manager_(gfx)
 {
-    if (msaa_ != MSAAType::kNone) {
-        gfx_->CheckMSAA(msaa_, sample_count_, quality_level_);
-        assert(sample_count_ <= 8);
-
-        msaa_ = (MSAAType)sample_count_;
-    }
-
     stats_ = std::make_unique<PerfStats>(gfx);
-
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 15, 40, 70, 100 });
-
-    InitRenderTarget();
-    InitMaterial();
-
-    InitPostProcess();
-    InitMSAA();
 }
 
-void Renderer::InitPostProcess() {
+void Renderer::Setup() {
+    if (init_) return;
+    init_ = true;
+
+    InitRenderTarget();
+    InitToneMapping();
+    InitMaterial();
+
+    Gizmos::Instance()->Setup(gfx_);
+    LightManager::Instance()->Setup(gfx_, this);
+}
+
+void Renderer::InitToneMapping() {
     auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
     auto desc = PostProcess::Description()
-        .SetSrc(intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0))
+        .SetSrc(render_target_->GetColorAttachment(AttachmentPoint::kColor0))
         .SetDst(gfx_->GetSwapChain()->GetRenderTarget())
         .SetMaterial(tonemapping_mat);
 
     post_process_manager_.Push(desc);
 }
 
-void Renderer::InitMSAA() {
-    RasterStateDesc rs;
-    rs.depthFunc = CompareFunc::kAlways;
+void Renderer::InitRenderTarget() {
+    auto width = gfx_->GetSwapChain()->GetWidth();
+    auto height = gfx_->GetSwapChain()->GetHeight();
+    present_render_target_ = gfx_->GetSwapChain()->GetRenderTarget();
+    auto backbuffer_depth_tex = present_render_target_->GetDepthStencil();
 
-    auto vert_shader = gfx_->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
+    auto colorframe_desc = Texture::Description()
+        .SetDimension(width, height)
+        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetCreateFlag(CreateFlags::kRenderTarget)
+        .SetSampleDesc(sample_count_, quality_level_);
+    auto colorframe = gfx_->CreateTexture(colorframe_desc);
+    colorframe->SetName(TEXT("linear render color texture"));
 
-    std::array<std::pair<MSAAType, std::string>, 3> msaa_types = { { {MSAAType::k2x, "2"}, {MSAAType::k4x, "4"}, {MSAAType::k8x, "8"} } };
-    for (auto& v : msaa_types) {
-        auto pixel_shader = gfx_->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps", { {"MSAASamples_", v.second.c_str()}, {nullptr, nullptr} });
-        auto program = gfx_->CreateProgram("MSAA");
-        program->SetShader(vert_shader);
-        program->SetShader(pixel_shader);
-
-        auto mat = std::make_shared<Material>("msaa resolve", program);
-        mat->GetTemplate()->SetRasterState(rs);
-
-        mat->SetProperty("depth_buffer", render_target_->GetDepthStencil());
-        mat->SetProperty("color_buffer", render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-        msaa_resolve_mat_[glacier::log2((uint32_t)v.first)] = mat;
-    }
+    render_target_ = gfx_->CreateRenderTarget(width, height);
+    render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
+    render_target_->AttachDepthStencil(backbuffer_depth_tex);
 }
 
-void Renderer::Setup() {
-    if (init_) return;
-
-    init_ = true;
-    Gizmos::Instance()->Setup(gfx_);
-    LightManager::Instance()->Setup(gfx_, this);
-}
-
-void Renderer::OnResize(uint32_t width, uint32_t height) {
+bool Renderer::OnResize(uint32_t width, uint32_t height) {
     auto swapchain = gfx_->GetSwapChain();
     if (swapchain->GetWidth() == width && swapchain->GetHeight() == height) {
-        return;
+        return false;
     }
 
     swapchain->OnResize(width, height);
-    auto backbuffer_depth = swapchain->GetRenderTarget()->GetDepthStencil();
-
-    auto rt_tex = render_target_->GetColorAttachment(AttachmentPoint::kColor0);
-    rt_tex->Resize(width, height);
 
     render_target_->Resize(width, height);
-    render_target_->AttachColor(AttachmentPoint::kColor0, rt_tex);
-    if (msaa_ == MSAAType::kNone) {
-        render_target_->AttachDepthStencil(backbuffer_depth);
-    }
-    else {
-        auto depth_tex_desc = Texture::Description()
-            .SetDimension(width, height)
-            .SetFormat(TextureFormat::kR24G8_TYPELESS)
-            .SetCreateFlag(CreateFlags::kDepthStencil)
-            .SetCreateFlag(CreateFlags::kShaderResource)
-            .SetSampleDesc(sample_count_, quality_level_);
-        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-        depthstencil_texture->SetName(TEXT("msaa depth texture"));
 
-        render_target_->AttachDepthStencil(depthstencil_texture);
-    }
-
-    rt_tex = intermediate_target_->GetColorAttachment(AttachmentPoint::kColor0);
-    rt_tex->Resize(width, height);
-
-    intermediate_target_->Resize(width, height);
-    intermediate_target_->AttachColor(AttachmentPoint::kColor0, rt_tex);
-    intermediate_target_->AttachDepthStencil(backbuffer_depth);
+    return true;
 }
 
 void Renderer::FilterVisibles() {
@@ -165,54 +127,6 @@ void Renderer::InitMaterial() {
     MaterialManager::Instance()->Add(std::move(solid_mat));
 }
 
-void Renderer::InitRenderTarget() {
-    auto width = gfx_->GetSwapChain()->GetWidth();
-    auto height = gfx_->GetSwapChain()->GetHeight();
-    auto& swapchain_render_target = gfx_->GetSwapChain()->GetRenderTarget();
-    auto backbuffer_depth_tex = swapchain_render_target->GetDepthStencil();
-
-    auto colorframe_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetSampleDesc(sample_count_, quality_level_);
-    auto colorframe = gfx_->CreateTexture(colorframe_desc);
-    colorframe->SetName(TEXT("linear render color texture"));
-
-    render_target_ = gfx_->CreateRenderTarget(width, height);
-    render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
-
-    intermediate_target_ = gfx_->CreateRenderTarget(width, height);
-    if (msaa_ == MSAAType::kNone) {
-        render_target_->AttachDepthStencil(backbuffer_depth_tex);
-
-        intermediate_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
-        intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
-    }
-    else {
-        auto depth_tex_desc = Texture::Description()
-            .SetDimension(width, height)
-            .SetFormat(TextureFormat::kR24G8_TYPELESS)
-            .SetCreateFlag(CreateFlags::kDepthStencil)
-            .SetCreateFlag(CreateFlags::kShaderResource)
-            .SetSampleDesc(sample_count_, quality_level_);
-        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-        depthstencil_texture->SetName(TEXT("msaa depth texture"));
-
-        render_target_->AttachDepthStencil(depthstencil_texture);
-
-        auto intermediate_color_desc = Texture::Description()
-            .SetDimension(width, height)
-            .SetCreateFlag(CreateFlags::kRenderTarget)
-            .SetFormat(TextureFormat::kR16G16B16A16_FLOAT);
-        auto intermediate_color = gfx_->CreateTexture(intermediate_color_desc);
-        intermediate_color->SetName(TEXT("intermediate color buffer"));
-
-        intermediate_target_->AttachColor(AttachmentPoint::kColor0, intermediate_color);
-        intermediate_target_->AttachDepthStencil(backbuffer_depth_tex);
-    }
-}
-
 Camera* Renderer::GetMainCamera() const {
     auto scene = SceneManager::Instance()->CurrentScene();
     if (!scene) {
@@ -227,10 +141,6 @@ void Renderer::PreRender() {
     stats_->PreRender();
 
     render_target_->Clear();
-    
-    if (msaa_ != MSAAType::kNone) {
-        intermediate_target_->Clear();
-    }
 
     RestoreCommonBindings();
     FilterVisibles();
@@ -259,12 +169,11 @@ void Renderer::Render() {
         show_imgui_demo_ = !show_imgui_demo_;
     }
 
-    auto& present_render_target = gfx_->GetSwapChain()->GetRenderTarget();
     PreRender();
 
     auto& mouse = Input::Instance()->mouse();
     if (mouse.IsLeftDown() && !mouse.IsRelativeMode()) {
-        editor_.Pick(mouse.GetPosX(), mouse.GetPosY(), GetMainCamera(), visibles_, present_render_target);
+        editor_.Pick(mouse.GetPosX(), mouse.GetPosY(), GetMainCamera(), visibles_, present_render_target_);
     }
 
     {
@@ -289,7 +198,7 @@ void Renderer::Render() {
         post_process_manager_.Render();
     }
 
-    present_render_target->Bind(gfx_);
+    present_render_target_->Bind(gfx_);
 
     if (show_gui_) {
         PerfSample("Editor");
@@ -315,17 +224,6 @@ void Renderer::Render() {
     PostRender();
 }
 
-void Renderer::ResolveMSAA() {
-    PerfSample("Resolve MSAA");
-    if (msaa_ == MSAAType::kNone) return;
-
-    auto& mat = msaa_resolve_mat_[log2((uint32_t)msaa_)];
-    RenderTargetBindingGuard rt_guard(gfx_, intermediate_target_.get());
-    MaterialGuard mat_guard(gfx_, mat.get());
-
-    gfx_->Draw(3, 0);
-}
-
 void Renderer::GrabScreen() {
     auto render_target = gfx_->GetSwapChain()->GetRenderTarget();
     auto width = render_target->width();
@@ -349,17 +247,6 @@ void Renderer::GrabScreen() {
 
             image.Save(TEXT("screen_grab.png"), false);
         });
-}
-
-void Renderer::AddSolidPass() {
-    //auto mat = MaterialManager::Instance()->Get("solid");
-    //render_graph_.AddPass("solid",
-    //    [&](PassNode& pass) {
-    //    },
-    //    [this, mat](Renderer* renderer, const PassNode& pass) {
-    //        MaterialGuard guard(renderer->driver(), mat);
-    //        pass.Render(renderer, visibles_);
-    //    });
 }
 
 void Renderer::AddShadowPass() {

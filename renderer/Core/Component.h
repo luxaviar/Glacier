@@ -44,6 +44,9 @@ public:
     virtual void OnDisable() {}
     virtual void OnDestroy() {}
 
+    virtual void OnStatic() {}
+    virtual void OnNotStatic() {}
+
     virtual void OnParentChange() {}
 
     virtual void DrawInspector() {}

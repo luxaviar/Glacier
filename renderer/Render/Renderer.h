@@ -19,7 +19,7 @@ class Light;
 
 class Renderer {
 public:
-    Renderer(GfxDriver* gfx, MSAAType msaa = MSAAType::kNone);
+    Renderer(GfxDriver* gfx);
     virtual ~Renderer() {}
     virtual void Setup();
 
@@ -27,37 +27,33 @@ public:
     Editor& editor() { return editor_; }
 
     std::shared_ptr<RenderTarget>& render_target() { return render_target_; }
-    std::shared_ptr<RenderTarget>& intermediate_target() { return intermediate_target_; }
 
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
     void GrabScreen();
 
-    void PreRender();
+    virtual void PreRender();
     void Render();
-    void PostRender();
+    virtual void PostRender();
 
-    void OnResize(uint32_t width, uint32_t height);
+    virtual bool OnResize(uint32_t width, uint32_t height);
 
     const std::vector<Renderable*>& GetVisibles() const { return visibles_; }
 
     GfxDriver* driver() { return gfx_; }
 
 protected:
-    void InitMSAA();
-    void InitPostProcess();
+    virtual void InitToneMapping();
+    virtual void InitRenderTarget();
+    virtual void ResolveMSAA() {}
 
-    void ResolveMSAA();
     void FilterVisibles();
     void RestoreCommonBindings();
 
     void InitMaterial();
-    void InitRenderTarget();
 
-    void AddSolidPass();
     void AddShadowPass();
-    //void AddPhongPass();
 
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
@@ -66,7 +62,6 @@ protected:
     bool show_imgui_demo_ = false;
     bool show_gui_ = true;
     bool show_gizmo_ = true;
-    MSAAType msaa_ = MSAAType::kNone;
     uint32_t sample_count_ = 1;
     uint32_t quality_level_ = 0;
 
@@ -74,11 +69,9 @@ protected:
 
     //linear render target
     std::shared_ptr<RenderTarget> render_target_;
-    //intermediate (MSAA) render target
-    std::shared_ptr<RenderTarget> intermediate_target_;
 
-    //for msaa resolve
-    std::shared_ptr<Material> msaa_resolve_mat_[4]; // 0 is no use
+    //hardware render target
+    std::shared_ptr<RenderTarget> present_render_target_;
 
     std::shared_ptr<CascadedShadowManager> csm_manager_;
     std::vector<Renderable*> visibles_;

@@ -28,9 +28,9 @@ public:
     virtual void Detect(std::vector<CollidePair>& result) = 0;
 
     virtual void Clear() {};
-    virtual uint32_t epoch() const { return 0; }
+    virtual uint32_t GetEpoch() const { return 0; }
 
-    virtual void OnDrawGizmos(bool draw_bvh) {}
+    virtual void OnDrawGizmos(bool draw_bvh) = 0;
 };
 
 }

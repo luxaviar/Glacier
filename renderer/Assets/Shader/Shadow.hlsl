@@ -15,6 +15,6 @@ Output main_vs(float3 pos : Position)
 }
 
 float4 main_ps(float3 viewPos : Position) : SV_TARGET
-{	
+{
     return length(viewPos) / 100.0f + 0.005;
 }

@@ -61,10 +61,10 @@ float GeometrySmith(float3 N, float3 V, float3 L, float roughness){
     return ggx1 * ggx2;
 }
 
-float4 main_ps(VSOut IN) : SV_TARGET
+float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
 {
-    float nDotV = IN.uv.x;
-    float roughness = 1.0f - IN.uv.y;
+    float nDotV = uv.x;
+    float roughness = 1.0f - uv.y;
     
     float invCount = 1.0 / float(SAMPLE_COUNT);
 

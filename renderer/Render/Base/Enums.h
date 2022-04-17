@@ -139,7 +139,6 @@ enum class TextureFormat : uint8_t {
     kR32_TYPELESS,
     kR32_FLOAT,
     kD32_FLOAT,
-    kR24_UNORM_X8_TYPELESS,
     kR32G32B32A32_FLOAT,
     kR32G32B32A32_TYPELESS,
     kR16G16B16A16_FLOAT,

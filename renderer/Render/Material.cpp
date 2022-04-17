@@ -6,6 +6,7 @@
 #include "Render/Graph/PassNode.h"
 #include "render/base/Buffer.h"
 #include "render/base/texture.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
@@ -62,7 +63,10 @@ void Material::SetTexTilingOffset(const Vec4f& st) {
 //TODO: check duplicate?
 void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (prop.shader_param == param && 
@@ -81,7 +85,10 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf)
 void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color) 
 {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param)
@@ -99,7 +106,10 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex
 
 void Material::SetProperty(const char* name, const Color& color) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -115,7 +125,10 @@ void Material::SetProperty(const char* name, const Color& color) {
 
 void Material::SetProperty(const char* name, const Vec4f& v) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -131,7 +144,10 @@ void Material::SetProperty(const char* name, const Vec4f& v) {
 
 void Material::SetProperty(const char* name, const Matrix4x4& v) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -147,7 +163,10 @@ void Material::SetProperty(const char* name, const Matrix4x4& v) {
 
 void Material::SetProperty(const char* name, const SamplerState& ss) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -163,7 +182,10 @@ void Material::SetProperty(const char* name, const SamplerState& ss) {
 
 void Material::UpdateProperty(const char* name, const void* data) {
     auto param = template_->GetProgram()->FindParameter(name);
-    assert(param);
+    if (!param) {
+        LOG_WARN("Set material property failed for {0}.{1}", name_, name);
+        return;
+    }
 
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
@@ -186,15 +208,19 @@ void Material::DrawInspector() {
 
     ImGui::Text("Property");
     for (auto& p : properties_) {
-        ImGui::Bullet();
-        ImGui::Text(p.shader_param->name.c_str());
-        if (p.prop_type == MaterialPropertyType::kTexture && p.use_default) {
-            ImGui::SameLine(200);
-            std::string label("##material-color");
-            label.append(p.shader_param->name.c_str());
-            if (ImGui::ColorEdit4(label.c_str(), &p.default_color, ImGuiColorEditFlags_NoInputs)) {
-                p.dirty = true;
-                //dirty_ = true;
+        for (auto& param : *p.shader_param) {
+            if (!param) continue;
+
+            ImGui::Bullet();
+            ImGui::Text(param.name.c_str());
+            if (p.prop_type == MaterialPropertyType::kTexture && p.use_default) {
+                ImGui::SameLine(200);
+                std::string label("##material-color");
+                label.append(param.name.c_str());
+                if (ImGui::ColorEdit4(label.c_str(), &p.default_color, ImGuiColorEditFlags_NoInputs)) {
+                    p.dirty = true;
+                    //dirty_ = true;
+                }
             }
         }
     }

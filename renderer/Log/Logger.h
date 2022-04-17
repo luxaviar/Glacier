@@ -19,6 +19,7 @@ public:
 
     virtual void Append(int8_t level, ByteStream& stream) = 0;
     virtual void Flush() {}
+    virtual void Write(ByteStream& stream) = 0;
 
 protected:
     virtual void Close() {}
@@ -27,6 +28,7 @@ protected:
 class ConsoleLogger : public BaseLogger {
 public:
     void Append(int8_t level, ByteStream& stream) override;
+    void Write(ByteStream& stream) override;
 };
 
 class FileLogger : public BaseLogger {
@@ -35,6 +37,7 @@ public:
     ~FileLogger() override;
 
     void Append(int8_t level, ByteStream& stream) override;
+    void Write(ByteStream& stream) override;
 
     void Flush() override;
 

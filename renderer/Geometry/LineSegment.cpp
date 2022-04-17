@@ -188,5 +188,27 @@ bool LineSegment2D::Intersects(const LineSegment2D& other, float* t) const {
     return true;
 }
 
+Vector2 LineSegment2D::ClosestPoint(const Vector2& point, float& d) const {
+    Vector2 dir = b - a;
+    auto len = (point - a).Dot(dir);
+    d = math::Clamp(len / dir.MagnitudeSq(), 0.0f, 1.0f);
+    return a + dir * d;
+}
+
+Vector2 LineSegment2D::ClosestPoint(const Vector2& point) const {
+    float d;
+    return ClosestPoint(point, d);
+}
+
+float LineSegment2D::Distance(const Vector2& point) const {
+    Vector2 closestPoint = ClosestPoint(point);
+    return closestPoint.Distance(point);
+}
+
+float LineSegment2D::DistanceSq(const Vector2& point) const {
+    Vector2 closestPoint = ClosestPoint(point);
+    return closestPoint.DistanceSq(point);
+}
+
 }
 

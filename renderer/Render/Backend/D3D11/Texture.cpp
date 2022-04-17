@@ -140,12 +140,11 @@ void D3D11Texture::Create() {
 
 void D3D11Texture::CreateViews(const D3D11_TEXTURE2D_DESC& desc) {
     auto dev = D3D11GfxDriver::Instance()->GetDevice();
-    auto srv_fmt = GetSRVFormat(desc.Format);
 
     // create the resource view on the texture
-    if (desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) {
+    if ((desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) || (detail_.create_flags & (uint32_t)CreateFlags::kShaderResource)) {
         D3D11_SHADER_RESOURCE_VIEW_DESC srv_desc;
-        srv_desc.Format = srv_fmt;
+        srv_desc.Format = GetSRVFormat(desc.Format);
         if (detail_.type == TextureType::kTexture2D) {
             srv_desc.ViewDimension = desc.SampleDesc.Count > 1 ? D3D11_SRV_DIMENSION_TEXTURE2DMS : D3D11_SRV_DIMENSION_TEXTURE2D;
         }
@@ -166,6 +165,10 @@ void D3D11Texture::CreateViews(const D3D11_TEXTURE2D_DESC& desc) {
         uav_desc.Texture2D.MipSlice = 0;
 
         GfxThrowIfFailed(dev->CreateUnorderedAccessView(texture_.Get(), &uav_desc, &uav_));
+    }
+
+    if (detail_.format == TextureFormat::kUnkown) {
+        detail_.format = GetTextureFormat(desc.Format);
     }
 }
 
@@ -431,6 +434,10 @@ bool D3D11Texture::Resize(uint32_t width, uint32_t height) {
     assert(detail_.file.empty());
 
     if (detail_.is_backbuffer || !detail_.file.empty()) {
+        return false;
+    }
+
+    if (detail_.width == width && detail_.height == height) {
         return false;
     }
 

@@ -90,8 +90,9 @@ public:
     void ToggleImgui() noexcept { imgui_enable_ = !imgui_enable_; }
 
     void BindCamera(const Camera* cam);
-    void BindCamera(const Matrix4x4& view, const Matrix4x4& projection);
+    void BindCamera(const Vector3& pos, const Matrix4x4& view, const Matrix4x4& projection);
 
+    const Vector3& camera_position() const { return camera_position_; }
     const Matrix4x4& projection() const noexcept { return projection_; }
     const Matrix4x4& view() const noexcept { return view_; }
 
@@ -115,6 +116,7 @@ protected:
     static GfxDriver* driver_;
 
     bool vsync_ = false;
+    Vector3 camera_position_;
     Matrix4x4 view_;
     Matrix4x4 projection_;
 

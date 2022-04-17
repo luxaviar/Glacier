@@ -21,7 +21,12 @@ AsyncLogging::~AsyncLogging() {
 void AsyncLogging::Run() {
     while (running_) {
         bool empty = !queue_.Pop([this](LogLine& ll) {
-            logger_->Append(ll.lvl, ll.stream);
+            if (ll.lvl < 0) {
+                logger_->Write(ll.stream);
+            }
+            else {
+                logger_->Append(ll.lvl, ll.stream);
+            }
         });
 
         if (empty) {
@@ -35,7 +40,12 @@ void AsyncLogging::Run() {
     }
 
     while (queue_.Pop([this](LogLine& ll) {
-            logger_->Append(ll.lvl, ll.stream);
+            if (ll.lvl < 0) {
+                logger_->Write(ll.stream);
+            }
+            else {
+                logger_->Append(ll.lvl, ll.stream);
+            }
         }))
     {}
 
@@ -46,7 +56,7 @@ void AsyncLogging::Flush() {
     flush_ = true;
 }
 
-void AsyncLogging::Log(uint8_t lvl, ByteStream& stream) {
+void AsyncLogging::Log(int8_t lvl, ByteStream& stream) {
     if (!logger_ || lvl < g_log_level) return;
 
     queue_.Push([lvl, &stream](LogLine& ll) {
@@ -54,6 +64,14 @@ void AsyncLogging::Log(uint8_t lvl, ByteStream& stream) {
         ll.lvl = lvl;
         ll.stream << stream;
     });
+}
+
+void AsyncLogging::Write(ByteStream& stream) {
+    queue_.Push([&stream](LogLine& ll) {
+        ll.stream.Reset();
+        ll.lvl = -1;
+        ll.stream << stream;
+        });
 }
 
 }

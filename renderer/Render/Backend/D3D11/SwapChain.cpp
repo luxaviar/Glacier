@@ -79,8 +79,9 @@ void D3D11SwapChain::CreateRenderTarget() {
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
-        .SetFormat(TextureFormat::kD24S8_UINT)
-        .SetCreateFlag(CreateFlags::kDepthStencil);
+        .SetFormat(TextureFormat::kR24G8_TYPELESS)
+        .SetCreateFlag(CreateFlags::kDepthStencil)
+        .SetCreateFlag(CreateFlags::kShaderResource);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
     depthstencil_texture->SetName(TEXT("swapchain depth texture"));
 

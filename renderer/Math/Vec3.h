@@ -149,11 +149,11 @@ struct Vec3 {
         }
     }
 
-    Vec3<T> Inverse() const {
+    Vec3<T> Inverted() const {
         return Vec3<T>((T)1 / x, (T)1 / y, (T)1 / z);
     }
 
-    Vec3<T> InverseSafe() const {
+    Vec3<T> InvertedSafe() const {
         return Vec3<T>(math::InverseSafe(x), math::InverseSafe(y), math::InverseSafe(z));
     }
 

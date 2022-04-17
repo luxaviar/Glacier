@@ -7,6 +7,20 @@ namespace glacier {
 namespace render {
 
 struct RasterStateDesc {
+#if GLACIER_REVERSE_Z
+    static constexpr CompareFunc kDefaultDepthFunc = CompareFunc::kGreater;
+    static constexpr CompareFunc kDefaultDepthFuncWithEqual = CompareFunc::kGreaterEqual;
+
+    static constexpr CompareFunc kReverseDepthFunc = CompareFunc::kLess;
+    static constexpr CompareFunc kReverseDepthFuncWithEqual = CompareFunc::kLessEqual;
+#else
+    static constexpr CompareFunc kDefaultDepthFunc = CompareFunc::kLess;
+    static constexpr CompareFunc kDefaultDepthFuncWithEqual = CompareFunc::kLessEqual;
+
+    static constexpr CompareFunc kReverseDepthFunc = CompareFunc::kGreater;
+    static constexpr CompareFunc kReverseDepthFuncWithEqual = CompareFunc::kGreaterEqual;
+#endif
+
     RasterStateDesc() noexcept {
         static_assert(sizeof(RasterStateDesc) == sizeof(uint64_t),
             "RasterState size not what was intended");
@@ -17,7 +31,7 @@ struct RasterStateDesc {
         scissor = false;
 
         depthWrite = true;
-        depthFunc = CompareFunc::kLess;
+        depthFunc = kDefaultDepthFunc;
 
         depthEnable = true;
         stencilEnable = false;

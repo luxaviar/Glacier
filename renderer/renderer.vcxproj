@@ -58,7 +58,7 @@
     <ClCompile>
       <WarningLevel>Level3</WarningLevel>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;_CONSOLE;IS_DEBUG=true;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GLACIER_REVERSE_Z;_DEBUG;_CONSOLE;IS_DEBUG=true;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\fmt\include;$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -82,7 +82,7 @@
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;_CONSOLE;IS_DEBUG=false;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>GLACIER_REVERSE_Z;NDEBUG;_CONSOLE;IS_DEBUG=false;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <AdditionalIncludeDirectories>$(ProjectDir)\3rdParty\fmt\include;$(ProjectDir)\3rdParty\imgui;$(ProjectDir)\3rdParty;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
@@ -255,8 +255,10 @@
     <ClCompile Include="Render\Base\VertexLayout.cpp" />
     <ClCompile Include="Render\Camera.cpp" />
     <ClCompile Include="Render\CascadedShadowManager.cpp" />
+    <ClCompile Include="Render\DeferredRenderer.cpp" />
     <ClCompile Include="Render\Editor\Editor.cpp" />
     <ClCompile Include="Render\Editor\Gizmos.cpp" />
+    <ClCompile Include="Render\ForwardRenderer.cpp" />
     <ClCompile Include="Render\Graph\PassNode.cpp" />
     <ClCompile Include="Render\Graph\RenderGraph.cpp" />
     <ClCompile Include="Render\Image.cpp" />
@@ -270,7 +272,6 @@
     <ClCompile Include="Render\Mesh\MeshRenderer.cpp" />
     <ClCompile Include="Render\Mesh\Model.cpp" />
     <ClCompile Include="Render\Mesh\Primitive.cpp" />
-    <ClCompile Include="Render\PbrRenderer.cpp" />
     <ClCompile Include="Render\PostProcess.cpp" />
     <ClCompile Include="Render\Renderer.cpp" />
     <ClCompile Include="Scene\PbrScene.cpp" />
@@ -389,6 +390,7 @@
     <ClInclude Include="3rdparty\stb_image\stb_image.h" />
     <ClInclude Include="3rdparty\stb_image\stb_image_resize.h" />
     <ClInclude Include="3rdparty\stb_image\stb_image_write.h" />
+    <ClInclude Include="Algorithm\Bvh.h" />
     <ClInclude Include="App.h" />
     <ClInclude Include="Behaviour\CameraController.h" />
     <ClInclude Include="Behaviour\Fall.h" />
@@ -536,8 +538,10 @@
     <ClInclude Include="Render\Camera.h" />
     <ClInclude Include="Render\CascadedShadowManager.h" />
     <ClInclude Include="Render\Channels.h" />
+    <ClInclude Include="Render\DeferredRenderer.h" />
     <ClInclude Include="Render\Editor\Editor.h" />
     <ClInclude Include="Render\Editor\Gizmos.h" />
+    <ClInclude Include="Render\ForwardRenderer.h" />
     <ClInclude Include="Render\Graph\PassExecutor.h" />
     <ClInclude Include="Render\Graph\PassNode.h" />
     <ClInclude Include="Render\Graph\RenderGraph.h" />
@@ -553,7 +557,6 @@
     <ClInclude Include="Render\Mesh\MeshRenderer.h" />
     <ClInclude Include="Render\Mesh\Model.h" />
     <ClInclude Include="Render\Mesh\Primitive.h" />
-    <ClInclude Include="Render\PbrRenderer.h" />
     <ClInclude Include="Render\PostProcess.h" />
     <ClInclude Include="Render\Renderer.h" />
     <ClInclude Include="Scene\PbrScene.h" />
@@ -581,7 +584,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
-    <FxCompile Include="Assets\Shader\Cube.hlsl">
+    <FxCompile Include="Assets\Shader\DeferredLighting.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
@@ -590,6 +593,14 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="assets\shader\EnvRadiance.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\ForwardLighting.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GBufferPass.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
@@ -612,10 +623,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="Assets\Shader\MSAAResolve.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="assets\shader\Pbr.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
@@ -650,18 +657,6 @@
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)\assets\ShaderBins\%(Filename).cso</ObjectFileOutput>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="Assets\Shader\TexPS.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="Assets\Shader\TexUnlitPS.hlsl">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
-    </FxCompile>
-    <FxCompile Include="Assets\Shader\TexVS.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

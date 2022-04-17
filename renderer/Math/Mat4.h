@@ -1,6 +1,7 @@
 #pragma once
 
 #include <algorithm>
+#include <optional>
 #include "util.h"
 #include "vec4.h"
 #include "quat.h"
@@ -18,7 +19,7 @@ struct Mat4x4 {
     static const Mat4x4<T> zero;
 
     union {
-        T m[rows][cols];
+        T value[rows][cols];
         struct { Vec4<T> r[rows]; };
         struct { Vec4<T> r0, r1, r2, r3; };
     };
@@ -29,7 +30,7 @@ struct Mat4x4 {
                       T m10, T m11, T m12, T m13,
                       T m20, T m21, T m22, T m23,
                       T m30, T m31, T m32, T m33)
-        : m{m00, m01, m02, m03,
+        : value{m00, m01, m02, m03,
             m10, m11, m12, m13,
             m20, m21, m22, m23,
             m30, m31, m32, m33} {
@@ -50,13 +51,23 @@ struct Mat4x4 {
         r3.Zero();
     }
 
-    Mat4x4<T> Transpose() const {
+    Mat4x4<T> Transposed() const {
         return Mat4x4<T>(
             r0.x, r1.x, r2.x, r3.x,
             r0.y, r1.y, r2.y, r3.y,
             r0.z, r1.z, r2.z, r3.z,
             r0.w, r1.w, r2.w, r3.w
         );
+    }
+
+    Mat4x4<T>& Transpose() const {
+        std::swap(value[0][1], value[1][0]);
+        std::swap(value[0][2], value[2][0]);
+        std::swap(value[0][3], value[3][0]);
+        std::swap(value[1][2], value[2][1]);
+        std::swap(value[1][3], value[3][1]);
+        std::swap(value[2][3], value[3][2]);
+        return *this;
     }
 
     //scale rotation
@@ -137,17 +148,17 @@ struct Mat4x4 {
         // add: 6 + 8 + 3 = 17
         // mul: 12 + 16 = 28
 
-        T a = m[0][0], b = m[0][1], c = m[0][2], d = m[0][3];
-        T e = m[1][0], f = m[1][1], g = m[1][2], h = m[1][3];
-        T i = m[2][0], j = m[2][1], k = m[2][2], l = m[2][3];
-        T mi = m[3][0], n = m[3][1], o = m[3][2], p = m[3][3];
+        T a = value[0][0], b = value[0][1], c = value[0][2], d = value[0][3];
+        T e = value[1][0], f = value[1][1], g = value[1][2], h = value[1][3];
+        T i = value[2][0], j = value[2][1], k = value[2][2], l = value[2][3];
+        T m = value[3][0], n = value[3][1], o = value[3][2], p = value[3][3];
 
         T kp_lo = k * p - l * o;
         T jp_ln = j * p - l * n;
         T jo_kn = j * o - k * n;
-        T ip_lm = i * p - l * mi;
-        T io_km = i * o - k * mi;
-        T in_jm = i * n - j * mi;
+        T ip_lm = i * p - l * m;
+        T io_km = i * o - k * m;
+        T in_jm = i * n - j * m;
 
         return a * (f * kp_lo - g * jp_ln + h * jo_kn) -
             b * (e * kp_lo - g * ip_lm + h * io_km) +
@@ -155,7 +166,7 @@ struct Mat4x4 {
             d * (e * jo_kn - f * io_km + g * in_jm);
     }
 
-    Mat4x4<T>& InverseOrthonormalInplace() {
+    Mat4x4<T>& InvertOrthonormal() {
         std::swap(r0.y, r1.x);
         std::swap(r0.z, r2.x);
         std::swap(r1.z, r2.y);
@@ -169,110 +180,20 @@ struct Mat4x4 {
         return *this;
     }
 
-    Mat4x4<T> InverseOrthonormal() const {
+    Mat4x4<T> InvertedOrthonormal() const {
         Mat4x4<T> mat{*this};
-        mat.InverseOrthonormalInplace();
+        mat.InvertOrthonormal();
         return mat;
     }
 
-    bool Inverse() {
-        //https://referencesource.microsoft.com/#System.Numerics/System/Numerics/Matrix4x4.cs,48ce53b7e55d0436
-        //                                       -1
-        // If you have matrix M, inverse Matrix M   can compute
-        //
-        //     -1       1      
-        //    M   = --------- A
-        //            det(M)
-        //
-        // A is adjugate (adjoint) of M, where,
-        //
-        //      T
-        // A = C
-        //
-        // C is Cofactor matrix of M, where,
-        //           i + j
-        // C   = (-1)      * det(M  )
-        //  ij                    ij
-        //
-        //     [ a b c d ]
-        // M = [ e f g h ]
-        //     [ i j k l ]
-        //     [ m n o p ]
-        //
-        // First Row
-        //           2 | f g h |
-        // C   = (-1)  | j k l | = + ( f ( kp - lo ) - g ( jp - ln ) + h ( jo - kn ) )
-        //  11         | n o p |
-        //
-        //           3 | e g h |
-        // C   = (-1)  | i k l | = - ( e ( kp - lo ) - g ( ip - lm ) + h ( io - km ) )
-        //  12         | m o p |
-        //
-        //           4 | e f h |
-        // C   = (-1)  | i j l | = + ( e ( jp - ln ) - f ( ip - lm ) + h ( in - jm ) )
-        //  13         | m n p |
-        //
-        //           5 | e f g |
-        // C   = (-1)  | i j k | = - ( e ( jo - kn ) - f ( io - km ) + g ( in - jm ) )
-        //  14         | m n o |
-        //
-        // Second Row
-        //           3 | b c d |
-        // C   = (-1)  | j k l | = - ( b ( kp - lo ) - c ( jp - ln ) + d ( jo - kn ) )
-        //  21         | n o p |
-        //
-        //           4 | a c d |
-        // C   = (-1)  | i k l | = + ( a ( kp - lo ) - c ( ip - lm ) + d ( io - km ) )
-        //  22         | m o p |
-        //
-        //           5 | a b d |
-        // C   = (-1)  | i j l | = - ( a ( jp - ln ) - b ( ip - lm ) + d ( in - jm ) )
-        //  23         | m n p |
-        //
-        //           6 | a b c |
-        // C   = (-1)  | i j k | = + ( a ( jo - kn ) - b ( io - km ) + c ( in - jm ) )
-        //  24         | m n o |
-        //
-        // Third Row
-        //           4 | b c d |
-        // C   = (-1)  | f g h | = + ( b ( gp - ho ) - c ( fp - hn ) + d ( fo - gn ) )
-        //  31         | n o p |
-        //
-        //           5 | a c d |
-        // C   = (-1)  | e g h | = - ( a ( gp - ho ) - c ( ep - hm ) + d ( eo - gm ) )
-        //  32         | m o p |
-        //
-        //           6 | a b d |
-        // C   = (-1)  | e f h | = + ( a ( fp - hn ) - b ( ep - hm ) + d ( en - fm ) )
-        //  33         | m n p |
-        //
-        //           7 | a b c |
-        // C   = (-1)  | e f g | = - ( a ( fo - gn ) - b ( eo - gm ) + c ( en - fm ) )
-        //  34         | m n o |
-        //
-        // Fourth Row
-        //           5 | b c d |
-        // C   = (-1)  | f g h | = - ( b ( gl - hk ) - c ( fl - hj ) + d ( fk - gj ) )
-        //  41         | j k l |
-        //
-        //           6 | a c d |
-        // C   = (-1)  | e g h | = + ( a ( gl - hk ) - c ( el - hi ) + d ( ek - gi ) )
-        //  42         | i k l |
-        //
-        //           7 | a b d |
-        // C   = (-1)  | e f h | = - ( a ( fl - hj ) - b ( el - hi ) + d ( ej - fi ) )
-        //  43         | i j l |
-        //
-        //           8 | a b c |
-        // C   = (-1)  | e f g | = + ( a ( fk - gj ) - b ( ek - gi ) + c ( ej - fi ) )
-        //  44         | i j k |
-        //
+    //https://referencesource.microsoft.com/#System.Numerics/System/Numerics/Matrix4x4.cs,48ce53b7e55d0436
+    std::optional<Mat4x4<T>> Inverted() const {
         // Cost of operation
         // 53 adds, 104 muls, and 1 div.
-        T a = m[0][0], b = m[0][1], c = m[0][2], d = m[0][3];
-        T e = m[1][0], f = m[1][1], g = m[1][2], h = m[1][3];
-        T i = m[2][0], j = m[2][1], k = m[2][2], l = m[2][3];
-        T m = m[3][0], n = m[3][1], o = m[3][2], p = m[3][3];
+        T a = value[0][0], b = value[0][1], c = value[0][2], d = value[0][3];
+        T e = value[1][0], f = value[1][1], g = value[1][2], h = value[1][3];
+        T i = value[2][0], j = value[2][1], k = value[2][2], l = value[2][3];
+        T m = value[3][0], n = value[3][1], o = value[3][2], p = value[3][3];
 
         T kp_lo = k * p - l * o;
         T jp_ln = j * p - l * n;
@@ -288,22 +209,22 @@ struct Mat4x4 {
 
         T det = a * a11 + b * a12 + c * a13 + d * a14;
 
-        if (math::Abs(det) < math::kEpsilon)
-        {
-            return false;
+        if (math::Abs(det) < math::kEpsilon) {
+            return {};
         }
 
         T invDet = 1.0f / det;
 
-        this->m[0][0] = a11 * invDet;
-        this->m[1][0] = a12 * invDet;
-        this->m[2][0] = a13 * invDet;
-        this->m[3][0] = a14 * invDet;
+        Mat4x4<T> inv_mat;
+        inv_mat[0][0] = a11 * invDet;
+        inv_mat[1][0] = a12 * invDet;
+        inv_mat[2][0] = a13 * invDet;
+        inv_mat[3][0] = a14 * invDet;
 
-        this->m[0][1] = -(b * kp_lo - c * jp_ln + d * jo_kn) * invDet;
-        this->m[1][1] = +(a * kp_lo - c * ip_lm + d * io_km) * invDet;
-        this->m[2][1] = -(a * jp_ln - b * ip_lm + d * in_jm) * invDet;
-        this->m[3][1] = +(a * jo_kn - b * io_km + c * in_jm) * invDet;
+        inv_mat[0][1] = -(b * kp_lo - c * jp_ln + d * jo_kn) * invDet;
+        inv_mat[1][1] = +(a * kp_lo - c * ip_lm + d * io_km) * invDet;
+        inv_mat[2][1] = -(a * jp_ln - b * ip_lm + d * in_jm) * invDet;
+        inv_mat[3][1] = +(a * jo_kn - b * io_km + c * in_jm) * invDet;
 
         T gp_ho = g * p - h * o;
         T fp_hn = f * p - h * n;
@@ -312,10 +233,10 @@ struct Mat4x4 {
         T eo_gm = e * o - g * m;
         T en_fm = e * n - f * m;
 
-        this->m[0][2] = +(b * gp_ho - c * fp_hn + d * fo_gn) * invDet;
-        this->m[1][2] = -(a * gp_ho - c * ep_hm + d * eo_gm) * invDet;
-        this->m[2][2] = +(a * fp_hn - b * ep_hm + d * en_fm) * invDet;
-        this->m[3][2] = -(a * fo_gn - b * eo_gm + c * en_fm) * invDet;
+        inv_mat[0][2] = +(b * gp_ho - c * fp_hn + d * fo_gn) * invDet;
+        inv_mat[1][2] = -(a * gp_ho - c * ep_hm + d * eo_gm) * invDet;
+        inv_mat[2][2] = +(a * fp_hn - b * ep_hm + d * en_fm) * invDet;
+        inv_mat[3][2] = -(a * fo_gn - b * eo_gm + c * en_fm) * invDet;
 
         T gl_hk = g * l - h * k;
         T fl_hj = f * l - h * j;
@@ -324,20 +245,20 @@ struct Mat4x4 {
         T ek_gi = e * k - g * i;
         T ej_fi = e * j - f * i;
 
-        this->m[0][3] = -(b * gl_hk - c * fl_hj + d * fk_gj) * invDet;
-        this->m[1][3] = +(a * gl_hk - c * el_hi + d * ek_gi) * invDet;
-        this->m[2][3] = -(a * fl_hj - b * el_hi + d * ej_fi) * invDet;
-        this->m[3][3] = +(a * fk_gj - b * ek_gi + c * ej_fi) * invDet;
+        inv_mat[0][3] = -(b * gl_hk - c * fl_hj + d * fk_gj) * invDet;
+        inv_mat[1][3] = +(a * gl_hk - c * el_hi + d * ek_gi) * invDet;
+        inv_mat[2][3] = -(a * fl_hj - b * el_hi + d * ej_fi) * invDet;
+        inv_mat[3][3] = +(a * fk_gj - b * ek_gi + c * ej_fi) * invDet;
 
-        return true;
+        return inv_mat;
     }
 
     T operator()(int row, int col) const {
-        return m[row][col];
+        return value[row][col];
     }
 
     T& operator()(int row, int col) {
-        return m[row][col];
+        return value[row][col];
     }
 
     const Vec4<T>& operator[](int index) const {
@@ -426,28 +347,28 @@ struct Mat4x4 {
     }
 
     operator T* () {
-        return (T*)m;
+        return (T*)value;
     }
 
     operator const T* () const {
-        return (const T*)m;
+        return (const T*)value;
     }
 
     Vec3<T> GetTranslation() const {
-        return { m[0][3], m[1][3], m[2][3] };
+        return { value[0][3], value[1][3], value[2][3] };
     }
 
     //https://math.stackexchange.com/questions/237369/given-this-transformation-matrix-how-do-i-decompose-it-into-translation-rotati
     //make sure it's a transform matrix
     void Decompose(Vec3<T>& pos, Quat<T>& rot, Vec3<T>& scale) const {
-        pos.x = m[0][3];
-        pos.y = m[1][3];
-        pos.z = m[2][3];
+        pos.x = value[0][3];
+        pos.y = value[1][3];
+        pos.z = value[2][3];
            
         /* extract the columns of the matrix. */
-        Vec3<T> col0{ m[0][0], m[1][0], m[2][0] };
-        Vec3<T> col1{ m[0][1], m[1][1], m[2][1] };
-        Vec3<T> col2{ m[0][2], m[1][2], m[2][2] };
+        Vec3<T> col0{ value[0][0], value[1][0], value[2][0] };
+        Vec3<T> col1{ value[0][1], value[1][1], value[2][1] };
+        Vec3<T> col2{ value[0][2], value[1][2], value[2][2] };
 
         /* extract the scaling factors */
         scale.x = col0.Magnitude();
@@ -566,7 +487,7 @@ struct Mat4x4 {
         return mat;
     }
 
-    //https://docs.microsoft.com/en-us/previous-versions/windows/desktop/bb281727(v=vs.85)
+    //https://docs.microsoft.com/en-us/windows/win32/dxtecharts/the-direct3d-transformation-pipeline
     static Mat4x4<T> PerspectiveFovLH(float fov, float aspect, float n, float f) {
         float half_cot = 1.0f / std::tan(fov / 2.0f);
         float reverse_diff = 1.0f / (f - n);

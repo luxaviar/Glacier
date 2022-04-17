@@ -24,6 +24,20 @@ void Program::SetInputLayout(const InputLayoutDesc& desc) {
     pso_->SetInputLayout(desc);
 }
 
+ShaderParameterSet& Program::FetchShaderParameterSet(const std::string& name) {
+    auto it = params_.find(name);
+    if (it == params_.end()) {
+        it = params_.emplace_hint(it, name, ShaderParameterSet{});
+    }
+
+    return it->second;
+}
+
+void Program::SetShaderParameter(const std::string& name, const ShaderParameter& param) {
+    auto& set = FetchShaderParameterSet(name);
+    set[(int)param.shader_type] = param;
+}
+
 //void Program::SetSampler(const char* name, const SamplerState& ss) {
 //    for (auto it = sampler_params_.begin(); it != sampler_params_.end(); ++it) {
 //        if (it->param->name == name) {

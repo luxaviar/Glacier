@@ -1,3 +1,6 @@
+#ifndef COMMON_TRANSFORM_
+#define COMMON_TRANSFORM_
+
 // cbuffer vp_matrix : register(b0)
 // {
 //     matrix model;
@@ -11,3 +14,5 @@ cbuffer object_transform : register(b0)
     matrix model_view_proj;
     float4 tex_ts;
 };
+
+#endif

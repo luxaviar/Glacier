@@ -52,11 +52,11 @@ public:
     virtual void Bind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
     virtual void UnBind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
 
-    const ShaderParameter* FindParameter(const std::string& name) const {
+    const ShaderParameterSet* FindParameter(const std::string& name) const {
         return FindParameter(name.c_str());
     }
 
-    const ShaderParameter* FindParameter(const char* name) const {
+    const ShaderParameterSet* FindParameter(const char* name) const {
         auto it = params_.find(name);
         if (it != params_.end()) {
             return &it->second;
@@ -69,10 +69,12 @@ public:
     
 protected:
     virtual void SetupShaderParameter(const std::shared_ptr<Shader>& shader) = 0;
+    ShaderParameterSet& FetchShaderParameterSet(const std::string& name);
+    void SetShaderParameter(const std::string& name, const ShaderParameter& param);
 
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
-    std::unordered_map<std::string, ShaderParameter> params_;
+    std::unordered_map<std::string, ShaderParameterSet> params_;
     std::shared_ptr<PipelineState> pso_;
 
     //std::vector<SamplerParameter> sampler_params_;

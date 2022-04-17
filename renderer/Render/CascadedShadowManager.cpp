@@ -69,7 +69,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
 
     shadow_sampler_.warpU = shadow_sampler_.warpV = WarpMode::kBorder;
     shadow_sampler_.filter = FilterMode::kCmpBilinear;
-    shadow_sampler_.comp = CompareFunc::kLessEqual;
+    shadow_sampler_.comp = RasterStateDesc::kDefaultDepthFuncWithEqual;
 
     pcf_size(3);
 
@@ -123,7 +123,7 @@ void CascadedShadowManager::Render(const Camera* camera,
 
     PerfSample("Render shadow");
     for (size_t i = 0; i < shadow_data_.cascade_levels; ++i) {
-        gfx_->BindCamera(shadow_view_, shadow_proj_[i]);
+        gfx_->BindCamera(shadow_position_, shadow_view_, shadow_proj_[i]);
         RenderTargetBindingGuard guard(gfx_, render_targets_[i].get());
 
         auto& shadow_frustum = frustums_[i];
@@ -139,7 +139,8 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
     DirectionalLight* light, const AABB& scene_bounds) 
 {
     auto& light_transform = light->transform();
-    shadow_view_ = Matrix4x4::LookToLH(light_transform.position(), light_transform.forward(), Vec3f::up);
+    shadow_position_ = light_transform.position();
+    shadow_view_ = Matrix4x4::LookToLH(shadow_position_, light_transform.forward(), Vec3f::up);
     
     AABB shadow_bounds = AABB::Transform(scene_bounds, shadow_view_);
     float nearz = shadow_bounds.min.z;
@@ -207,7 +208,11 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
         shadow_proj_[i] = Matrix4x4::OrthoOffCenterLH(
             ortho_min.x, ortho_max.x,
             ortho_min.y, ortho_max.y,
+#ifdef GLACIER_REVERSE_Z
+            farz, nearz
+#else
             nearz, farz
+#endif
         );
 
         shadow_data_.shadow_coord_trans[i] = coord_offset * coord_scale * shadow_proj_[i] * shadow_view_;
@@ -246,6 +251,12 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
 }
 
 void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
+    mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
+    mat->SetProperty("shadow_tex", shadow_map_);
+    mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
+}
+
+void CascadedShadowManager::SetupMaterial(Material* mat) {
     mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
     mat->SetProperty("shadow_tex", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);

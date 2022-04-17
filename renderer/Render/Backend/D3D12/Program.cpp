@@ -76,73 +76,77 @@ void D3D12Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
 }
 
 void D3D12Program::BindProperty(GfxDriver* gfx, const MaterialProperty& prop) {
-    auto shader_param = prop.shader_param;
-    auto name = prop.shader_param->name.c_str();
-    switch (prop.prop_type)
-    {
-    case MaterialPropertyType::kTexture: 
-    {
-        if ((prop.use_default && prop.dirty) || !prop.texture) {
-            auto desc = Texture::Description()
-                .SetColor(prop.color)
-                .SetDimension(8, 8);
-            prop.texture = gfx->CreateTexture(desc);
-            prop.texture->SetName(TEXT("color texture"));
-        }
+    for (auto& shader_param : *prop.shader_param) {
+        if (shader_param) {
+            auto name = shader_param.name.c_str();
+            switch (prop.prop_type)
+            {
+            case MaterialPropertyType::kTexture:
+            {
+                if ((prop.use_default && prop.dirty) || !prop.texture) {
+                    auto desc = Texture::Description()
+                        .SetColor(prop.color)
+                        .SetFormat(TextureFormat::kR8G8B8A8_UNORM)
+                        .SetDimension(8, 8);
+                    prop.texture = gfx->CreateTexture(desc);
+                    prop.texture->SetName(TEXT("color texture"));
+                }
 
-        auto tex = static_cast<D3D12Texture*>(prop.texture.get());
-        SetParameter(name, tex);
-    }
-        break;
-    case MaterialPropertyType::kSampler:
-    {
-        if (!prop.sampler) {
-            prop.sampler = D3D12Sampler::Create(gfx, prop.sampler_state);
-        }
+                auto tex = static_cast<D3D12Texture*>(prop.texture.get());
+                SetParameter(name, tex);
+            }
+            break;
+            case MaterialPropertyType::kSampler:
+            {
+                if (!prop.sampler) {
+                    prop.sampler = D3D12Sampler::Create(gfx, prop.sampler_state);
+                }
 
-        auto sampler = static_cast<D3D12Sampler*>(prop.sampler.get());
-        SetParameter(name, sampler);
-    }
-        break;
-    case MaterialPropertyType::kConstantBuffer:
-    {
-        auto buf = static_cast<D3D12ConstantBuffer*>(prop.buffer.get());
-        SetParameter(name, buf);
-    }
-        break;
-    case MaterialPropertyType::kStructuredBuffer:
-    {
-        auto buf = static_cast<D3D12StructuredBuffer*>(prop.buffer.get());
-        SetParameter(name, buf);
-    }
-    break;
-    case MaterialPropertyType::kColor:
-    case MaterialPropertyType::kFloat4:
-    case MaterialPropertyType::kMatrix:
-    {
-        if (!prop.buffer) {
-            if (prop.prop_type == MaterialPropertyType::kColor) {
-                prop.buffer = gfx->CreateConstantBuffer<Color>(prop.color, UsageType::kDefault);
+                auto sampler = static_cast<D3D12Sampler*>(prop.sampler.get());
+                SetParameter(name, sampler);
             }
-            else if (prop.prop_type == MaterialPropertyType::kFloat4) {
-                prop.buffer = gfx->CreateConstantBuffer<Vec4f>(prop.float4, UsageType::kDefault);
+            break;
+            case MaterialPropertyType::kConstantBuffer:
+            {
+                auto buf = static_cast<D3D12ConstantBuffer*>(prop.buffer.get());
+                SetParameter(name, buf);
             }
-            else {
-                prop.buffer = gfx->CreateConstantBuffer<Matrix4x4>(prop.matrix, UsageType::kDefault);
+            break;
+            case MaterialPropertyType::kStructuredBuffer:
+            {
+                auto buf = static_cast<D3D12StructuredBuffer*>(prop.buffer.get());
+                SetParameter(name, buf);
             }
+            break;
+            case MaterialPropertyType::kColor:
+            case MaterialPropertyType::kFloat4:
+            case MaterialPropertyType::kMatrix:
+            {
+                if (!prop.buffer) {
+                    if (prop.prop_type == MaterialPropertyType::kColor) {
+                        prop.buffer = gfx->CreateConstantBuffer<Color>(prop.color, UsageType::kDefault);
+                    }
+                    else if (prop.prop_type == MaterialPropertyType::kFloat4) {
+                        prop.buffer = gfx->CreateConstantBuffer<Vec4f>(prop.float4, UsageType::kDefault);
+                    }
+                    else {
+                        prop.buffer = gfx->CreateConstantBuffer<Matrix4x4>(prop.matrix, UsageType::kDefault);
+                    }
+                }
+                else if (prop.dirty) {
+                    prop.buffer->Update(&prop.matrix); //compatible with color & float4
+                }
+                auto cbuffer = static_cast<D3D12ConstantBuffer*>(prop.buffer.get());
+                SetParameter(name, cbuffer);
+            }
+            break;
+            default:
+                throw std::exception{ "Bad parameter type for D3D12Program::Bind." };
+                break;
+            }
+            prop.dirty = false;
         }
-        else if (prop.dirty) {
-            prop.buffer->Update(&prop.matrix); //compatible with color & float4
-        }
-        auto cbuffer = static_cast<D3D12ConstantBuffer*>(prop.buffer.get());
-        SetParameter(name, cbuffer);
     }
-        break;
-    default:
-        throw std::exception{ "Bad parameter type for D3D12Program::Bind." };
-        break;
-    }
-    prop.dirty = false;
 }
 
 void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
@@ -208,14 +212,13 @@ void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
             break;
         }
 
-        params_.emplace(param.name,
-            ShaderParameter{ param.name, param.shader_type, param.category, param.bind_point, param.bind_count });
+        SetShaderParameter(param.name, ShaderParameter{ param.name, param.shader_type, param.category, param.bind_point, param.bind_count });
     }
 }
 
 void D3D12Program::AddParameter(ParameterBinding& list, const D3D12ShaderParameter& param) {
     for (const auto& p : list.params) {
-        assert(p.name != param.name);
+        assert(p.name != param.name || p.shader_type != param.shader_type);
     }
 
     list.params.push_back(param);
@@ -317,75 +320,57 @@ void D3D12Program::CreateRootSignature() {
 }
 
 
-bool D3D12Program::SetParameter(const char* name, D3D12ConstantBuffer* cbuffer) {
+void D3D12Program::SetParameter(const char* name, D3D12ConstantBuffer* cbuffer) {
     for (auto& param : cbv_def_.params) {
         if (param.name == name) {
             param.constant_buffer = cbuffer;
-            return true;
         }
     }
-
-    return false;
 }
 
-bool D3D12Program::SetParameter(const char* name, D3D12StructuredBuffer* sbuffer) {
+void D3D12Program::SetParameter(const char* name, D3D12StructuredBuffer* sbuffer) {
     for (auto& param : srv_def_.params) {
         if (param.name == name) {
             param.srv_list.clear();
             param.srv_list.push_back(&sbuffer->GetDescriptorSlot());
-            return true;
         }
     }
-
-    return false;
 }
 
-bool D3D12Program::SetParameter(const char* name, D3D12Texture* tex) {
+void D3D12Program::SetParameter(const char* name, D3D12Texture* tex) {
     for (auto& param : srv_def_.params) {
         if (param.name == name) {
             param.srv_list.clear();
             param.srv_list.push_back(&tex->GetSrvDescriptorSlot());
-            return true;
         }
     }
-
-    return false;
 }
 
-bool D3D12Program::SetParameter(const char* name, D3D12Sampler* sampler) {
+void D3D12Program::SetParameter(const char* name, D3D12Sampler* sampler) {
     for (auto& param : sampler_def_.params) {
         if (param.name == name) {
             param.srv_list.clear();
             param.srv_list.push_back(&sampler->GetDescriptorSlot());
-            return true;
         }
     }
-
-    return false;
 }
 
-bool D3D12Program::SetParameter(const char* name, const D3D12DescriptorRange& descriptor, ShaderParameterCatetory category) {
+void D3D12Program::SetParameter(const char* name, const D3D12DescriptorRange& descriptor, ShaderParameterCatetory category) {
     if (category == ShaderParameterCatetory::kSRV) {
         for (auto& param : srv_def_.params) {
             if (param.name == name) {
                 param.srv_list.clear();
                 param.srv_list.push_back(&descriptor);
-                return true;
             }
         }
-
-        return false;
     }
     else if (category == ShaderParameterCatetory::kUAV) {
         for (auto& param : uav_def_.params) {
             if (param.name == name) {
                 param.srv_list.clear();
                 param.srv_list.push_back(&descriptor);
-                return true;
             }
         }
-
-        return false;
     }
 }
 

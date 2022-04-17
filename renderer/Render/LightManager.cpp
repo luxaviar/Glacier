@@ -81,6 +81,13 @@ void LightManager::SetupMaterial(MaterialTemplate* mat) {
     mat->SetProperty("irradiance_tex", irradiance_);
 }
 
+void LightManager::SetupMaterial(Material* mat) {
+    mat->SetProperty("LightList", light_cbuffer_);
+    mat->SetProperty("brdf_lut_tex", brdf_lut_);
+    mat->SetProperty("radiance_tex", radiance_);
+    mat->SetProperty("irradiance_tex", irradiance_);
+}
+
 void LightManager::Update() {
     size_t i = 0;
     for (; i < lights_.size() && i < kMaxLightNum; ++i) {
@@ -125,7 +132,7 @@ void LightManager::GenerateSkybox() {
 
     RasterStateDesc rs;
     rs.depthWrite = false;
-    rs.depthFunc = CompareFunc::kLessEqual;
+    rs.depthFunc = RasterStateDesc::kDefaultDepthFuncWithEqual;
     rs.culling = CullingMode::kFront;
     skybox_material_->GetTemplate()->SetRasterState(rs);
     skybox_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });

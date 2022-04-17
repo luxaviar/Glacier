@@ -81,12 +81,13 @@ void D3D12SwapChain::CreateRenderTarget() {
         back_buffer_textures_[i]->SetName((TEXT("Backbuffer[") + std::to_wstring(i) + TEXT("]")).c_str());
     }
 
-    render_target_ = std::make_unique<D3D12RenderTarget>(width_, height_);
+    render_target_ = std::make_shared<D3D12RenderTarget>(width_, height_);
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
         .SetFormat(TextureFormat::kD24S8_UINT)
-        .SetCreateFlag(CreateFlags::kDepthStencil);
+        .SetCreateFlag(CreateFlags::kDepthStencil)
+        .SetCreateFlag(CreateFlags::kShaderResource);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
     depthstencil_texture->SetName(TEXT("swapchain depth texture"));
 
@@ -124,7 +125,8 @@ void D3D12SwapChain::OnResize(uint32_t width, uint32_t height) {
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
         .SetFormat(TextureFormat::kD24S8_UINT)
-        .SetCreateFlag(CreateFlags::kDepthStencil);
+        .SetCreateFlag(CreateFlags::kDepthStencil)
+        .SetCreateFlag(CreateFlags::kShaderResource);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
     depthstencil_texture->SetName(TEXT("swapchain depth texture"));
 

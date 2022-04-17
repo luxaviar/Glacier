@@ -44,7 +44,7 @@ void Gizmos::Setup(GfxDriver* gfx) {
     material_->GetTemplate()->SetInputLayout(input_layout);
 
     occluded_material_ = std::make_shared<Material>("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
-    rs.depthFunc = CompareFunc::kGreaterEqual;
+    rs.depthFunc = RasterStateDesc::kReverseDepthFuncWithEqual;
     rs.blendEquationRGB = BlendEquation::kAdd;
     rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;
     rs.blendFunctionDstRGB = BlendFunction::kOneMinusSrcAlpha;
@@ -274,7 +274,7 @@ void Gizmos::DrawWireMesh(const MeshRenderer& mesh_renderer) {
     auto& meshes = mesh_renderer.meshes();
     auto& m = mesh_renderer.transform().LocalToWorldMatrix();
 
-    auto center = mesh_renderer.world_bounds().Center();
+    //auto center = mesh_renderer.world_bounds().Center();
     
     for (auto& mesh : meshes) {
         DrawWireMesh(*mesh, m);

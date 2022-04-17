@@ -24,17 +24,13 @@ void D3D12RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr
     assert(height_ <= texture->height());
 
     int idx = (int)point;
-    //if (colors_[idx] == texture) {
-    //    return;
-    //}
-
-    colors_[idx] = texture;
+    attachments_[idx] = { texture, slice, mip_slice, srgb };
 
     auto tex = static_cast<D3D12Texture*>(texture.get());
     auto tex_desc = tex->GetDesc();
 
     D3D12_RENDER_TARGET_VIEW_DESC rtv_desc = {};
-    //TODO: read format from texture
+    //TODO: read format from attachment
     rtv_desc.Format = srgb ? GetSRGBFormat(tex_desc.Format) : tex_desc.Format;
     if (slice >= 0) {
         rtv_desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2DARRAY;
@@ -61,12 +57,12 @@ void D3D12RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& textu
     assert(width_ <= texture->width());
     assert(height_ <= texture->height());
 
-    colors_[(int)AttachmentPoint::kDepthStencil] = texture;
+    attachments_[(int)AttachmentPoint::kDepthStencil].texture = texture;
 
     auto tex = static_cast<D3D12Texture*>(texture.get());
     auto tex_desc = tex->GetDesc();
 
-    // create target view of depth stencil texture
+    // create target view of depth stencil attachment
     D3D12_DEPTH_STENCIL_VIEW_DESC dsv_desc = {};
     dsv_desc.Format = GetDSVFormat(tex_desc.Format);
     dsv_desc.Flags = D3D12_DSV_FLAG_NONE;
@@ -87,22 +83,22 @@ void D3D12RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& textu
 
 void D3D12RenderTarget::DetachColor(AttachmentPoint point) {
     int idx = (int)point;
-    if (colors_.size() <= idx) return;
+    if (attachments_.size() <= idx) return;
 
-    colors_[idx].reset();
+    attachments_[idx] = {};
     rtv_slots_[idx] = {};
 }
 
 void D3D12RenderTarget::DetachDepthStencil() {
     dsv_slot_ = {};
-    colors_[(int)AttachmentPoint::kDepthStencil].reset();
+    attachments_[(int)AttachmentPoint::kDepthStencil] = {};
 }
 
 void D3D12RenderTarget::Clear(const Color& color, float depth, uint8_t stencil) {
     auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
 
     for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
-        auto tex = colors_[i];
+        auto tex = attachments_[i].texture;
         if (tex) {
             auto texture = static_cast<D3D12Texture*>(tex.get());
             texture->TransitionBarrier(command_list, D3D12_RESOURCE_STATE_RENDER_TARGET, true);
@@ -110,7 +106,7 @@ void D3D12RenderTarget::Clear(const Color& color, float depth, uint8_t stencil) 
         }
     }
 
-    auto tex = colors_[(size_t)AttachmentPoint::kDepthStencil];
+    auto tex = attachments_[(size_t)AttachmentPoint::kDepthStencil].texture;
     if (tex) {
         auto depthTexture = static_cast<D3D12Texture*>(tex.get());
         depthTexture->TransitionBarrier(command_list, D3D12_RESOURCE_STATE_DEPTH_WRITE, true);
@@ -119,7 +115,7 @@ void D3D12RenderTarget::Clear(const Color& color, float depth, uint8_t stencil) 
 }
 
 void D3D12RenderTarget::ClearColor(AttachmentPoint point, const Color& color) {
-    auto tex = colors_[(int)point];
+    auto tex = attachments_[(int)point].texture;
     if (tex) {
         auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
         auto texture = static_cast<D3D12Texture*>(tex.get());
@@ -129,7 +125,7 @@ void D3D12RenderTarget::ClearColor(AttachmentPoint point, const Color& color) {
 }
 
 void D3D12RenderTarget::ClearDepthStencil(float depth, uint8_t stencil) {
-    auto tex = colors_[(size_t)AttachmentPoint::kDepthStencil];
+    auto tex = attachments_[(size_t)AttachmentPoint::kDepthStencil].texture;
     if (tex) {
         auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
         auto depthTexture = static_cast<D3D12Texture*>(tex.get());
@@ -146,7 +142,7 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
     uint32_t rtv_count = 0;
     // Bind color targets (max of 8 render targets can be bound to the rendering pipeline.
     for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
-        auto tex = colors_[i];
+        auto tex = attachments_[i].texture;
         if (tex) {
             auto texture = static_cast<D3D12Texture*>(tex.get());
             texture->TransitionBarrier(command_list, D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -154,7 +150,7 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
         }
     }
 
-    auto tex = colors_[(size_t)AttachmentPoint::kDepthStencil];
+    auto tex = attachments_[(size_t)AttachmentPoint::kDepthStencil].texture;
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_descriptor(D3D12_DEFAULT);
     if (tex)
     {
@@ -180,8 +176,31 @@ void D3D12RenderTarget::UnBind(GfxDriver* gfx) {
     driver->SetCurrentRenderTarget(nullptr);
 }
 
+void D3D12RenderTarget::BindColor(GfxDriver* gfx) {
+    auto driver = static_cast<D3D12GfxDriver*>(gfx);
+    auto command_list = driver->GetCommandList();
+    D3D12_CPU_DESCRIPTOR_HANDLE rtv_descriptor[(size_t)AttachmentPoint::kDepthStencil];
+
+    uint32_t rtv_count = 0;
+    // Bind color targets (max of 8 render targets can be bound to the rendering pipeline.
+    for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
+        auto tex = attachments_[i].texture;
+        if (tex) {
+            auto texture = static_cast<D3D12Texture*>(tex.get());
+            texture->TransitionBarrier(command_list, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            rtv_descriptor[rtv_count++] = rtv_slots_[i].GetDescriptorHandle();
+        }
+    }
+
+    GfxThrowIfAny(command_list->OMSetRenderTargets(rtv_count, rtv_descriptor, FALSE, nullptr));
+    GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
+    GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
+
+    driver->SetCurrentRenderTarget(this);
+}
+
 void D3D12RenderTarget::BindDepthStencil(GfxDriver* gfx) {
-    auto tex = colors_[(size_t)AttachmentPoint::kDepthStencil];
+    auto tex = attachments_[(size_t)AttachmentPoint::kDepthStencil].texture;
     if (!tex) return;
 
     auto command_list = static_cast<D3D12GfxDriver*>(gfx)->GetCommandList();
@@ -197,30 +216,38 @@ void D3D12RenderTarget::BindDepthStencil(GfxDriver* gfx) {
 }
 
 void D3D12RenderTarget::Resize(uint32_t width, uint32_t height) {
+    if (width_ == width && height_ == height) {
+        return;
+    }
+
     width_ = width;
     height_ = height;
 
-    for (auto texture: colors_) {
-        if (texture) {
-            texture->Resize(width, height);
+    viewport_.Width = (float)width_;
+    viewport_.Height = (float)height_;
+
+    for (int i = 0; i < (int)AttachmentPoint::kDepthStencil; ++i) {
+        auto& attachment = attachments_[i];
+        if (attachment) {
+            attachment.texture->Resize(width, height);
+            AttachColor((AttachmentPoint)i, attachment.texture, attachment.slice, attachment.mip_slice, attachment.srgb);
         }
     }
 
-    viewport_.Width = (float)width_;
-    viewport_.Height = (float)height_;
-    viewport_.MinDepth = 0.0f;
-    viewport_.MaxDepth = 1.0f;
-    viewport_.TopLeftX = 0.0f;
-    viewport_.TopLeftY = 0.0f;
+    auto deptch_attachment = attachments_[(int)AttachmentPoint::kDepthStencil];
+    if (deptch_attachment) {
+        deptch_attachment.texture->Resize(width, height);
+        AttachDepthStencil(deptch_attachment.texture);
+    }
 }
 
 D3D12_RT_FORMAT_ARRAY D3D12RenderTarget::GetRenderTargetFormats() const {
     D3D12_RT_FORMAT_ARRAY rtv_formats = {};
 
     for (int i = (int)AttachmentPoint::kColor0; i <= (int)AttachmentPoint::kColor7; ++i) {
-        auto tex = colors_[i];
+        auto tex = attachments_[i];
         if (tex) {
-            auto texture = static_cast<D3D12Texture*>(tex.get());
+            auto texture = static_cast<D3D12Texture*>(tex.texture.get());
             rtv_formats.RTFormats[rtv_formats.NumRenderTargets++] = GetUnderlyingFormat(texture->GetFormat());
         }
     }
@@ -229,18 +256,18 @@ D3D12_RT_FORMAT_ARRAY D3D12RenderTarget::GetRenderTargetFormats() const {
 }
 
 DXGI_FORMAT D3D12RenderTarget::GetDepthStencilFormat() const {
-    auto tex = colors_[(int)AttachmentPoint::kDepthStencil];
-    if (tex) {        
-        return GetDSVFormat(GetUnderlyingFormat(tex->GetFormat()));
+    auto tex = attachments_[(int)AttachmentPoint::kDepthStencil];
+    if (tex) {
+        return GetDSVFormat(GetUnderlyingFormat(tex.texture->GetFormat()));
     }
 
     return DXGI_FORMAT_UNKNOWN;
 }
 
 DXGI_SAMPLE_DESC D3D12RenderTarget::GetSampleDesc() const {
-    auto tex = colors_[(int)AttachmentPoint::kColor0];
+    auto tex = attachments_[(int)AttachmentPoint::kColor0].texture;
     if (!tex) {
-        tex = colors_[(int)AttachmentPoint::kDepthStencil];
+        tex = attachments_[(int)AttachmentPoint::kDepthStencil].texture;
     }
 
     assert(tex);

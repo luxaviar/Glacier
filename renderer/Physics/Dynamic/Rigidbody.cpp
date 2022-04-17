@@ -132,7 +132,7 @@ const Matrix3x3& Rigidbody::inv_inertia_tensor() {
     if (inv_inertia_ver_ != transform().version()) {
         inv_inertia_ver_ = transform().version();
         Matrix3x3 rot = transform().rotation().ToMatrix();
-        inv_inertia_tensor_ =  rot * local_inv_inertia_tensor_ * rot.Transpose();
+        inv_inertia_tensor_ =  rot * local_inv_inertia_tensor_ * rot.Transposed();
     }
 
     return inv_inertia_tensor_;
@@ -195,7 +195,7 @@ void Rigidbody::UpdateMass() {
         Vec3f offset = Vec3f::zero;
         if (&shapeTransform != &tx) {
             Matrix3x3 rot = shapeTransform.local_rotation().ToMatrix();
-            inertiaTensor = rot * inertiaTensor * rot.Transpose();
+            inertiaTensor = rot * inertiaTensor * rot.Transposed();
             offset = shapeTransform.local_position() - local_mass_center_;
         }
 
@@ -225,7 +225,7 @@ void Rigidbody::UpdateMass() {
 
     inv_inertia_ver_ = transform().version();
     Matrix3x3 rot = transform().rotation().ToMatrix();
-    inv_inertia_tensor_ = rot * local_inv_inertia_tensor_ * rot.Transpose();
+    inv_inertia_tensor_ = rot * local_inv_inertia_tensor_ * rot.Transposed();
 }
 
 void Rigidbody::ApplyForce(const Vec3f& force) {

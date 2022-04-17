@@ -38,11 +38,11 @@ public:
     D3D12Program(const char* name);
     ID3D12RootSignature* GetRootSignature();
 
-    bool SetParameter(const char* name, D3D12ConstantBuffer* cbuffer);
-    bool SetParameter(const char* name, D3D12StructuredBuffer* sbuffer);
-    bool SetParameter(const char* name, D3D12Texture* tex);
-    bool SetParameter(const char* name, D3D12Sampler* tex);
-    bool SetParameter(const char* name, const D3D12DescriptorRange& descriptor, ShaderParameterCatetory category = ShaderParameterCatetory::kSRV);
+    void SetParameter(const char* name, D3D12ConstantBuffer* cbuffer);
+    void SetParameter(const char* name, D3D12StructuredBuffer* sbuffer);
+    void SetParameter(const char* name, D3D12Texture* tex);
+    void SetParameter(const char* name, D3D12Sampler* tex);
+    void SetParameter(const char* name, const D3D12DescriptorRange& descriptor, ShaderParameterCatetory category = ShaderParameterCatetory::kSRV);
 
     void Bind(GfxDriver* gfx, Material* mat) override;
     void UnBind(GfxDriver* gfx, Material* mat) override {}

@@ -81,8 +81,6 @@ struct Vec4 {
         y *= inv;
         z *= inv;
         w *= inv;
-
-        //return *this;
     }
 
     Vec4<T> Normalized() const {

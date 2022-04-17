@@ -20,7 +20,11 @@ struct ShaderParameter {
     uint32_t bind_point;
     uint32_t bind_count = 1;
     uint32_t register_space = 0;
+
+    operator bool() const { return !name.empty(); }
 };
+
+using ShaderParameterSet = std::array<ShaderParameter, (size_t)ShaderType::kUnknown>;
 
 class Shader : public Resource {
 public:

@@ -46,12 +46,10 @@ DXGI_FORMAT GetUnderlyingFormat(TextureFormat format) {
         return DXGI_FORMAT_R32_FLOAT;
     case TextureFormat::kD32_FLOAT:
         return DXGI_FORMAT_D32_FLOAT;
-    case TextureFormat::kR24_UNORM_X8_TYPELESS:
-        return DXGI_FORMAT_R24_UNORM_X8_TYPELESS;
     case TextureFormat::kR32G32B32A32_FLOAT:
-        return DXGI_FORMAT_R32G32B32_FLOAT;
+        return DXGI_FORMAT_R32G32B32A32_FLOAT;
     case TextureFormat::kR32G32B32A32_TYPELESS:
-        return DXGI_FORMAT_R32G32B32_TYPELESS;
+        return DXGI_FORMAT_R32G32B32A32_TYPELESS;
     case TextureFormat::kR16G16B16A16_FLOAT:
         return DXGI_FORMAT_R16G16B16A16_FLOAT;
     case TextureFormat::kR16G16B16A16_TYPELESS:
@@ -347,6 +345,38 @@ size_t BitsPerPixel(DXGI_FORMAT fmt)
 
     default:
         return 0;
+    }
+}
+
+TextureFormat GetTextureFormat(DXGI_FORMAT format) {
+    switch (format)
+    {
+    case DXGI_FORMAT_R8G8B8A8_UNORM:
+        return TextureFormat::kR8G8B8A8_UNORM;
+    case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+        return TextureFormat::kR8G8B8A8_UNORM_SRGB;
+    case DXGI_FORMAT_R24G8_TYPELESS:
+        return TextureFormat::kR24G8_TYPELESS;
+    case DXGI_FORMAT_R24_UNORM_X8_TYPELESS:
+        return TextureFormat::kR24X8_TYPELESS;
+    case DXGI_FORMAT_D24_UNORM_S8_UINT:
+        return TextureFormat::kD24S8_UINT;
+    case DXGI_FORMAT_R32_TYPELESS:
+        return TextureFormat::kR32_TYPELESS;
+    case DXGI_FORMAT_R32_FLOAT:
+        return TextureFormat::kR32_FLOAT;
+    case DXGI_FORMAT_D32_FLOAT:
+        return TextureFormat::kD32_FLOAT;
+    case DXGI_FORMAT_R32G32B32A32_FLOAT:
+        return TextureFormat::kR32G32B32A32_FLOAT;
+    case DXGI_FORMAT_R32G32B32A32_TYPELESS:
+        return TextureFormat::kR32G32B32A32_TYPELESS;
+    case DXGI_FORMAT_R16G16B16A16_FLOAT:
+        return TextureFormat::kR16G16B16A16_FLOAT;
+    case DXGI_FORMAT_R16G16B16A16_TYPELESS:
+        return TextureFormat::kR16G16B16A16_TYPELESS;
+    default:
+        throw std::exception{ "Bad TextureFormat." };
     }
 }
 
