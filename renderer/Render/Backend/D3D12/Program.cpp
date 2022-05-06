@@ -30,15 +30,18 @@ ID3D12RootSignature* D3D12Program::GetRootSignature() {
 void D3D12Program::Bind(GfxDriver* gfx, Material* mat) {
     PerfSample("Material Binding");
     auto& properties = mat->GetProperties();
+    auto driver = static_cast<D3D12GfxDriver*>(gfx);
+    auto cmd_list = driver->GetCommandList();
     for (auto& prop : properties) {
-        BindProperty(gfx, prop);
+        BindProperty(gfx, cmd_list, prop);
     }
 
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    Bind(driver->GetCommandList());
+    Bind(cmd_list);
 }
 
 void D3D12Program::ReBind(GfxDriver* gfx, Material* mat) {
+    auto driver = static_cast<D3D12GfxDriver*>(gfx);
+    auto cmd_list = driver->GetCommandList();
     auto& properties = mat->GetProperties();
     for (auto& prop : properties) {
         if (prop.prop_type == MaterialPropertyType::kConstantBuffer ||
@@ -46,22 +49,23 @@ void D3D12Program::ReBind(GfxDriver* gfx, Material* mat) {
             prop.prop_type == MaterialPropertyType::kFloat4 ||
             prop.prop_type == MaterialPropertyType::kMatrix)
         {
-            BindProperty(gfx, prop);
+            BindProperty(gfx, cmd_list, prop);
         }
     }
 
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
     auto srv_table = driver->GetSrvUavTableHeap();
     for (uint32_t i = 0; i < cbv_def_.size(); ++i) {
         const auto& param = cbv_def_[i];
         assert(param.constant_buffer);
 
-        driver->GetCommandList()->SetGraphicsRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
+        cmd_list->SetGraphicsRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
     }
 }
 
 void D3D12Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
     PerfSample("MaterialTemplate Binding");
+    auto driver = static_cast<D3D12GfxDriver*>(gfx);
+    auto cmd_list = driver->GetCommandList();
     if (pso_) {
         auto d3d12pso = static_cast<D3D12PipelineState*>(pso_.get());
         d3d12pso->Check(gfx, this);
@@ -71,11 +75,11 @@ void D3D12Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
 
     auto& properties = mat->GetProperties();
     for (auto& prop : properties) {
-        BindProperty(gfx, prop);
+        BindProperty(gfx, cmd_list, prop);
     }
 }
 
-void D3D12Program::BindProperty(GfxDriver* gfx, const MaterialProperty& prop) {
+void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop) {
     for (auto& shader_param : *prop.shader_param) {
         if (shader_param) {
             auto name = shader_param.name.c_str();
@@ -93,6 +97,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, const MaterialProperty& prop) {
                 }
 
                 auto tex = static_cast<D3D12Texture*>(prop.texture.get());
+                cmd_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
                 SetParameter(name, tex);
             }
             break;
@@ -318,7 +323,6 @@ void D3D12Program::CreateRootSignature() {
         sig_blob->GetBufferSize(),
         IID_PPV_ARGS(&root_signature_)));
 }
-
 
 void D3D12Program::SetParameter(const char* name, D3D12ConstantBuffer* cbuffer) {
     for (auto& param : cbv_def_.params) {

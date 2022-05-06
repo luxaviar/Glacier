@@ -69,7 +69,7 @@ float4 main_ps(VSOut IN) : SV_Target
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
-                shadow_info, shadow_tex, shadow_cmp_sampler);
+                shadow_info, ShadowTexture_, shadow_cmp_sampler);
         }
         
         //final_color += DoLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
@@ -85,7 +85,7 @@ float4 main_ps(VSOut IN) : SV_Target
         }
     }
     
-    float3 ambient = EvaluateIBL(radiance_tex, irradiance_tex, brdf_lut_tex, linear_sampler,
+    float3 ambient = EvaluateIBL(RadianceTextureCube_, IrradianceTextureCube_, BrdfLutTexture_, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 

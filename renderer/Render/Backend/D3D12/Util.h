@@ -7,6 +7,10 @@
 namespace glacier {
 namespace render {
 
+// Custom resource states
+constexpr D3D12_RESOURCE_STATES D3D12_RESOURCE_STATE_UNKNOWN = static_cast<D3D12_RESOURCE_STATES>(-1);
+//constexpr D3D12_RESOURCE_STATES D3D12_RESOURCE_STATE_UNINITIALIZED = static_cast<D3D12_RESOURCE_STATES>(-2);
+
 inline D3D12_CULL_MODE GetUnderlyingCullMode(CullingMode mode) {
     switch (mode)
     {

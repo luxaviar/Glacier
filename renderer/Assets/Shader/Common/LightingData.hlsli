@@ -1,6 +1,8 @@
 #ifndef COMMON_LIGHTING_DATA_
 #define COMMON_LIGHTING_DATA_
 
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicTexture.hlsli"
 #include "Common/Transform.hlsli"
 #include "Common/Shadow.hlsli"
 
@@ -73,25 +75,16 @@ struct VSOut
     //float3 shadow_coord : TEXCOORD1;
 };
 
-cbuffer LightList : register(b1)
+cbuffer LightList
 {
     Light lights[NUM_LIGHTS];
     float radiance_max_lod;
     float3 padding;
 }
 
-cbuffer CascadeShadowData : register(b2)
+cbuffer CascadeShadowData
 {
     CascadeShadowMapInfo shadow_info;
 }
-
-Texture2D shadow_tex : register(t0);
-Texture2D brdf_lut_tex : register(t1);
-TextureCube radiance_tex : register(t2);
-TextureCube irradiance_tex : register(t3);
-
-SamplerComparisonState shadow_cmp_sampler;// : register(s0);
-sampler linear_sampler;// : register(s1);
-sampler point_sampler;// : register(s2);
 
 #endif

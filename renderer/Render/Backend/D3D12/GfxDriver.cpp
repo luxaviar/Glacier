@@ -22,16 +22,17 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
     driver_ = this;
 
 #if defined(_DEBUG)
-    ComPtr<ID3D12Debug> d3d_debug;
+    ComPtr<ID3D12Debug1> d3d_debug;
     GfxThrowIfFailed(D3D12GetDebugInterface(IID_PPV_ARGS(&d3d_debug)));
     d3d_debug->EnableDebugLayer();
     // Enable these if you want full validation (will slow down rendering a lot).
-    //d3d_debug_->SetEnableGPUBasedValidation(TRUE);
-    //d3d_debug_->SetEnableSynchronizedCommandQueueValidation(TRUE);
+    //d3d_debug->SetEnableGPUBasedValidation(TRUE);
+    //d3d_debug->SetEnableSynchronizedCommandQueueValidation(TRUE);
 #endif
 
     auto adapter = CreateAdapter(false);
     device_ = CreateDevice(adapter);
+    GfxThrowIfFailed(device_->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &D3D12_options_, sizeof(D3D12_options_)));
 
     direct_command_queue_ = std::make_unique<D3D12CommandQueue>(this, D3D12_COMMAND_LIST_TYPE_DIRECT);
     direct_command_queue_->SetName(TEXT("D3D12GfxDriver direct command queue"));
@@ -85,7 +86,7 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
 
 ComPtr<ID3D12Device2> D3D12GfxDriver::CreateDevice(ComPtr<IDXGIAdapter4>& adapter) {
     ComPtr<ID3D12Device2> device;
-    GfxThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_12_0, IID_PPV_ARGS(&device)));
+    GfxThrowIfFailed(D3D12CreateDevice(adapter.Get(), D3D_FEATURE_LEVEL_11_0, IID_PPV_ARGS(&device)));
 
     // Enable debug messages in debug mode.
 #if defined(_DEBUG)
@@ -242,6 +243,10 @@ void D3D12GfxDriver::AddInflightResource(D3D12DescriptorRange&& slot) {
     inflight_resources_.emplace(std::move(slot), inflight_fence_value_);
 }
 
+void D3D12GfxDriver::AddInflightResource(std::shared_ptr<D3D12Resource>&& res) {
+    inflight_resources_.emplace(std::move(res), inflight_fence_value_);
+}
+
 DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format, UINT numSamples,
     D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS flags) const
 {
@@ -270,15 +275,16 @@ DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format,
     return sampleDesc;
 }
 
-void D3D12GfxDriver::GenerateMips(D3D12Texture* texture) {
+void D3D12GfxDriver::GenerateMips(D3D12Resource* texture) {
     mips_generator_->Generate(GetCommandList(), texture);
 }
 
 void D3D12GfxDriver::ResetCommandQueue(D3D12_COMMAND_LIST_TYPE type) {
     auto command_queue = GetCommandQueue(type);
     auto command_list = command_queue->GetCommandList();
-    command_queue->GetCommandList()->ResetAllocator();
-    command_queue->GetCommandList()->Reset();
+    command_queue->ResetCommandList();
+    //command_queue->GetCommandList()->ResetAllocator();
+    //command_queue->GetCommandList()->Reset();
 
     if (type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
         SetDescriptorHeaps(command_list);

@@ -11,15 +11,20 @@ namespace glacier {
 namespace render {
 
 PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
-    //screen_tex_(builder.src_tex),
     depth_tex_(desc.depth_tex),
     material_(desc.material)
 {
     assert(desc.src_tex);
     assert(material_);
 
-    material_->SetProperty("tex_sam", desc.sampler);
-    material_->SetProperty("tex", desc.src_tex);
+    if (desc.sampler.filter == FilterMode::kPoint) {
+        material_->SetProperty("point_sampler", desc.sampler);
+    }
+    else {
+        material_->SetProperty("linear_sampler", desc.sampler);
+    }
+
+    material_->SetProperty("PostSourceTexture_", desc.src_tex);
 
     if (!desc.dst_rt) {
         auto& tex = desc.dst_tex;

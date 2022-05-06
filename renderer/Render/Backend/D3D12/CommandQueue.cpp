@@ -21,19 +21,32 @@ D3D12CommandQueue::D3D12CommandQueue(D3D12GfxDriver* driver, D3D12_COMMAND_LIST_
     GfxThrowIfFailed(device_->CreateCommandQueue(&desc, IID_PPV_ARGS(&command_queue_)));
     GfxThrowIfFailed(device_->CreateFence(current_fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)));
 
+    command_list_ = std::make_unique<D3D12CommandList>(device_, type_);
+    pending_command_list_ = std::make_unique<D3D12CommandList>(device_, type_);
+
     switch (type) {
         case D3D12_COMMAND_LIST_TYPE_COPY:
+        {
             command_queue_->SetName(TEXT("Copy Command Queue"));
+            command_list_->SetName(TEXT("Copy Command List"));
+            pending_command_list_->SetName(TEXT("Pending - Copy Command List"));
             break;
+        }
         case D3D12_COMMAND_LIST_TYPE_COMPUTE:
+        {
             command_queue_->SetName(TEXT("Compute Command Queue"));
+            command_list_->SetName(TEXT("Compute Command List"));
+            pending_command_list_->SetName(TEXT("Pending - Compute Command List"));
             break;
+        }
         case D3D12_COMMAND_LIST_TYPE_DIRECT:
+        {
             command_queue_->SetName(TEXT("Direct Command Queue"));
+            command_list_->SetName(TEXT("Direct Command List"));
+            pending_command_list_->SetName(TEXT("Pending - Direct Command List"));
             break;
+        }
     }
-
-    command_list_ = std::make_unique<D3D12CommandList>(device_, type_);
 }
 
 HRESULT D3D12CommandQueue::SetName(const TCHAR* Name) {
@@ -76,17 +89,31 @@ void D3D12CommandQueue::WaitForFenceValue(uint64_t fenceValue) {
 }
 
 void D3D12CommandQueue::ResetCommandList() {
+    command_list_->ResetAllocator();
     command_list_->Reset();
+
+    if (pending_command_list_->IsClosed()) {
+        pending_command_list_->ResetAllocator();
+        pending_command_list_->Reset();
+    }
 }
 
 // Returns the fence value to wait for for this command list.
 void D3D12CommandQueue::ExecuteCommandList() {
     // Done recording commands.
-    GfxThrowIfFailed(command_list_->Close());
+    bool has_pending_barriers = command_list_->Close(pending_command_list_.get());
+    if (has_pending_barriers) {
+        pending_command_list_->Close();
 
-    // Add the command list to the queue for execution.
-    ID3D12CommandList* cmdsLists[] = { command_list_->GetUnderlyingCommandList() };
-    command_queue_->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+        ID3D12CommandList* cmdsLists[] = { pending_command_list_->GetUnderlyingCommandList(),
+            command_list_->GetUnderlyingCommandList() };
+        command_queue_->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+    }
+    else {
+        // Add the command list to the queue for execution.
+        ID3D12CommandList* cmdsLists[] = { command_list_->GetUnderlyingCommandList() };
+        command_queue_->ExecuteCommandLists(_countof(cmdsLists), cmdsLists);
+    }
 }
 
 void D3D12CommandQueue::Flush() {

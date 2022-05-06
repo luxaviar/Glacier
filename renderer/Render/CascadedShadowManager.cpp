@@ -252,13 +252,13 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
 
 void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
     mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
-    mat->SetProperty("shadow_tex", shadow_map_);
+    mat->SetProperty("ShadowTexture_", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 
 void CascadedShadowManager::SetupMaterial(Material* mat) {
     mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
-    mat->SetProperty("shadow_tex", shadow_map_);
+    mat->SetProperty("ShadowTexture_", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 

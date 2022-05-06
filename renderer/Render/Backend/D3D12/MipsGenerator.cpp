@@ -18,47 +18,45 @@ MipsGenerator::MipsGenerator(ID3D12Device* device) :
     CreateDefaultUav();
 }
 
-void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Texture* texture)
+void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* texture)
 {
-
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
-    ResourceLocation uav_location;
-    ResourceLocation alias_location;
+    auto old_state = texture->GetResourceState();
+    std::shared_ptr<D3D12Resource> uav_res;
+    std::shared_ptr<D3D12Resource> alias_res;
 
-    ID3D12Resource* uav_tex = texture->GetUnderlyingResource().Get();
-    D3D12_RESOURCE_STATES uav_state = texture->GetState();
+    D3D12Resource* uav_tex = texture;
 
     // If the passed-in resource does not allow for UAV access
     // then create a staging resource that is used to generate
     // the mipmap chain.
     if (!texture->CheckUAVSupport() || (tex_desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) == 0) {
-        CreateUavResource(command_list, texture, uav_location, alias_location);
-        uav_tex = uav_location.resource.Get();
-        uav_state = D3D12_RESOURCE_STATE_COMMON;
+        CreateUavResource(command_list, texture, uav_res, alias_res);
+        uav_tex = uav_res.get();
     }
 
     if (tex_desc.DepthOrArraySize > 1) {
-        GenerateTextureArray(command_list, uav_tex, uav_state);
+        GenerateTextureArray(command_list, uav_tex);// , uav_state);
     }
     else {
-        GenerateTexture2D(command_list, uav_tex, uav_state);
+        GenerateTexture2D(command_list, uav_tex);// , uav_state);
     }
 
-    if (uav_location.resource) {
+    if (uav_res) {
         auto gfx = D3D12GfxDriver::Instance();
-        command_list->AliasResource(uav_tex, alias_location.resource.Get());
-        command_list->CopyResource(alias_location.resource.Get(), D3D12_RESOURCE_STATE_COMMON,
-            texture->GetUnderlyingResource().Get(), texture->GetState());
+        command_list->AliasResource(uav_tex->GetUnderlyingResource().Get(), alias_res->GetUnderlyingResource().Get());
+        command_list->CopyResource(alias_res.get(), texture);
 
         // Make sure the heap does not go out of scope until the command list
         // is finished executing on the command queue.
-        gfx->AddInflightResource(std::move(uav_location));
-        gfx->AddInflightResource(std::move(alias_location));
+        gfx->AddInflightResource(std::move(uav_res));
+        gfx->AddInflightResource(std::move(alias_res));
     }
+
+    command_list->TransitionBarrier(texture, old_state);
 }
 
-void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
-    ID3D12Resource* texture, D3D12_RESOURCE_STATES state)
+void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture)
 {
     //Set root signature, pso and descriptor heap
     command_list->SetComputeRootSignature(root_signature.Get());
@@ -68,9 +66,10 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     auto desc_tb = gfx->GetSrvUavTableHeap();
 
-    command_list->TransitionBarrier(texture, state, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
+    auto resource = texture->GetUnderlyingResource().Get();
 
     GenerateMipsCB cbuffer;
     cbuffer.IsSRGB = IsSRGBFormat(tex_desc.Format);
@@ -85,7 +84,7 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
 
     auto src_slot = allocator->Allocate();
     D3D12_CPU_DESCRIPTOR_HANDLE src_srv = src_slot.GetDescriptorHandle();
-    device->CreateShaderResourceView(texture, &src_srv_desc, src_srv);
+    device->CreateShaderResourceView(resource, &src_srv_desc, src_srv);
 
     auto src_gpu = desc_tb->AppendDescriptors(&src_srv, 1);
 
@@ -129,6 +128,8 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
         command_list->SetComputeRoot32BitConstants(kCbuffer, sizeof(cbuffer) / sizeof(uint32_t), &cbuffer, 0);
         command_list->SetComputeRootDescriptorTable(kSrcMip, src_gpu);
 
+        command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, srcMip);
+
         auto dst_slot = allocator->Allocate(4);
         D3D12_CPU_DESCRIPTOR_HANDLE uav_arr[4];
 
@@ -139,7 +140,8 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
             uavDesc.Texture2D.MipSlice = srcMip + mip + 1;
             uav_arr[mip] = dst_slot.GetDescriptorHandle(mip);
 
-            device->CreateUnorderedAccessView(texture, nullptr, &uavDesc, uav_arr[mip]);
+            device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, uav_arr[mip]);
+            //command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, srcMip + mip + 1);
         }
 
         // Pad any unused mip levels with a default UAV. Doing this keeps the DX12 runtime happy.
@@ -155,21 +157,20 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list,
 
         command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
+        command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, srcMip);
+
         // make sure write completed
-        command_list->UavResource(texture);
+        command_list->UavResource(resource);
 
         srcMip += mipCount;
 
         gfx->AddInflightResource(std::move(dst_slot));
     }
 
-    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, state);
-
     gfx->AddInflightResource(std::move(src_slot));
 }
 
-void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
-    ID3D12Resource* texture, D3D12_RESOURCE_STATES state)
+void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture)
 {
     //Set root signature, pso and descriptor heap
     command_list->SetComputeRootSignature(root_signature.Get());
@@ -179,9 +180,11 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     auto desc_tb = gfx->GetSrvUavTableHeap();
 
-    command_list->TransitionBarrier(texture, state, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+    //required by state tracker
+    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
+    auto resource = texture->GetUnderlyingResource().Get();
 
     GenerateMipsCB cbuffer;
     cbuffer.IsSRGB = IsSRGBFormat(tex_desc.Format);
@@ -192,15 +195,15 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
     src_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
     src_srv_desc.Format = tex_desc.Format;// GetUAVCompatableFormat(tex_desc.Format);
     src_srv_desc.Texture2DArray.ArraySize = 1;
-    src_srv_desc.Texture2DArray.MipLevels = tex_desc.MipLevels;
+    src_srv_desc.Texture2DArray.MipLevels = -1;// tex_desc.MipLevels;
     src_srv_desc.Texture2DArray.MostDetailedMip = 0;
 
-    for (int i = 0; i < tex_desc.DepthOrArraySize; ++i) {
+    for (int array_index = 0; array_index < tex_desc.DepthOrArraySize; ++array_index) {
         auto src_slot = allocator->Allocate();
         D3D12_CPU_DESCRIPTOR_HANDLE src_srv = src_slot.GetDescriptorHandle();
 
-        src_srv_desc.Texture2DArray.FirstArraySlice = i;
-        device->CreateShaderResourceView(texture, &src_srv_desc, src_srv);
+        src_srv_desc.Texture2DArray.FirstArraySlice = array_index;
+        device->CreateShaderResourceView(resource, &src_srv_desc, src_srv);
 
         auto src_gpu = desc_tb->AppendDescriptors(&src_srv, 1);
 
@@ -244,6 +247,9 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
             command_list->SetComputeRoot32BitConstants(kCbuffer, sizeof(cbuffer) / sizeof(uint32_t), &cbuffer, 0);
             command_list->SetComputeRootDescriptorTable(kSrcMip, src_gpu);
 
+            command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+                array_index * tex_desc.MipLevels + srcMip);
+
             auto dst_slot = allocator->Allocate(4);
             D3D12_CPU_DESCRIPTOR_HANDLE uav_arr[4];
 
@@ -253,10 +259,12 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
                 uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2DARRAY;
                 uavDesc.Texture2DArray.ArraySize = 1;
                 uavDesc.Texture2DArray.MipSlice = srcMip + mip + 1;
-                uavDesc.Texture2DArray.FirstArraySlice = i;
+                uavDesc.Texture2DArray.FirstArraySlice = array_index;
                 uav_arr[mip] = dst_slot.GetDescriptorHandle(mip);
 
-                device->CreateUnorderedAccessView(texture, nullptr, &uavDesc, uav_arr[mip]);
+                device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, uav_arr[mip]);
+                //command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                //    array_index * tex_desc.MipLevels + srcMip + mip + 1);
             }
 
             // Pad any unused mip levels with a default UAV. Doing this keeps the DX12 runtime happy.
@@ -272,21 +280,23 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list,
 
             command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
+            //make GPU Validation happy
+            command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+                array_index * tex_desc.MipLevels + srcMip);
+
             // make sure write completed
-            command_list->UavResource(texture);
+            command_list->UavResource(resource);
 
             srcMip += mipCount;
 
             gfx->AddInflightResource(std::move(dst_slot));
         }
-
         gfx->AddInflightResource(std::move(src_slot));
     }
-
-    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, state);
 }
 
-void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Texture* texture, ResourceLocation& uav_location, ResourceLocation& alias_location)
+void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Resource* texture,
+    std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res)
 {
     D3D12_RESOURCE_DESC desc = texture->GetDesc();
     auto gfx = D3D12GfxDriver::Instance();
@@ -308,41 +318,29 @@ void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Texture* 
     // Create a heap that is large enough to store a copy of the original resource.
     auto allocationInfo = device->GetResourceAllocationInfo(0, _countof(resourceDescs), resourceDescs);
 
-    alias_location = allocator_.AllocResource((size_t)allocationInfo.SizeInBytes, allocationInfo.Alignment);
+    // Create a placed resource that matches the description of the original resource.
+    // This resource is used to copy the original texture to the UAV compatible resource.
+    auto alias_location = allocator_.AllocResource((size_t)allocationInfo.SizeInBytes, allocationInfo.Alignment,
+        aliasDesc, D3D12_RESOURCE_STATE_COMMON);
 
-    // Create placed resource
-    auto allocator = static_cast<UavHeapAllocator::AllocatorPool::AllocatorType*>(alias_location.block.allocator);
-    auto& heap = allocator->GetUnderlyingResource();
+    alias_res = std::make_shared<D3D12Resource>(alias_location);
+    alias_res->SetDebugName(TEXT("Alias Resource for MipsGenerate"));
 
-    uint64_t offset = alias_location.block.align_offset;
-
-    ComPtr<ID3D12Resource> alias_res;
-    // Create a placed resource that matches the description of the
-    // original resource. This resource is used to copy the original
-    // texture to the UAV compatible resource.
-    GfxThrowIfFailed(device->CreatePlacedResource(heap.Get(), offset, &aliasDesc, D3D12_RESOURCE_STATE_COMMON,
-        nullptr, IID_PPV_ARGS(&alias_res)));
-    alias_location.resource = alias_res;
-
-    // Create a UAV compatible resource in the same heap as the alias
-    // resource.
-    ComPtr<ID3D12Resource> uav_res;
-    GfxThrowIfFailed(device->CreatePlacedResource(heap.Get(), offset, &uavDesc, D3D12_RESOURCE_STATE_COMMON,
-        nullptr, IID_PPV_ARGS(&uav_res)));
-
-    uav_location = alias_location.GetAliasLocation();
-    uav_location.resource = uav_res;
+    // Create a UAV compatible resource in the same heap as the alias resource.
+    uav_res = alias_location.CreateAliasResource(uavDesc, alias_location.GetState());
+    uav_res->SetDebugName(TEXT("UAV Textuere for MipsGenerate"));
 
     // Add an aliasing barrier for the alias resource.
-    cmd_list->AliasResource(nullptr, alias_res.Get());
+    cmd_list->AliasResource(nullptr, alias_res->GetUnderlyingResource().Get());
 
     // Copy the original resource to the alias resource.
     // This ensures GPU validation.
-    cmd_list->CopyResource(texture->GetUnderlyingResource().Get(), texture->GetState(),
-        alias_res.Get(), D3D12_RESOURCE_STATE_COMMON);
+    cmd_list->CopyResource(texture, alias_res.get());
 
     // Add an aliasing barrier for the UAV compatible resource.
-    cmd_list->AliasResource(alias_res.Get(), uav_res.Get());
+    cmd_list->AliasResource(alias_res->GetUnderlyingResource().Get(), uav_res->GetUnderlyingResource().Get());
+
+    D3D12GfxDriver::Instance()->AddInflightResource(std::move(alias_location));
 }
 
 void MipsGenerator::CreateRootSignature()

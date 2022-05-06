@@ -86,7 +86,7 @@ void ForwardRenderer::InitToneMapping() {
     auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
     auto desc = PostProcess::Description()
         .SetSrc(msaa_target_->GetColorAttachment(AttachmentPoint::kColor0))
-        .SetDst(gfx_->GetSwapChain()->GetRenderTarget())
+        .SetDst(present_render_target_)
         .SetMaterial(tonemapping_mat);
 
     post_process_manager_.Push(desc);

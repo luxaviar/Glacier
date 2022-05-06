@@ -84,7 +84,6 @@ public:
     virtual void ReleaseUnderlyingResource() = 0;
 
     virtual bool Resize(uint32_t width, uint32_t height) = 0;
-    //virtual bool RefreshBackBuffer() = 0;
 
     virtual void ReadBackImage(int left, int top,
         int width, int height, int destX, int destY, ReadbackDelegate&& callback) = 0;

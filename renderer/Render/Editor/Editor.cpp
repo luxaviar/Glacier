@@ -34,6 +34,11 @@ Editor::Editor(GfxDriver* gfx) :
     mat_->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
 }
 
+void Editor::OnResize(uint32_t width, uint32_t height) {
+    width_ = width;
+    height_ = height;
+}
+
 void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt) {
     if (visibles.empty()) return;
 
@@ -216,7 +221,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     render_graph.AddPass("outline draw",
         [&](PassNode& pass) {
         },
-        [this, outline_draw_rt, outline_solid_mat](Renderer* renderer, const PassNode& pass) {
+        [this, outline_draw_tex, outline_draw_rt, outline_solid_mat](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
@@ -256,13 +261,13 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     hblur_mat->GetTemplate()->SetRasterState(hblur_rs);
     hblur_mat->SetProperty("Kernel", blur_param);
     hblur_mat->SetProperty("Control", blur_dir);
-    hblur_mat->SetProperty("tex_sam", ss);
-    hblur_mat->SetProperty("tex", outline_draw_tex);
+    hblur_mat->SetProperty("point_sampler", ss);
+    hblur_mat->SetProperty("PostSourceTexture_", outline_draw_tex);
 
     render_graph.AddPass("horizontal blur",
         [&](PassNode& pass) {
         },
-        [this, outline_hrt, blur_dir, outline_draw_rt, hblur_mat](Renderer* renderer, const PassNode& pass) {
+        [this, outline_htex, outline_hrt, blur_dir, hblur_mat](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
@@ -280,7 +285,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vss.filter = FilterMode::kPoint;
 
     auto vblur_mat = std::make_shared<PostProcessMaterial>("hightlight", TEXT("BlurOutline"));
-    vblur_mat->SetProperty("tex_sam", vss);
+    vblur_mat->SetProperty("point_sampler", vss);
 
     RasterStateDesc blur_rs;
     blur_rs.depthWrite = false;
@@ -293,13 +298,13 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vblur_mat->GetTemplate()->SetRasterState(blur_rs);
     vblur_mat->SetProperty("Kernel", blur_param);
     vblur_mat->SetProperty("Control", blur_dir);
-    vblur_mat->SetProperty("tex_sam", ss);
-    vblur_mat->SetProperty("tex", outline_htex);
+    //vblur_mat->SetProperty("point_sampler", ss);
+    vblur_mat->SetProperty("PostSourceTexture_", outline_htex);
 
     render_graph.AddPass("vertical blur",
         [&](PassNode& pass) {
         },
-        [this, blur_dir, outline_hrt, vblur_mat](Renderer* renderer, const PassNode& pass) {
+        [this, blur_dir, vblur_mat](Renderer* renderer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;

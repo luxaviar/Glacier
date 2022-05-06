@@ -1,3 +1,6 @@
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicTexture.hlsli"
+
 cbuffer vp_matrix : register(b1)
 {
     matrix vp;
@@ -24,11 +27,8 @@ VSOut main_vs(float3 pos : Position)
     return vso;
 }
 
-TextureCube tex : register(t0);
-SamplerState tex_sam;// : register(s0);
-
 float4 main_ps(float3 wpos : Position) : SV_TARGET
 {
-    float4 col = tex.Sample(tex_sam, wpos);
+    float4 col = SkyboxTextureCube_.Sample(linear_sampler, wpos);
     return col;
 }

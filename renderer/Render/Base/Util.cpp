@@ -52,6 +52,8 @@ DXGI_FORMAT GetUnderlyingFormat(TextureFormat format) {
         return DXGI_FORMAT_R32G32B32A32_TYPELESS;
     case TextureFormat::kR16G16B16A16_FLOAT:
         return DXGI_FORMAT_R16G16B16A16_FLOAT;
+    case TextureFormat::kR16G16_FLOAT:
+        return DXGI_FORMAT_R16G16_FLOAT;
     case TextureFormat::kR16G16B16A16_TYPELESS:
         return DXGI_FORMAT_R16G16B16A16_TYPELESS;
     default:
@@ -375,6 +377,8 @@ TextureFormat GetTextureFormat(DXGI_FORMAT format) {
         return TextureFormat::kR16G16B16A16_FLOAT;
     case DXGI_FORMAT_R16G16B16A16_TYPELESS:
         return TextureFormat::kR16G16B16A16_TYPELESS;
+    case DXGI_FORMAT_R16G16_FLOAT:
+        return TextureFormat::kR16G16_FLOAT;
     default:
         throw std::exception{ "Bad TextureFormat." };
     }

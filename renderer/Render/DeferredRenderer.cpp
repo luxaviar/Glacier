@@ -67,7 +67,7 @@ void DeferredRenderer::Setup() {
     lighting_mat_->SetProperty("emissive_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor3));
     lighting_mat_->SetProperty("position_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor4));
     lighting_mat_->SetProperty("view_position_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor5));
-    lighting_mat_->SetProperty("depth_buffer", render_target_->GetDepthStencil());
+    lighting_mat_->SetProperty("DepthBuffer_", render_target_->GetDepthStencil());
 
     InitHelmetPbr(gfx_);
     InitFloorPbr(gfx_);
@@ -96,7 +96,7 @@ void DeferredRenderer::InitRenderTarget() {
 
     auto normal_desc = Texture::Description()
         .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
+        .SetFormat(TextureFormat::kR16G16_FLOAT)
         .SetCreateFlag(CreateFlags::kRenderTarget);
 
     auto normal_texture = gfx_->CreateTexture(normal_desc);

@@ -1,3 +1,6 @@
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicTexture.hlsli"
+
 cbuffer vp_matrix : register(b1)
 {
     matrix vp;
@@ -59,10 +62,6 @@ float3 ImportanceSampleGGX(float2 Xi, float3 N, float roughness)
     return normalize(sampleVec);
 }
 
-
-TextureCube tex : register(t0);
-SamplerState tex_sam;// : register(s0);
-
 cbuffer Roughness : register(b1)
 {
     float roughness;
@@ -90,7 +89,7 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
         float nDotL = max(dot(N, L), 0.0);
         if (nDotL > 0.0)
         {
-            prefiltered_color += tex.Sample(tex_sam, L).rgb * nDotL;
+            prefiltered_color += SkyboxTextureCube_.Sample(linear_sampler, L).rgb * nDotL;
             total_weight += nDotL;
         }
     }

@@ -1,7 +1,7 @@
 #include "PerfStats.h"
 #include "imgui/imgui.h"
-#include "GfxDriver.h"
-#include "SwapChain.h"
+#include "Render/Base/GfxDriver.h"
+#include "Render/Base/SwapChain.h"
 #include "Common/Log.h"
 
 namespace glacier {

@@ -1,3 +1,6 @@
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicTexture.hlsli"
+
 cbuffer vp_matrix : register(b1)
 {
     matrix vp;
@@ -16,9 +19,6 @@ VSOut main_vs(float3 pos : Position)
     vso.pos = mul(float4(pos, 1.0f), vp);
     return vso;
 }
-
-TextureCube tex : register(t0);
-SamplerState tex_sam;// : register(s0);
 
 static const float PI= 3.14159265359;
 
@@ -45,7 +45,7 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
             //Tangent space to world space
             float3 sampleDir = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal;
 
-            irradiance += tex.Sample(tex_sam, sampleDir).rgb * cos(theta) * sin(theta);
+            irradiance += SkyboxTextureCube_.Sample(linear_sampler, sampleDir).rgb * cos(theta) * sin(theta);
 
             nSamples++;
         }

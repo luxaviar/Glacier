@@ -1,6 +1,7 @@
 #pragma once
 
 #include <queue>
+#include <memory>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include "DescriptorHeapAllocator.h"
@@ -51,11 +52,12 @@ public:
 
     void AddInflightResource(ResourceLocation&& res);
     void AddInflightResource(D3D12DescriptorRange&& slot);
+    void AddInflightResource(std::shared_ptr<D3D12Resource>&& res);
 
     ID3D12Device2* GetDevice() const { return device_.Get(); }
     SwapChain* GetSwapChain() const { return swap_chain_.get(); }
 
-    void GenerateMips(D3D12Texture* texture);
+    void GenerateMips(D3D12Resource* texture);
 
     void BeginFrame() override;
     void Present() override;
@@ -116,6 +118,8 @@ private:
     static D3D12GfxDriver* self_;
 
     ComPtr<ID3D12Device2> device_;
+    D3D12_FEATURE_DATA_D3D12_OPTIONS D3D12_options_;
+
     std::unique_ptr<D3D12CommandQueue> direct_command_queue_;
     std::unique_ptr<D3D12CommandQueue> copy_command_queue_;
     std::unique_ptr<D3D12CommandQueue> compute_command_queue_;

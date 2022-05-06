@@ -16,6 +16,7 @@ struct BuddyAllocBlock {
     uint32_t order;
     size_t page_offset;
     size_t align_offset;
+    size_t alloc_size;
     size_t size;
     BuddyAllocatorBase* allocator = nullptr;
 };
@@ -88,7 +89,7 @@ public:
 
         total_alloc_ += PageSize(order);
 
-        return BuddyAllocBlock{ order, page_offset, align_offset, alloc_size, this };
+        return BuddyAllocBlock{ order, page_offset, align_offset, alloc_size, size, this };
     }
 
     void Deallocate(const BuddyAllocBlock& block) override {

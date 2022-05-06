@@ -1,3 +1,6 @@
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicTexture.hlsli"
+
 struct PostProcessVSOut {
     float4 position : SV_Position;
     float2 uv : Texcoord;
@@ -17,6 +20,3 @@ PostProcessVSOut main_vs(uint id : SV_VertexID)
 
    return output;
 }
-
-Texture2D tex;// : register(t0);
-SamplerState tex_sam;// : register(s0);

@@ -6,7 +6,7 @@
 #include "Render/Graph/RenderGraph.h"
 #include "Render/Base/Renderable.h"
 #include "Editor/Editor.h"
-#include "Render/Base/PerfStats.h"
+#include "Render/PerfStats.h"
 #include "Render/PostProcess.h"
 
 namespace glacier {

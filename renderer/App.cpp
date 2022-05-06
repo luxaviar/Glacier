@@ -79,6 +79,7 @@ bool App::HandleInput(float dt) {
 void App::DoFrame(float dt) {
     gfx_->BeginFrame();
 
+    GameObjectManager::Instance()->CleanDead();
     //int counter = 0;
     //auto job1 = jobs::JobSystem::Instance()->Schedule([&counter]() {
     //    auto now = std::chrono::steady_clock::now();
@@ -122,7 +123,6 @@ void App::DoFrame(float dt) {
     }
     
 
-    GameObjectManager::Instance()->CleanDead();
     Input::Instance()->EndFrame();
 
     //job1.WaitComplete();

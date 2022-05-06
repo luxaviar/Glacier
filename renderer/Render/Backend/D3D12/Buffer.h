@@ -17,9 +17,8 @@ namespace render {
 
 class D3D12Buffer : public D3D12Resource {
 public:
-    D3D12Buffer(size_t size, bool create_default=true, bool is_vbo=false);
+    //D3D12Buffer(size_t size, bool create_default=true, bool is_vbo=false);
 
-    const ResourceLocation& GetLocation() const { return location_; }
     const D3D12DescriptorRange& GetDescriptorSlot() const { return slot_; }
 
 protected:

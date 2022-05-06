@@ -2,7 +2,7 @@
 
 #include <d3d12.h>
 #include <vector>
-#include "Common/BuddyAllocator.h"
+#include "Algorithm/BuddyAllocator.h"
 #include "Common/Uncopyable.h"
 #include "Common/BitUtil.h"
 #include "Common/Util.h"

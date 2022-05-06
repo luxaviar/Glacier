@@ -40,6 +40,7 @@ private:
 
     ComPtr<ID3D12CommandQueue> command_queue_ = nullptr;
     std::unique_ptr<D3D12CommandList> command_list_;
+    std::unique_ptr<D3D12CommandList> pending_command_list_;
 
     ComPtr<ID3D12Fence> fence_ = nullptr;
     UINT64 current_fence_value = 0;

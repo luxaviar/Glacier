@@ -24,6 +24,8 @@ public:
     GameObject* GetSelected() { return selected_go_; }
     void SetSelected(GameObject* go) { selected_go_ = go; }
 
+    void OnResize(uint32_t width, uint32_t height);
+
     void Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt);
 
     void RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer);

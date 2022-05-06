@@ -181,6 +181,12 @@
     <None Include="Assets\Shader\Common\LightingData.hlsli">
       <Filter>Shader\Common</Filter>
     </None>
+    <None Include="Assets\Shader\Common\BasicSampler.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
+    <None Include="Assets\Shader\Common\BasicTexture.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rdparty\imgui\imgui.cpp">
@@ -390,9 +396,6 @@
     <ClCompile Include="Render\Base\GfxDriver.cpp">
       <Filter>Source\Render\Base</Filter>
     </ClCompile>
-    <ClCompile Include="Render\Base\PerfStats.cpp">
-      <Filter>Source\Render\Base</Filter>
-    </ClCompile>
     <ClCompile Include="Render\Base\Renderable.cpp">
       <Filter>Source\Render\Base</Filter>
     </ClCompile>
@@ -599,6 +602,12 @@
     </ClCompile>
     <ClCompile Include="Render\ForwardRenderer.cpp">
       <Filter>Source\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PerfStats.cpp">
+      <Filter>Source\Render</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\ResourceStateTracker.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1118,9 +1127,6 @@
     <ClInclude Include="Render\Camera.h">
       <Filter>Source\Render</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Channels.h">
-      <Filter>Source\Render</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Image.h">
       <Filter>Source\Render</Filter>
     </ClInclude>
@@ -1149,9 +1155,6 @@
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\InputLayout.h">
-      <Filter>Source\Render\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Base\PerfStats.h">
       <Filter>Source\Render\Base</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\PipelineState.h">
@@ -1450,6 +1453,15 @@
     </ClInclude>
     <ClInclude Include="Render\ForwardRenderer.h">
       <Filter>Source\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Algorithm\BuddyAllocator.h">
+      <Filter>Source\Algorithm</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PerfStats.h">
+      <Filter>Source\Render</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\ResourceStateTracker.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

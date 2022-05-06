@@ -143,6 +143,7 @@ enum class TextureFormat : uint8_t {
     kR32G32B32A32_TYPELESS,
     kR16G16B16A16_FLOAT,
     kR16G16B16A16_TYPELESS,
+    kR16G16_FLOAT,
 };
 
 enum class CubeFace : uint8_t {

@@ -76,16 +76,16 @@ DirectionalLight* LightManager::GetMainLight() {
 
 void LightManager::SetupMaterial(MaterialTemplate* mat) {
     mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("brdf_lut_tex", brdf_lut_);
-    mat->SetProperty("radiance_tex", radiance_);
-    mat->SetProperty("irradiance_tex", irradiance_);
+    mat->SetProperty("BrdfLutTexture_", brdf_lut_);
+    mat->SetProperty("RadianceTextureCube_", radiance_);
+    mat->SetProperty("IrradianceTextureCube_", irradiance_);
 }
 
 void LightManager::SetupMaterial(Material* mat) {
     mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("brdf_lut_tex", brdf_lut_);
-    mat->SetProperty("radiance_tex", radiance_);
-    mat->SetProperty("irradiance_tex", irradiance_);
+    mat->SetProperty("BrdfLutTexture_", brdf_lut_);
+    mat->SetProperty("RadianceTextureCube_", radiance_);
+    mat->SetProperty("IrradianceTextureCube_", irradiance_);
 }
 
 void LightManager::Update() {
@@ -138,8 +138,8 @@ void LightManager::GenerateSkybox() {
     skybox_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
-    skybox_material_->SetProperty("tex", skybox_texture_);
-    skybox_material_->SetProperty("tex_sam", SamplerState{});
+    skybox_material_->SetProperty("SkyboxTextureCube_", skybox_texture_);
+    skybox_material_->SetProperty("linear_sampler", SamplerState{});
 
     VertexCollection vertices;
     IndexCollection indices;
@@ -176,6 +176,7 @@ void LightManager::GenerateBrdfLut(Renderer* renderer) {
     lut_target->AttachColor(AttachmentPoint::kColor0, brdf_lut_);
 
     renderer->GetPostProcessManager().Process(lut_target.get(), integrate_material_.get());
+
     gfx_->Flush();
 }
 
@@ -186,8 +187,8 @@ void LightManager::GenerateIrradiance() {
     auto convolve_material_ = std::make_unique<Material>("convolve", TEXT("EnvIrradiance"), TEXT("EnvIrradiance"));
     auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
-    convolve_material_->SetProperty("tex_sam", ss);
-    convolve_material_->SetProperty("tex", skybox_texture_);
+    convolve_material_->SetProperty("linear_sampler", ss);
+    convolve_material_->SetProperty("SkyboxTextureCube_", skybox_texture_);
     convolve_material_->SetProperty("vp_matrix", convolve_matrix_);
 
     RasterStateDesc rs;
@@ -233,6 +234,7 @@ void LightManager::GenerateIrradiance() {
     }
 
     irradiance_->GenerateMipMaps();
+
     gfx_->Flush();
 }
 
@@ -253,8 +255,8 @@ void LightManager::GenerateRadiance() {
     prefilter_material->GetTemplate()->SetRasterState(rs);
     prefilter_material->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
-    prefilter_material->SetProperty("tex_sam", ss);
-    prefilter_material->SetProperty("tex", skybox_texture_);
+    prefilter_material->SetProperty("linear_sampler", ss);
+    prefilter_material->SetProperty("SkyboxTextureCube_", skybox_texture_);
     prefilter_material->SetProperty("vp_matrix", prefiter_matrix);
     prefilter_material->SetProperty("Roughness", roughness);
 
@@ -301,6 +303,7 @@ void LightManager::GenerateRadiance() {
             skybox_cube_->Render(gfx_, prefilter_material.get());
         }
     }
+
     gfx_->Flush();
 }
 

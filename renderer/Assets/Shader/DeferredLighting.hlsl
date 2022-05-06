@@ -8,11 +8,19 @@ cbuffer frame_data
 };
 
 Texture2D albedo_tex;
-Texture2D normal_tex;
+Texture2D<float2> normal_tex;
 Texture2D ao_metalroughness_tex;
 Texture2D emissive_tex;
 
-Texture2D<float> depth_buffer;
+float3 DecodeNormalOct(float2 f)
+{
+    f = f * 2.0 - 1.0;
+    // https://twitter.com/Stubbesaurus/status/937994790553227264
+    float3 n = float3(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
+    float t = saturate(-n.z);
+    n.xy += n.xy >= 0.0 ? -t : t;
+    return normalize(n);
+}
 
 float3 ComputeViewPosition(float2 texcoord, float depth)
 {
@@ -32,15 +40,15 @@ float3 ComputeViewPosition(float2 texcoord, float depth)
 float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
 {
     float4 albedo = albedo_tex.Sample(linear_sampler, uv);
-    float3 normal = normal_tex.Sample(linear_sampler, uv).xyz;
+    float3 normal = DecodeNormalOct(normal_tex.Sample(linear_sampler, uv).xy);
     float3 emissive = emissive_tex.Sample(linear_sampler, uv).rgb;
     float3 ao_metalroughness = ao_metalroughness_tex.Sample(linear_sampler, uv).rgb;
 
-    float depth = depth_buffer.Sample(linear_sampler, uv).r;
+    float depth = DepthBuffer_.Sample(linear_sampler, uv).r;
     float3 view_position = ComputeViewPosition(uv, depth);
     float3 world_position = (float3)mul(float4(view_position, 1.0f), inverse_view);
 
-    normal = normalize(normal);
+    //normal = normalize(normal);
     float ao = ao_metalroughness.r;
     float roughness = ao_metalroughness.g;
     float metallic = ao_metalroughness.b;
@@ -61,7 +69,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, view_position, world_position,
-                shadow_info, shadow_tex, shadow_cmp_sampler);
+                shadow_info, ShadowTexture_, shadow_cmp_sampler);
         }
 
         final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic) * shadow_level;
@@ -76,7 +84,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         }
     }
     
-    float3 ambient = EvaluateIBL(radiance_tex, irradiance_tex, brdf_lut_tex, linear_sampler,
+    float3 ambient = EvaluateIBL(RadianceTextureCube_, IrradianceTextureCube_, BrdfLutTexture_, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 

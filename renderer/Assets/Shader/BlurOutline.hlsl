@@ -17,7 +17,7 @@ static float coefficients[16] = (float[16])coefficients_packed;
 float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_Target
 {
     float width, height;
-    tex.GetDimensions(width, height);
+    PostSourceTexture_.GetDimensions(width, height);
     float dx, dy;
     if (horizontal)
     {
@@ -38,7 +38,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_Target
     for (int i = -r; i <= r; i++)
     {
         const float2 tc = uv + float2(dx * i, dy * i);
-        const float4 s = tex.Sample(tex_sam, tc).rgba;
+        const float4 s = PostSourceTexture_.Sample(point_sampler, tc).rgba;
         const float coef = coefficients[i + r];
         accAlpha += s.a * coef;
         maxColor = max(s.rgb, maxColor);

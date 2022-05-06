@@ -28,6 +28,10 @@ D3D12CommandList::D3D12CommandList(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE
 D3D12CommandList::~D3D12CommandList() {
 }
 
+HRESULT D3D12CommandList::SetName(const TCHAR* Name) {
+    return command_list_->SetName(Name);
+}
+
 // Command list allocators can only be reset when the associated command lists have finished execution on the GPU.
 // So we should use fences to determine GPU execution progress(see FlushCommandQueue()).
 void D3D12CommandList::ResetAllocator() {
@@ -41,17 +45,34 @@ void D3D12CommandList::Reset() {
     assert(closed_);
 
     GfxThrowIfFailed(command_list_->Reset(command_allocator_.Get(), nullptr));
+    resource_state_tracker_.Reset();
+
     closed_ = false;
 }
 
-HRESULT D3D12CommandList::Close() {
+void D3D12CommandList::Close() {
     assert(!closed_);
 
     FlushBarriers();
 
-    auto ok = command_list_->Close();
+    GfxThrowIfFailed(command_list_->Close());
+
+    //auto ok = ;
     closed_ = true;
-    return ok;
+    //return ok;
+}
+
+bool D3D12CommandList::Close(D3D12CommandList* pending_cmd_list) {
+    assert(!closed_);
+
+    FlushBarriers();
+    GfxThrowIfFailed(command_list_->Close());
+    closed_ = true;
+
+    auto pending_barriers = resource_state_tracker_.FlushPendingResourceBarriers(pending_cmd_list);
+    resource_state_tracker_.CommitFinalStates();
+
+    return pending_barriers > 0;
 }
 
 void D3D12CommandList::SetComputeRootSignature(ID3D12RootSignature* rs) {
@@ -74,91 +95,45 @@ void D3D12CommandList::SetComputeRootDescriptorTable(uint32_t root_param_index, 
 }
 
 void D3D12CommandList::FlushBarriers() {
-    UINT num = static_cast<UINT>(resource_barriers_.size());
-    if (num > 0) {
-        command_list_->ResourceBarrier(num, resource_barriers_.data());
-        resource_barriers_.clear();
-    }
+    resource_state_tracker_.FlushResourceBarriers(this);
 }
 
-void D3D12CommandList::TransitionBarrier(ID3D12Resource* res,
-    D3D12_RESOURCE_STATES before_state, D3D12_RESOURCE_STATES after_state, bool flush)
+void D3D12CommandList::ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers) {
+    command_list_->ResourceBarrier(NumBarriers, pBarriers);
+}
+
+void D3D12CommandList::TransitionBarrier(D3D12Resource* res, D3D12_RESOURCE_STATES after_state, UINT subresource) {
+    resource_state_tracker_.TransitionResource(res, after_state, subresource);
+}
+
+void D3D12CommandList::TransitionBarrier(const std::shared_ptr<D3D12Resource>& res,
+    D3D12_RESOURCE_STATES after_state, UINT subresource)
 {
-    if (before_state == after_state)
-        return;
-
-    for (size_t i = resource_barriers_.size(); i > 0; --i) {
-        auto& barrier = resource_barriers_[i - 1];
-        if (barrier.Transition.pResource == res) {
-            if (barrier.Transition.StateBefore == after_state && barrier.Transition.StateAfter == before_state) {
-                resource_barriers_.erase(resource_barriers_.begin() + i - 1);
-                return;
-            }
-            break;
-        }
-    }
-
-    // Create barrier descriptor
-    D3D12_RESOURCE_BARRIER barrier;
-    ZeroMemory(&barrier, sizeof(D3D12_RESOURCE_BARRIER));
-
-    // Describe barrier
-    barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
-    barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = res;
-    barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
-    barrier.Transition.StateBefore = before_state;
-    barrier.Transition.StateAfter = after_state;
-
-    // Queue barrier
-    //command_list_->ResourceBarrier(1, &barrier);
-    resource_barriers_.push_back(barrier);
-
-    if (flush) {
-        FlushBarriers();
-    }
+    resource_state_tracker_.TransitionResource(res.get(), after_state, subresource);
 }
 
-void D3D12CommandList::AliasResource(ID3D12Resource* before, ID3D12Resource* after, bool flush) {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::Aliasing(before, after);
-    //command_list_->ResourceBarrier(1, &barrier);
-
-    resource_barriers_.push_back(barrier);
-
-    if (flush) {
-        FlushBarriers();
-    }
+void D3D12CommandList::AliasResource(ID3D12Resource* before, ID3D12Resource* after) {
+    resource_state_tracker_.AliasBarrier(before, after);
 }
 
-void D3D12CommandList::UavResource(ID3D12Resource* res, bool flush) {
-    auto barrier = CD3DX12_RESOURCE_BARRIER::UAV(res);
-    //command_list_->ResourceBarrier(1, &barrier);
-
-    resource_barriers_.push_back(barrier);
-
-    if (flush) {
-        FlushBarriers();
-    }
+void D3D12CommandList::UavResource(ID3D12Resource* res) {
+    resource_state_tracker_.UAVBarrier(res);
 }
 
-void D3D12CommandList::CopyBufferRegion(D3D12Resource& dst, UINT64 DstOffset, D3D12Resource& src, UINT64 SrcOffset, UINT64 NumBytes) {
+void D3D12CommandList::CopyBufferRegion(ID3D12Resource* dst, UINT64 DstOffset, ID3D12Resource* src, UINT64 SrcOffset, UINT64 NumBytes) {
     FlushBarriers();
 
-    command_list_->CopyBufferRegion(dst.GetUnderlyingResource().Get(), DstOffset, src.GetUnderlyingResource().Get(), SrcOffset, NumBytes);
+    command_list_->CopyBufferRegion(dst, DstOffset, src, SrcOffset, NumBytes);
 }
 
-void D3D12CommandList::CopyResource(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state,
-    ID3D12Resource* dst, D3D12_RESOURCE_STATES dst_state)
+void D3D12CommandList::CopyResource(D3D12Resource* src, D3D12Resource* dst)
 {
-    TransitionBarrier(dst, dst_state, D3D12_RESOURCE_STATE_COPY_DEST);
-    TransitionBarrier(src, src_state, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    TransitionBarrier(dst, D3D12_RESOURCE_STATE_COPY_DEST);
+    TransitionBarrier(src, D3D12_RESOURCE_STATE_COPY_SOURCE);
 
     FlushBarriers();
 
-    command_list_->CopyResource(dst, src);
-
-    TransitionBarrier(dst, D3D12_RESOURCE_STATE_COPY_DEST, dst_state);
-    TransitionBarrier(src, D3D12_RESOURCE_STATE_COPY_SOURCE, src_state);
+    command_list_->CopyResource(dst->GetUnderlyingResource().Get(), src->GetUnderlyingResource().Get());
 }
 
 void D3D12CommandList::CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* pDst, UINT DstX, UINT DstY, UINT DstZ,
@@ -172,12 +147,15 @@ void D3D12CommandList::CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* pDst
 void D3D12CommandList::ClearRenderTargetView(D3D12DescriptorRange& RenderTargetView, const FLOAT ColorRGBA[4],
     UINT NumRects, const D3D12_RECT* pRects)
 {
+    FlushBarriers();
+
     command_list_->ClearRenderTargetView(RenderTargetView.GetDescriptorHandle(), ColorRGBA, NumRects, pRects);
 }
 
 void D3D12CommandList::ClearDepthStencilView(D3D12DescriptorRange& DepthStencilView, D3D12_CLEAR_FLAGS ClearFlags, FLOAT Depth,
     UINT8 Stencil, UINT NumRects, const D3D12_RECT* pRects)
 {
+    FlushBarriers();
     command_list_->ClearDepthStencilView(DepthStencilView.GetDescriptorHandle(), ClearFlags, Depth, Stencil, NumRects, pRects);
 }
 

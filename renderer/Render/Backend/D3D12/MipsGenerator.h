@@ -32,17 +32,17 @@ public:
 
     MipsGenerator(ID3D12Device* device);
 
-    void Generate(D3D12CommandList* command_list, D3D12Texture* texture);
+    void Generate(D3D12CommandList* command_list, D3D12Resource* texture);
 
 private:
     void GenerateTexture2D(D3D12CommandList* command_list,
-        ID3D12Resource* texture, D3D12_RESOURCE_STATES state);
+        D3D12Resource* texture);// , D3D12_RESOURCE_STATES state);
 
     void GenerateTextureArray(D3D12CommandList* command_list,
-        ID3D12Resource* texture, D3D12_RESOURCE_STATES state);
+        D3D12Resource* texture);// , D3D12_RESOURCE_STATES state);
 
     void CreateUavResource(D3D12CommandList* command_list,
-        D3D12Texture* texture, ResourceLocation& uav_location, ResourceLocation& alias_location);
+        D3D12Resource* texture, std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res);
 
     void CreateRootSignature();
     void CreatePSO();

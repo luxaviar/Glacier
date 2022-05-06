@@ -56,7 +56,7 @@ void Renderer::InitToneMapping() {
     auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
     auto desc = PostProcess::Description()
         .SetSrc(render_target_->GetColorAttachment(AttachmentPoint::kColor0))
-        .SetDst(gfx_->GetSwapChain()->GetRenderTarget())
+        .SetDst(present_render_target_)
         .SetMaterial(tonemapping_mat);
 
     post_process_manager_.Push(desc);
@@ -90,6 +90,8 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
     swapchain->OnResize(width, height);
 
     render_target_->Resize(width, height);
+
+    editor_.OnResize(width, height);
 
     return true;
 }

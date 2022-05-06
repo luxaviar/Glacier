@@ -2,20 +2,38 @@
 
 #include <d3d12.h>
 #include <string>
+#include "Algorithm/BuddyAllocator.h"
 #include "Common/Util.h"
 #include "Common/Uncopyable.h"
-#include "common/BuddyAllocator.h"
 #include "DescriptorHeapAllocator.h"
+#include "Util.h"
 
 namespace glacier {
 namespace render {
 
 class D3D12CommandList;
+class ResourceLocation;
+
+struct ResourceState {
+    ResourceState(uint32_t num_subresources, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON) :
+        state(state),
+        num_subresources(num_subresources)
+    {}
+
+    D3D12_RESOURCE_STATES GetState(uint32_t subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+    void SetState(D3D12_RESOURCE_STATES new_state, uint32_t subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+
+    D3D12_RESOURCE_STATES state;
+    uint32_t num_subresources;
+    std::vector<D3D12_RESOURCE_STATES> subresource_states;
+};
 
 class D3D12Resource {
 public:
     D3D12Resource();
     D3D12Resource(const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
+    D3D12Resource(const ResourceLocation& resource_location);
+
     D3D12Resource(D3D12Resource&& other) = default;
     D3D12Resource& operator=(D3D12Resource&& other) = default;
 
@@ -27,19 +45,38 @@ public:
     void SetDebugName(const TCHAR* name);
     const EngineString& GetDebugName() const;
 
-    D3D12_RESOURCE_STATES GetState() const { return state_; }
+    bool CheckFormatSupport(D3D12_FORMAT_SUPPORT1 formatSupport) const;
+    bool CheckFormatSupport(D3D12_FORMAT_SUPPORT2 formatSupport) const;
+    bool CheckUAVSupport() const;
+
+    const D3D12_RESOURCE_DESC& GetDesc() const { return desc_; }
+
+    D3D12_RESOURCE_STATES GetResourceState(uint32_t subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+    void SetResourceState(D3D12_RESOURCE_STATES state, uint32_t subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+
+    uint32_t GetSubresourceNum();
+    bool IsUniformState();
+
     void* GetMappedAddress() const { return mapped_address_; }
     D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return gpu_address_; }
 
-    void TransitionBarrier(D3D12CommandList* cmd_list, D3D12_RESOURCE_STATES new_state, bool flush=false);
     void Map(uint32_t subresource = 0, const D3D12_RANGE* range = nullptr);
     void Unmap();
-    
+
+    UINT CalculateNumSubresources() const;
 protected:
+    uint8_t CalculatePlantCount() const;
+
+    void Initialize(const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
+    void Initialize(const ResourceLocation& resource_location);
+
     void CheckFeatureSupport();
 
     ComPtr<ID3D12Resource> resource_;
-    D3D12_RESOURCE_STATES state_ = D3D12_RESOURCE_STATE_COMMON;
+    D3D12_RESOURCE_DESC desc_ = {};
+    uint8_t plant_count_ = 0;
+
+    ResourceState current_state_ = { 0, D3D12_RESOURCE_STATE_COMMON };
 
     void* mapped_address_ = nullptr;
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address_ = 0;
@@ -53,72 +90,48 @@ enum class AllocationType : uint8_t {
     kCommitted,
 };
 
-struct ResourceLocation : private Uncopyable {
+class ResourceLocation : private Uncopyable {
+public:
     ResourceLocation() noexcept {}
-    ResourceLocation(AllocationType type, const BuddyAllocBlock& block, ID3D12Heap* heap = nullptr, D3D12Resource* resource = nullptr) noexcept;
+    ResourceLocation(const BuddyAllocBlock& block, ID3D12Heap* heap, const ComPtr<ID3D12Resource>& res,
+        D3D12_RESOURCE_STATES state, bool mapped=false) noexcept;
+
     ResourceLocation(ResourceLocation&& other) noexcept;
     ~ResourceLocation();
 
-    ResourceLocation& operator=(ResourceLocation&& other) noexcept {
-        if (this == &other) return *this;
-        Swap(other);
-        return *this;
-    }
+    ResourceLocation& operator=(ResourceLocation&& other) noexcept;
+    void Swap(ResourceLocation& other) noexcept;
 
-    bool IsEmpty() {
-        return block.allocator == nullptr;
-    }
+    std::shared_ptr<D3D12Resource> CreateAliasResource(const D3D12_RESOURCE_DESC& desc, D3D12_RESOURCE_STATES state);
 
-    void Swap(ResourceLocation& other) noexcept {
-        std::swap(is_alias, other.is_alias);
-        std::swap(type, other.type);
-        std::swap(block, other.block);
-        if (type == AllocationType::kPlaced) {
-            std::swap(source_heap, other.source_heap);
-        }
-        else {
-            std::swap(source_resource, other.source_resource);
-        }
-        std::swap(resource, other.resource);
-    }
+    bool IsEmpty() const { return block_.allocator == nullptr; }
 
-    ResourceLocation GetAliasLocation() const {
-        ResourceLocation location(type, block, source_heap, source_resource);
-        location.is_alias = true;
-        return location;
-    }
+    void* GetMappedAddress() const { return mapped_address_; }
+    D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return gpu_address_; }
 
-    template<typename HeapAllocatorType>
-    D3D12Resource& GetLocationResource() const {
-        assert(block.allocator);
-        auto allocator = static_cast<HeapAllocatorType::AllocatorPool::AllocatorType*>(block.allocator);
-        return allocator->GetUnderlyingResource();
-    }
+    const ComPtr<ID3D12Resource>& GetResource() const { return resource_; }
+    D3D12_RESOURCE_STATES GetState() const { return state_; }
+    const D3D12_RESOURCE_DESC& GetDesc() const { return desc_; }
 
-    void* GetMappedAddress() const;
-    D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const;
+    size_t GetOffset() const { return block_.align_offset; }
+    size_t GetSize() const { return block_.size; }
 
-    bool is_alias = false;
-    AllocationType type;
-    BuddyAllocBlock block;
-    union {
-        ID3D12Heap* source_heap = nullptr; //placed heap
-        D3D12Resource* source_resource; //committed heap resource
-    };
-    
-    //1. resource at placed heap, only for textures right now
-    //2. read back buffer
-    ComPtr<ID3D12Resource> resource;
-#ifndef NDEBUG
-    std::string name;
-#endif
+private:
+    BuddyAllocBlock block_;
+    ID3D12Heap* heap_ = nullptr;
+    ComPtr<ID3D12Resource> resource_; //placed resource
+    D3D12_RESOURCE_DESC desc_;
+
+    D3D12_RESOURCE_STATES state_ = D3D12_RESOURCE_STATE_COMMON;
+    void* mapped_address_ = nullptr;
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address_ = 0;
 };
 
 struct InflightResource {
     InflightResource() {}
 
-    InflightResource(ResourceLocation&& res, uint64_t fence_value) :
-        res(std::move(res)),
+    InflightResource(ResourceLocation&& location, uint64_t fence_value) :
+        location(std::move(location)),
         fence_value(fence_value)
     {}
 
@@ -127,7 +140,13 @@ struct InflightResource {
         fence_value(fence_value)
     {}
 
-    ResourceLocation res;
+    InflightResource(std::shared_ptr<D3D12Resource>&& res, uint64_t fence_value) :
+        res(std::move(res)),
+        fence_value(fence_value)
+    {}
+
+    std::shared_ptr<D3D12Resource> res;
+    ResourceLocation location;
     D3D12DescriptorRange slot;
     uint64_t fence_value = 0;
 };

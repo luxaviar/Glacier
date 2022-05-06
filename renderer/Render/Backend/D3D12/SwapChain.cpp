@@ -171,9 +171,9 @@ void D3D12SwapChain::Present() {
     auto command_queue = driver_->GetCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
     auto command_list = command_queue->GetCommandList();
 
-    auto backBuffer = back_buffer_textures_[cur_backbuffer_index_].get();
+    auto& backBuffer = back_buffer_textures_[cur_backbuffer_index_];
 
-    backBuffer->TransitionBarrier(command_list, D3D12_RESOURCE_STATE_PRESENT);
+    command_list->TransitionBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
 
     command_queue->ExecuteCommandList();
 

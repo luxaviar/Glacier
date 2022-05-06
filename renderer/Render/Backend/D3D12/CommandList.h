@@ -5,7 +5,7 @@
 #include <atomic>              // For std::atomic_bool
 #include <condition_variable>  // For std::condition_variable.
 #include <cstdint>             // For uint64_t
-//#include "CommandQueue.h"
+#include "ResourceStateTracker.h"
 
 namespace glacier {
 namespace render {
@@ -19,11 +19,14 @@ public:
     D3D12CommandList(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE type);
     virtual ~D3D12CommandList();
 
+    HRESULT SetName(const TCHAR* Name);
+
     void Reset();
     void ResetAllocator();
 
     bool IsClosed() const { return closed_; }
-    HRESULT Close();
+    void Close();
+    bool Close(D3D12CommandList* pending_cmd_list);
 
     void SetComputeRootSignature(ID3D12RootSignature* rs);
     void SetPipelineState(ID3D12PipelineState* ps);
@@ -31,16 +34,22 @@ public:
         const void* data, uint32_t offset);
     void SetComputeRootDescriptorTable(uint32_t root_param_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor);
 
-    void TransitionBarrier(ID3D12Resource* res, D3D12_RESOURCE_STATES before_state,
-        D3D12_RESOURCE_STATES after_state, bool flush=false);
+    void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
 
-    void AliasResource(ID3D12Resource* before, ID3D12Resource* after, bool flush=false);
-    void UavResource(ID3D12Resource* res, bool flush = false);
+    //void TransitionBarrier(ID3D12Resource* res, D3D12_RESOURCE_STATES before_state,
+    //    D3D12_RESOURCE_STATES after_state);
 
-    void CopyBufferRegion(D3D12Resource& dst, UINT64 DstOffset, D3D12Resource& src, UINT64 SrcOffset, UINT64 NumBytes);
+    void TransitionBarrier(D3D12Resource* res, D3D12_RESOURCE_STATES after_state,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+    void TransitionBarrier(const std::shared_ptr<D3D12Resource>& res, D3D12_RESOURCE_STATES after_state,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
 
-    void CopyResource(ID3D12Resource* src, D3D12_RESOURCE_STATES src_state, 
-        ID3D12Resource* dst, D3D12_RESOURCE_STATES dst_state);
+    void AliasResource(ID3D12Resource* before, ID3D12Resource* after);
+    void UavResource(ID3D12Resource* res);
+
+    void CopyBufferRegion(ID3D12Resource* dst, UINT64 DstOffset, ID3D12Resource* src, UINT64 SrcOffset, UINT64 NumBytes);
+
+    void CopyResource(D3D12Resource* src, D3D12Resource* dst);
 
     void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* pDst, UINT DstX, UINT DstY, UINT DstZ, 
         const D3D12_TEXTURE_COPY_LOCATION* pSrc, const D3D12_BOX* pSrcBox);
@@ -79,18 +88,20 @@ public:
     ID3D12CommandAllocator* GetCommandAllocator() { return command_allocator_.Get(); }
     ID3D12GraphicsCommandList* GetUnderlyingCommandList() { return command_list_.Get(); }
 
-private:
     void FlushBarriers();
+private:
 
     bool closed_ = true;
 
     D3D12_COMMAND_LIST_TYPE type_;
     ID3D12Device* device_;
 
-    std::vector<D3D12_RESOURCE_BARRIER> resource_barriers_;
+    //std::vector<D3D12_RESOURCE_BARRIER> resource_barriers_;
 
     ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
     ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
+
+    ResourceStateTracker resource_state_tracker_;
 };
 
 }

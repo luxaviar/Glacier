@@ -59,7 +59,7 @@ protected:
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
     void AddParameter(ParameterBinding& list, const D3D12ShaderParameter& param);
 
-    void BindProperty(GfxDriver* gfx, const MaterialProperty& prop);
+    void BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop);
 
     ComPtr<ID3D12RootSignature> root_signature_;
 

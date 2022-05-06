@@ -52,6 +52,9 @@ public:
     void DisableScissor() override;
 
 private:
+    D3D12Texture* GetAttachementTexture(AttachmentPoint point) const;
+    D3D12Texture* GetAttachementTexture(size_t i) const;
+
     D3D12_VIEWPORT viewport_;
     D3D12_RECT scissor_rect_ = { 0, 0, LONG_MAX, LONG_MAX };
 

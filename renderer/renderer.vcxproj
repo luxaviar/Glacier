@@ -111,6 +111,14 @@
     <None Include="3rdparty\assimp\SmoothingGroups.inl" />
     <None Include="3rdparty\assimp\vector2.inl" />
     <None Include="3rdparty\assimp\vector3.inl" />
+    <None Include="Assets\Shader\Common\BasicSampler.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
+    <None Include="Assets\Shader\Common\BasicTexture.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
     <None Include="assets\shader\common\Brdf.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -241,13 +249,13 @@
     <ClCompile Include="Render\Backend\D3D12\Query.cpp" />
     <ClCompile Include="Render\Backend\D3D12\RenderTarget.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Resource.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\ResourceStateTracker.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Sampler.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Shader.cpp" />
     <ClCompile Include="Render\Backend\D3D12\SwapChain.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Texture.cpp" />
     <ClCompile Include="Render\Base\BufferLayout.cpp" />
     <ClCompile Include="Render\Base\GfxDriver.cpp" />
-    <ClCompile Include="Render\Base\PerfStats.cpp" />
     <ClCompile Include="Render\Base\Program.cpp" />
     <ClCompile Include="Render\Base\Renderable.cpp" />
     <ClCompile Include="Render\Base\Shader.cpp" />
@@ -272,6 +280,7 @@
     <ClCompile Include="Render\Mesh\MeshRenderer.cpp" />
     <ClCompile Include="Render\Mesh\Model.cpp" />
     <ClCompile Include="Render\Mesh\Primitive.cpp" />
+    <ClCompile Include="Render\PerfStats.cpp" />
     <ClCompile Include="Render\PostProcess.cpp" />
     <ClCompile Include="Render\Renderer.cpp" />
     <ClCompile Include="Scene\PbrScene.cpp" />
@@ -390,6 +399,7 @@
     <ClInclude Include="3rdparty\stb_image\stb_image.h" />
     <ClInclude Include="3rdparty\stb_image\stb_image_resize.h" />
     <ClInclude Include="3rdparty\stb_image\stb_image_write.h" />
+    <ClInclude Include="Algorithm\BuddyAllocator.h" />
     <ClInclude Include="Algorithm\Bvh.h" />
     <ClInclude Include="App.h" />
     <ClInclude Include="Behaviour\CameraController.h" />
@@ -511,6 +521,7 @@
     <ClInclude Include="Render\Backend\D3D12\Query.h" />
     <ClInclude Include="Render\Backend\D3D12\RenderTarget.h" />
     <ClInclude Include="Render\Backend\D3D12\Resource.h" />
+    <ClInclude Include="Render\Backend\D3D12\ResourceStateTracker.h" />
     <ClInclude Include="Render\Backend\D3D12\Sampler.h" />
     <ClInclude Include="Render\Backend\D3D12\Shader.h" />
     <ClInclude Include="Render\Backend\D3D12\SwapChain.h" />
@@ -521,7 +532,6 @@
     <ClInclude Include="Render\Base\Enums.h" />
     <ClInclude Include="Render\Base\GfxDriver.h" />
     <ClInclude Include="Render\Base\InputLayout.h" />
-    <ClInclude Include="Render\Base\PerfStats.h" />
     <ClInclude Include="Render\Base\PipelineState.h" />
     <ClInclude Include="Render\Base\Program.h" />
     <ClInclude Include="Render\Base\Query.h" />
@@ -537,7 +547,6 @@
     <ClInclude Include="Render\Base\VertexLayout.h" />
     <ClInclude Include="Render\Camera.h" />
     <ClInclude Include="Render\CascadedShadowManager.h" />
-    <ClInclude Include="Render\Channels.h" />
     <ClInclude Include="Render\DeferredRenderer.h" />
     <ClInclude Include="Render\Editor\Editor.h" />
     <ClInclude Include="Render\Editor\Gizmos.h" />
@@ -557,6 +566,7 @@
     <ClInclude Include="Render\Mesh\MeshRenderer.h" />
     <ClInclude Include="Render\Mesh\Model.h" />
     <ClInclude Include="Render\Mesh\Primitive.h" />
+    <ClInclude Include="Render\PerfStats.h" />
     <ClInclude Include="Render\PostProcess.h" />
     <ClInclude Include="Render\Renderer.h" />
     <ClInclude Include="Scene\PbrScene.h" />

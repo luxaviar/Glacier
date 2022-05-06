@@ -82,7 +82,7 @@ float4 main_ps(VSOut IN) : SV_Target
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
-                shadow_info, shadow_tex, shadow_cmp_sampler);
+                shadow_info, ShadowTexture_, shadow_cmp_sampler);
         }
         
         color += DoPhongLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
