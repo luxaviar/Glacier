@@ -33,6 +33,8 @@ public:
     void DrawIndexed(uint32_t count) override;
     void Draw(uint32_t count, uint32_t offset) override;
 
+    void CopyResource(const std::shared_ptr<Resource>& src, const std::shared_ptr<Resource>& dst) override;
+
     std::shared_ptr<IndexBuffer> CreateIndexBuffer(const std::vector<uint32_t>& indices) override;
     std::shared_ptr<IndexBuffer> CreateIndexBuffer(const void* data, size_t size,
         IndexFormat type, UsageType usage) override;

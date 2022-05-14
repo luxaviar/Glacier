@@ -15,17 +15,15 @@ public:
     ForwardRenderer(GfxDriver* gfx, MSAAType msaa = MSAAType::kNone);
     void Setup() override;
 
+    virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return msaa_render_target_; }
     bool OnResize(uint32_t width, uint32_t height) override;
 
     void PreRender() override;
-
-    std::shared_ptr<RenderTarget>& intermediate_target() { return msaa_target_; }
 
 protected:
     void InitMSAA();
 
     void InitRenderTarget() override;
-    void InitToneMapping() override;
     void ResolveMSAA() override;
 
     void AddLightingPass();
@@ -40,7 +38,7 @@ protected:
     std::shared_ptr<MaterialTemplate> pbr_template_;
 
     //intermediate (MSAA) render target
-    std::shared_ptr<RenderTarget> msaa_target_;
+    std::shared_ptr<RenderTarget> msaa_render_target_;
 
     //for msaa resolve
     std::shared_ptr<Material> msaa_resolve_mat_[4]; // 0 is no use

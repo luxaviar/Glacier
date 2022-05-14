@@ -1,6 +1,7 @@
 #pragma once
 
 #include <d3d11_1.h>
+#include "Resource.h"
 #include "Common/Uncopyable.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/Bufferlayout.h"
@@ -9,9 +10,10 @@
 namespace glacier {
 namespace render {
 
-class D3D11Buffer {
+class D3D11Buffer : public D3D11Resource {
 public:
     D3D11Buffer() {}
+    ID3D11Resource* GetUnderlyingResource() const override { return buffer_.Get();}
 
 protected:
     void Init(BufferType type, size_t size, UsageType usage = UsageType::kDefault, const void* data = nullptr);

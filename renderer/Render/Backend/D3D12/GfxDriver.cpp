@@ -306,7 +306,9 @@ void D3D12GfxDriver::BeginFrame() {
 
 void D3D12GfxDriver::Present() {
     if (imgui_enable_) {
+        GetCommandList()->FlushBarriers();
         auto cmd_list = GetCommandList()->GetUnderlyingCommandList();
+        //cmd_list->flushb
         cmd_list->SetDescriptorHeaps(1, imgui_srv_heap_.GetAddressOf());
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
@@ -383,6 +385,13 @@ void D3D12GfxDriver::ProcessReadback() {
         readback_queue_.front().second.Process();
         readback_queue_.pop();
     }
+}
+
+void D3D12GfxDriver::CopyResource(const std::shared_ptr<Resource>& src, const std::shared_ptr<Resource>& dst) {
+    const auto& src_res = std::dynamic_pointer_cast<D3D12Resource>(src);
+    const auto& dst_res = std::dynamic_pointer_cast<D3D12Resource>(dst);
+
+    GetCommandList()->CopyResource(src_res.get(), dst_res.get());
 }
 
 std::shared_ptr<IndexBuffer> D3D12GfxDriver::CreateIndexBuffer(const std::vector<uint32_t>& indices) {

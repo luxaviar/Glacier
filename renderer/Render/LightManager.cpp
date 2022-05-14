@@ -13,6 +13,7 @@
 #include "Render/Base/RenderTarget.h"
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/Buffer.h"
+#include "Render/Base/RenderTexturePool.h"
 
 namespace glacier {
 namespace render {
@@ -164,18 +165,14 @@ void LightManager::GenerateBrdfLut(Renderer* renderer) {
     integrate_material_->GetTemplate()->SetRasterState(rs);
 
     constexpr int kSize = 512;
-    auto desc = Texture::Description()
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetDimension(kSize, kSize);
-    brdf_lut_ = gfx_->CreateTexture(desc);
+    brdf_lut_ = RenderTexturePool::Get(kSize, kSize, TextureFormat::kR16G16B16A16_FLOAT);
     brdf_lut_->SetName(TEXT("BRDF LUT texture"));
 
     auto lut_target = gfx_->CreateRenderTarget(kSize, kSize);
 
     lut_target->AttachColor(AttachmentPoint::kColor0, brdf_lut_);
 
-    renderer->GetPostProcessManager().Process(lut_target.get(), integrate_material_.get());
+    Renderer::PostProcess(lut_target, integrate_material_.get());
 
     gfx_->Flush();
 }
@@ -236,6 +233,11 @@ void LightManager::GenerateIrradiance() {
     irradiance_->GenerateMipMaps();
 
     gfx_->Flush();
+}
+
+
+void LightManager::TestGenerateIrradiance() {
+    irradiance_->GenerateMipMaps();
 }
 
 void LightManager::GenerateRadiance() {

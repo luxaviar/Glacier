@@ -55,6 +55,8 @@ public:
     virtual void DrawIndexed(uint32_t count) = 0;
     virtual void Draw(uint32_t count, uint32_t offset) = 0;
 
+    virtual void CopyResource(const std::shared_ptr<Resource>& src, const std::shared_ptr<Resource>& dst) = 0;
+
     virtual std::shared_ptr<IndexBuffer> CreateIndexBuffer(const std::vector<uint32_t>& indices) = 0;
     virtual std::shared_ptr<IndexBuffer> CreateIndexBuffer(const void* data, size_t size, IndexFormat type, UsageType usage) = 0;
 

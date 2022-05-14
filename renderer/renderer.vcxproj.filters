@@ -609,6 +609,9 @@
     <ClCompile Include="Render\Backend\D3D12\ResourceStateTracker.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClCompile>
+    <ClCompile Include="Render\Base\RenderTexturePool.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="3rdparty\imgui\imconfig.h">
@@ -1463,6 +1466,9 @@
     <ClInclude Include="Render\Backend\D3D12\ResourceStateTracker.h">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
+    <ClInclude Include="Render\Base\RenderTexturePool.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="assets\shader\BlinnPhong.hlsl">
@@ -1511,6 +1517,9 @@
       <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="Assets\Shader\GBufferPass.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\FXAA.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>

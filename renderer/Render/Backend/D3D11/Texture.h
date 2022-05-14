@@ -1,6 +1,7 @@
 #pragma once
 
 #include <d3d11_1.h>
+#include "Resource.h"
 #include "render/base/texture.h"
 
 namespace glacier {
@@ -8,10 +9,12 @@ namespace render {
 
 class SwapChain;
 
-class D3D11Texture : public Texture {
+class D3D11Texture : public Texture, public D3D11Resource {
 public:
     D3D11Texture(const TextureDescription& desc);
     D3D11Texture(SwapChain* swapchain);
+
+    ID3D11Resource* GetUnderlyingResource() const override { return texture_.Get();}
 
     void Reset(const ComPtr<ID3D11Texture2D>& res);
 

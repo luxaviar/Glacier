@@ -73,8 +73,10 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf)
             (prop.prop_type == MaterialPropertyType::kConstantBuffer ||
                 prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
                 prop.prop_type == MaterialPropertyType::kRWStructuredBuffer)) {
-            prop.buffer = buf;
-            prop.dirty = true;
+            if (prop.buffer != buf) {
+                prop.buffer = buf;
+                prop.dirty = true;
+            }
             return;
         }
     }
@@ -91,12 +93,14 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex
     }
 
     for (auto& prop : properties_) {
-        if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param)
-        {
-            prop.texture = tex;
-            prop.default_color = default_color;
-            prop.use_default = !tex;
-            prop.dirty = true;
+        if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param) {
+            if (prop.texture != tex || prop.default_color != default_color)
+            {
+                prop.texture = tex;
+                prop.default_color = default_color;
+                prop.use_default = !tex;
+                prop.dirty = true;
+            }
             return;
         }
     }
@@ -114,8 +118,10 @@ void Material::SetProperty(const char* name, const Color& color) {
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kColor);
-            prop.color = color;
-            prop.dirty = true;
+            if (prop.color != color) {
+                prop.color = color;
+                prop.dirty = true;
+            }
             return;
         }
     }
@@ -133,8 +139,10 @@ void Material::SetProperty(const char* name, const Vec4f& v) {
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kFloat4);
-            prop.float4 = v;
-            prop.dirty = true;
+            if (prop.float4 != v) {
+                prop.float4 = v;
+                prop.dirty = true;
+            }
             return;
         }
     }
@@ -152,8 +160,10 @@ void Material::SetProperty(const char* name, const Matrix4x4& v) {
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kMatrix);
-            prop.matrix = v;
-            prop.dirty = true;
+            if (prop.matrix != v) {
+                prop.matrix = v;
+                prop.dirty = true;
+            }
             return;
         }
     }
@@ -171,8 +181,10 @@ void Material::SetProperty(const char* name, const SamplerState& ss) {
     for (auto& prop : properties_) {
         if (param == prop.shader_param) {
             assert(prop.prop_type == MaterialPropertyType::kSampler);
-            prop.sampler_state = ss;
-            prop.dirty = true;
+            if (prop.sampler_state != ss) {
+                prop.sampler_state = ss;
+                prop.dirty = true;
+            }
             return;
         }
     }

@@ -90,6 +90,8 @@ void D3D11SwapChain::CreateRenderTarget() {
 }
 
 void D3D11SwapChain::OnResize(uint32_t width, uint32_t height) {
+    if (width == width_ || height == height_) return;
+
     width_ = width;
     height_ = height;
 

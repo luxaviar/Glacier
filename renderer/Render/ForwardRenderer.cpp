@@ -20,6 +20,7 @@
 #include "Render/Base/RenderTarget.h"
 #include "Common/BitUtil.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/RenderTexturePool.h"
 
 namespace glacier {
 namespace render {
@@ -69,27 +70,17 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
         return false;
     }
 
-    msaa_target_->Resize(width, height);
+    msaa_render_target_->Resize(width, height);
 
     return true;
 }
 
 void ForwardRenderer::PreRender() {
     if (msaa_ != MSAAType::kNone) {
-        msaa_target_->Clear();
+        msaa_render_target_->Clear();
     }
 
     Renderer::PreRender();
-}
-
-void ForwardRenderer::InitToneMapping() {
-    auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
-    auto desc = PostProcess::Description()
-        .SetSrc(msaa_target_->GetColorAttachment(AttachmentPoint::kColor0))
-        .SetDst(present_render_target_)
-        .SetMaterial(tonemapping_mat);
-
-    post_process_manager_.Push(desc);
 }
 
 void ForwardRenderer::InitRenderTarget() {
@@ -97,26 +88,18 @@ void ForwardRenderer::InitRenderTarget() {
 
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
-    msaa_target_ = gfx_->CreateRenderTarget(width, height);
-    auto backbuffer_depth_tex = render_target_->GetDepthStencil();
+    msaa_render_target_ = gfx_->CreateRenderTarget(width, height);
 
     if (msaa_ == MSAAType::kNone) {
-        auto colorframe = render_target_->GetColorAttachment(AttachmentPoint::kColor0);
-
-        msaa_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
-        msaa_target_->AttachDepthStencil(backbuffer_depth_tex);
+        msaa_render_target_ = hdr_render_target_;
         return;
     }
 
-    auto msaa_color_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT);
-    auto msaa_color = gfx_->CreateTexture(msaa_color_desc);
-    msaa_color->SetName(TEXT("intermediate color buffer"));
+    auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
+        CreateFlags::kRenderTarget, sample_count_, quality_level_);
+    msaa_color->SetName(TEXT("msaa color buffer"));
 
-    msaa_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
-    msaa_target_->AttachDepthStencil(backbuffer_depth_tex);
+    msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width, height)
@@ -127,7 +110,7 @@ void ForwardRenderer::InitRenderTarget() {
     auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
     depthstencil_texture->SetName(TEXT("msaa depth texture"));
 
-    render_target_->AttachDepthStencil(depthstencil_texture);
+    msaa_render_target_->AttachDepthStencil(depthstencil_texture);
 }
 
 void ForwardRenderer::InitMSAA() {
@@ -146,8 +129,8 @@ void ForwardRenderer::InitMSAA() {
         auto mat = std::make_shared<Material>("msaa resolve", program);
         mat->GetTemplate()->SetRasterState(rs);
 
-        mat->SetProperty("depth_buffer", render_target_->GetDepthStencil());
-        mat->SetProperty("color_buffer", render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+        mat->SetProperty("depth_buffer", msaa_render_target_->GetDepthStencil());
+        mat->SetProperty("color_buffer", msaa_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
         msaa_resolve_mat_[glacier::log2((uint32_t)v.first)] = mat;
     }
 }
@@ -157,10 +140,7 @@ void ForwardRenderer::ResolveMSAA() {
     if (msaa_ == MSAAType::kNone) return;
 
     auto& mat = msaa_resolve_mat_[log2((uint32_t)msaa_)];
-    RenderTargetBindingGuard rt_guard(gfx_, msaa_target_.get());
-    MaterialGuard mat_guard(gfx_, mat.get());
-
-    gfx_->Draw(3, 0);
+    PostProcess(hdr_render_target_, mat.get());
 }
 
 void ForwardRenderer::InitHelmetPbr(GfxDriver* gfx) {
@@ -267,17 +247,6 @@ void ForwardRenderer::InitFloorPbr(GfxDriver* gfx) {
     auto normal_desc = Texture::Description()
         .SetFile(TEXT("assets\\textures\\floor_normal.png"));
     auto normal_tex = gfx->CreateTexture(normal_desc);
-
-    // auto metal_desc = Texture::Description()
-    //     .SetFile(TEXT("assets\\textures\\floor_metallic.png"))
-    //     .EnableMips();
-    // auto metal_roughness_tex = gfx->CreateTexture(metal_desc);
-
-    // auto ao_desc = Texture::Description()
-    //     .SetFile(TEXT("assets\\textures\\floor_roughness.png"))
-    //     .EnableMips()
-    //     .EnableSRGB();
-    // auto ao_tex = gfx->CreateTexture(ao_desc);
 
     auto pbr_mat = std::make_unique<Material>("pbr_floor", pbr_template_);
     pbr_mat->SetTexTilingOffset({5.0f, 5.0f, 0.0f, 0.0f});

@@ -161,6 +161,13 @@ void D3D11GfxDriver::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& 
     }
 }
 
+void D3D11GfxDriver::CopyResource(const std::shared_ptr<Resource>& src, const std::shared_ptr<Resource>& dst) {
+    const auto& src_res = std::dynamic_pointer_cast<D3D11Resource>(src);
+    const auto& dst_res = std::dynamic_pointer_cast<D3D11Resource>(dst);
+
+    context_->CopyResource(src_res->GetUnderlyingResource(), dst_res->GetUnderlyingResource());
+}
+
 void D3D11GfxDriver::DrawIndexed(uint32_t count) {
     GfxThrowIfAny(context_->DrawIndexed(count, 0u, 0u));
 }

@@ -307,5 +307,6 @@ template<typename T>
 const Vec4<T> Vec4<T>::one((T)1);
 
 using Vec4f = Vec4<float>;
+using Vector4 = Vec4<float>;
 
 }

@@ -22,14 +22,17 @@
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/RenderTexturePool.h"
 
 namespace glacier {
 namespace render {
 
-DeferredRenderer::DeferredRenderer(GfxDriver* gfx) :
-    Renderer(gfx)
+DeferredRenderer::DeferredRenderer(GfxDriver* gfx, PostAAType aa) :
+    Renderer(gfx),
+    aa_(aa)
 {
     frame_data_ = gfx->CreateConstantBuffer<FrameData>(UsageType::kDynamic);
+    fxaa_param_ = gfx->CreateConstantBuffer<FXAAParam>(UsageType::kDynamic);
 }
 
 void DeferredRenderer::Setup() {
@@ -53,25 +56,43 @@ void DeferredRenderer::Setup() {
     ss.warpU = ss.warpV = WarpMode::kClamp;
     lighting_mat_->SetProperty("linear_sampler", ss);
     lighting_mat_->SetProperty("frame_data", frame_data_);
-    //ss.filter = FilterMode::kPoint;
-    //lighting_mat_->SetProperty("point_sampler", ss);
 
     lighting_mat_->AddPass("DeferredLighting");
 
     LightManager::Instance()->SetupMaterial(lighting_mat_.get());
     csm_manager_->SetupMaterial(lighting_mat_.get());
 
-    lighting_mat_->SetProperty("albedo_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    lighting_mat_->SetProperty("normal_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor1));
-    lighting_mat_->SetProperty("ao_metalroughness_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor2));
-    lighting_mat_->SetProperty("emissive_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor3));
-    lighting_mat_->SetProperty("position_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor4));
-    lighting_mat_->SetProperty("view_position_tex", gbuffer_target_->GetColorAttachment(AttachmentPoint::kColor5));
-    lighting_mat_->SetProperty("DepthBuffer_", render_target_->GetDepthStencil());
+    lighting_mat_->SetProperty("albedo_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    lighting_mat_->SetProperty("normal_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
+    lighting_mat_->SetProperty("ao_metalroughness_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
+    lighting_mat_->SetProperty("emissive_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
+    lighting_mat_->SetProperty("position_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
+    lighting_mat_->SetProperty("view_position_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor5));
+    lighting_mat_->SetProperty("DepthBuffer_", hdr_render_target_->GetDepthStencil());
+
+    fxaa_mat_ = std::make_shared<PostProcessMaterial>("FXAA", TEXT("FXAA"));
+    fxaa_mat_->SetProperty("fxaa_param", fxaa_param_);
+    fxaa_mat_->SetProperty("PostSourceTexture_", ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 
     InitHelmetPbr(gfx_);
     InitFloorPbr(gfx_);
     InitDefaultPbr(gfx_);
+}
+
+void DeferredRenderer::DoFXAA() {
+    if (aa_ != PostAAType::kFXAA) {
+        Renderer::DoFXAA();
+        return;
+    }
+
+    FXAAParam param = {
+        Vector4{0.0833f, 0.166f, 0.75f, 0.0f},
+        Vector4{1.0f / ldr_render_target_->width(), 1.0f / ldr_render_target_->height(), 0, 0}
+    };
+
+    fxaa_param_->Update(&param);
+
+    PostProcess(present_render_target_, fxaa_mat_.get());
 }
 
 void DeferredRenderer::InitRenderTarget() {
@@ -80,49 +101,30 @@ void DeferredRenderer::InitRenderTarget() {
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
 
-    lighting_target_ = gfx_->CreateRenderTarget(width, height);
-    lighting_target_->AttachColor(AttachmentPoint::kColor0, render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    //auto aa_texture = RenderTexturePool::Get(width, height);
+    //aa_texture->SetName(TEXT("AA Color Texture"));
+    //aa_render_target_ = gfx_->CreateRenderTarget(width, height);
+    //aa_render_target_->AttachColor(AttachmentPoint::kColor0, aa_texture);
 
-    auto albedo_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR8G8B8A8_UNORM)
-        .SetCreateFlag(CreateFlags::kRenderTarget);
-
-    auto albedo_texture = gfx_->CreateTexture(albedo_desc);
+    auto albedo_texture = RenderTexturePool::Get(width, height);
     albedo_texture->SetName(TEXT("GBuffer Albedo"));
 
-    gbuffer_target_ = gfx_->CreateRenderTarget(width, height);
-    gbuffer_target_->AttachColor(AttachmentPoint::kColor0, albedo_texture);
+    gbuffer_render_target_ = gfx_->CreateRenderTarget(width, height);
+    gbuffer_render_target_->AttachColor(AttachmentPoint::kColor0, albedo_texture);
 
-    auto normal_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR16G16_FLOAT)
-        .SetCreateFlag(CreateFlags::kRenderTarget);
-
-    auto normal_texture = gfx_->CreateTexture(normal_desc);
+    auto normal_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_FLOAT);
     normal_texture->SetName(TEXT("GBuffer Normal"));
+    gbuffer_render_target_->AttachColor(AttachmentPoint::kColor1, normal_texture);
 
-    gbuffer_target_->AttachColor(AttachmentPoint::kColor1, normal_texture);
-
-    auto ao_metal_roughness_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR8G8B8A8_UNORM)
-        .SetCreateFlag(CreateFlags::kRenderTarget);
-
-    auto ao_metal_roughness_texture = gfx_->CreateTexture(ao_metal_roughness_desc);
+    auto ao_metal_roughness_texture = RenderTexturePool::Get(width, height);
     ao_metal_roughness_texture->SetName(TEXT("GBuffer ao_metal_roughness"));
+    gbuffer_render_target_->AttachColor(AttachmentPoint::kColor2, ao_metal_roughness_texture);
 
-    gbuffer_target_->AttachColor(AttachmentPoint::kColor2, ao_metal_roughness_texture);
-
-    auto emissive_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR8G8B8A8_UNORM)
-        .SetCreateFlag(CreateFlags::kRenderTarget);
-
-    auto emissive_texture = gfx_->CreateTexture(emissive_desc);
+    auto emissive_texture = RenderTexturePool::Get(width, height);
     emissive_texture->SetName(TEXT("GBuffer Emissive"));
-    gbuffer_target_->AttachColor(AttachmentPoint::kColor3, emissive_texture);
-    gbuffer_target_->AttachDepthStencil(render_target_->GetDepthStencil());
+    gbuffer_render_target_->AttachColor(AttachmentPoint::kColor3, emissive_texture);
+
+    gbuffer_render_target_->AttachDepthStencil(hdr_render_target_->GetDepthStencil());
 }
 
 bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
@@ -130,14 +132,14 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
         return false;
     }
 
-    gbuffer_target_->Resize(width, height);
-    lighting_target_->Resize(width, height);
+    gbuffer_render_target_->Resize(width, height);
+    //aa_render_target_->Resize(width, height);
 
     return true;
 }
 
 void DeferredRenderer::PreRender() {
-    gbuffer_target_->Clear();
+    gbuffer_render_target_->Clear();
 
     Renderer::PreRender();
 }
@@ -288,7 +290,7 @@ void DeferredRenderer::AddGPass() {
             auto gfx = renderer->driver();
             PerfSample("GPass Pass");
 
-            RenderTargetBindingGuard rt_gurad(gfx, gbuffer_target_.get());
+            RenderTargetBindingGuard rt_gurad(gfx, gbuffer_render_target_.get());
 
             pass.Render(renderer, visibles_);
         });
@@ -306,11 +308,9 @@ void DeferredRenderer::AddLightingPass() {
             csm_manager_->Update();
 
             {
-                lighting_target_->Clear();
-                RenderTargetBindingGuard gurad(gfx, lighting_target_.get());
+                RenderTargetBindingGuard gurad(gfx, hdr_render_target_.get());
 
                 auto inverse_view = gfx->view().Inverted();
-                //auto inverse_project = gfx->projection().Inverted();
                 auto inverse_project = GetMainCamera()->projection(true).Inverted();
 
                 assert(inverse_view);

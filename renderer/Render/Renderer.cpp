@@ -25,11 +25,20 @@
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/RenderTexturePool.h"
 #include "Inspect/Profiler.h"
 #include "Common/Log.h"
 
 namespace glacier {
 namespace render {
+
+void Renderer::PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* mat) {
+    auto gfx = GfxDriver::Get();
+    RenderTargetBindingGuard rt_guard(gfx, dst.get());
+    MaterialGuard mat_guard(gfx, mat);
+
+    gfx->Draw(3, 0);
+}
 
 Renderer::Renderer(GfxDriver* gfx) :
     gfx_(gfx),
@@ -45,21 +54,10 @@ void Renderer::Setup() {
     init_ = true;
 
     InitRenderTarget();
-    InitToneMapping();
     InitMaterial();
 
     Gizmos::Instance()->Setup(gfx_);
     LightManager::Instance()->Setup(gfx_, this);
-}
-
-void Renderer::InitToneMapping() {
-    auto tonemapping_mat = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
-    auto desc = PostProcess::Description()
-        .SetSrc(render_target_->GetColorAttachment(AttachmentPoint::kColor0))
-        .SetDst(present_render_target_)
-        .SetMaterial(tonemapping_mat);
-
-    post_process_manager_.Push(desc);
 }
 
 void Renderer::InitRenderTarget() {
@@ -68,17 +66,19 @@ void Renderer::InitRenderTarget() {
     present_render_target_ = gfx_->GetSwapChain()->GetRenderTarget();
     auto backbuffer_depth_tex = present_render_target_->GetDepthStencil();
 
-    auto colorframe_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR16G16B16A16_FLOAT)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetSampleDesc(sample_count_, quality_level_);
-    auto colorframe = gfx_->CreateTexture(colorframe_desc);
-    colorframe->SetName(TEXT("linear render color texture"));
+    auto hdr_colorframe = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
+        CreateFlags::kRenderTarget);// , sample_count_, quality_level_);
+    hdr_colorframe->SetName(TEXT("hdr color frame"));
 
-    render_target_ = gfx_->CreateRenderTarget(width, height);
-    render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
-    render_target_->AttachDepthStencil(backbuffer_depth_tex);
+    hdr_render_target_ = gfx_->CreateRenderTarget(width, height);
+    hdr_render_target_->AttachColor(AttachmentPoint::kColor0, hdr_colorframe);
+    hdr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
+
+    ldr_render_target_ = gfx_->CreateRenderTarget(width, height);
+    auto ldr_colorframe = RenderTexturePool::Get(width, height);
+    ldr_colorframe->SetName(TEXT("ldr color frame"));
+    ldr_render_target_->AttachColor(AttachmentPoint::kColor0, ldr_colorframe);
+    ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
 }
 
 bool Renderer::OnResize(uint32_t width, uint32_t height) {
@@ -89,11 +89,17 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
 
     swapchain->OnResize(width, height);
 
-    render_target_->Resize(width, height);
+    hdr_render_target_->Resize(width, height);
+    ldr_render_target_->Resize(width, height);
 
     editor_.OnResize(width, height);
 
     return true;
+}
+
+void Renderer::DoToneMapping() {
+    tonemapping_mat_->SetProperty("PostSourceTexture_", hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    PostProcess(ldr_render_target_, tonemapping_mat_.get());
 }
 
 void Renderer::FilterVisibles() {
@@ -118,7 +124,7 @@ void Renderer::FilterVisibles() {
 void Renderer::RestoreCommonBindings() {
     auto main_camera = GetMainCamera();
     gfx_->BindCamera(main_camera);
-    render_target_->Bind(gfx_);
+    GetLightingRenderTarget()->Bind(gfx_);
 }
 
 void Renderer::InitMaterial() {
@@ -127,6 +133,8 @@ void Renderer::InitMaterial() {
     solid_mat->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     MaterialManager::Instance()->Add(std::move(solid_mat));
+
+    tonemapping_mat_ = std::make_shared<PostProcessMaterial>("tone mapping", TEXT("ToneMapping"));
 }
 
 Camera* Renderer::GetMainCamera() const {
@@ -142,7 +150,7 @@ void Renderer::PreRender() {
     PerfSample("PreRender");
     stats_->PreRender();
 
-    render_target_->Clear();
+    hdr_render_target_->Clear();
 
     RestoreCommonBindings();
     FilterVisibles();
@@ -183,24 +191,27 @@ void Renderer::Render() {
         render_graph_.Execute(this);
     }
 
-    if (show_gizmo_) {
-        PerfSample("Draw Gizmos");
-        RestoreCommonBindings();
-        physics::World::Instance()->OnDrawGizmos(true);
-        editor_.DrawGizmos();
-        Gizmos::Instance()->Render(gfx_);
-    }
-
-    render_target_->UnBind(gfx_);
+    hdr_render_target_->UnBind(gfx_);
 
     ResolveMSAA();
+
+    DoToneMapping();
     
     {
         PerfSample("Post Process");
         post_process_manager_.Render();
     }
 
+    DoFXAA();
+
     present_render_target_->Bind(gfx_);
+
+    if (show_gizmo_) {
+        PerfSample("Draw Gizmos");
+        physics::World::Instance()->OnDrawGizmos(true);
+        editor_.DrawGizmos();
+        Gizmos::Instance()->Render(gfx_);
+    }
 
     if (show_gui_) {
         PerfSample("Editor");
@@ -224,6 +235,11 @@ void Renderer::Render() {
     gfx_->Present();
 
     PostRender();
+}
+
+void Renderer::DoFXAA() {
+    gfx_->CopyResource(ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0),
+        present_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
 void Renderer::GrabScreen() {

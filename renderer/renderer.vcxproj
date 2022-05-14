@@ -258,6 +258,7 @@
     <ClCompile Include="Render\Base\GfxDriver.cpp" />
     <ClCompile Include="Render\Base\Program.cpp" />
     <ClCompile Include="Render\Base\Renderable.cpp" />
+    <ClCompile Include="Render\Base\RenderTexturePool.cpp" />
     <ClCompile Include="Render\Base\Shader.cpp" />
     <ClCompile Include="Render\Base\Util.cpp" />
     <ClCompile Include="Render\Base\VertexLayout.cpp" />
@@ -538,6 +539,7 @@
     <ClInclude Include="Render\Base\RasterStateDesc.h" />
     <ClInclude Include="Render\Base\Renderable.h" />
     <ClInclude Include="Render\Base\RenderTarget.h" />
+    <ClInclude Include="Render\Base\RenderTexturePool.h" />
     <ClInclude Include="Render\Base\Resource.h" />
     <ClInclude Include="Render\Base\SamplerState.h" />
     <ClInclude Include="Render\Base\Shader.h" />
@@ -607,6 +609,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>
     <FxCompile Include="Assets\Shader\ForwardLighting.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\FXAA.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

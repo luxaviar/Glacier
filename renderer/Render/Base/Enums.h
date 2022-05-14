@@ -24,6 +24,12 @@ enum class MSAAType : uint8_t {
     k8x = 8,
 };
 
+enum class PostAAType : uint8_t {
+    kNone = 0,
+    kFXAA = 1,
+    kTAA = 2,
+};
+
 enum class IndexFormat : uint8_t {
     kUInt16,
     kUInt32,

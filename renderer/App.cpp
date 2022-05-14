@@ -35,7 +35,7 @@ App::App( const std::string& commandLine ) :
     gfx_ = render::D3D12GfxDriver::Instance();
     gfx_->Init(wnd_.handle(), wnd_.width(), wnd_.height(), render::TextureFormat::kR8G8B8A8_UNORM);
 
-    renderer_ = std::make_unique<render::DeferredRenderer>(gfx_);
+    renderer_ = std::make_unique<render::DeferredRenderer>(gfx_, render::PostAAType::kFXAA);
     //renderer_ = std::make_unique<render::ForwardRenderer>(gfx_, render::MSAAType::k4x);
 
     wnd_.resize_signal().Connect([this] (uint32_t width, uint32_t height) {

@@ -12,6 +12,7 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/RenderTexturePool.h"
 #include "../Image.h"
 
 namespace glacier {
@@ -197,16 +198,11 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
 
-            renderer->render_target()->BindDepthStencil(gfx_);
+            renderer->GetLightingRenderTarget()->BindDepthStencil(gfx_);
             pass.Render(renderer, mr, outline_mat.get());
         });
 
-    auto desc = Texture::Description()
-        .SetDimension(renderer->render_target()->width() / 2, renderer->render_target()->height() / 2)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetFormat(TextureFormat::kR8G8B8A8_UNORM);
-
-    auto outline_draw_tex = gfx->CreateTexture(desc);
+    auto outline_draw_tex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
     outline_draw_tex->SetName(TEXT("Outline draw texture"));
 
     auto outline_draw_rt = gfx->CreateRenderTarget(outline_draw_tex->width(), outline_draw_tex->height());
@@ -236,12 +232,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto blur_param = gfx->CreateConstantBuffer<BlurParam>(blur_param_, UsageType::kDefault);
     auto blur_dir = gfx->CreateConstantBuffer<BlurDirection>(blur_dir_);
 
-    auto outline_desc = Texture::Description()
-        .SetDimension(renderer->render_target()->width() / 2, renderer->render_target()->height() / 2)
-        .SetCreateFlag(CreateFlags::kRenderTarget)
-        .SetFormat(TextureFormat::kR8G8B8A8_UNORM);
-
-    auto outline_htex = gfx->CreateTexture(outline_desc);
+    auto outline_htex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
     outline_htex->SetName(TEXT("horizontal outline draw texture"));
 
     auto outline_hrt = gfx->CreateRenderTarget(outline_htex->width(), outline_htex->height());
@@ -276,8 +267,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             blur_dir_.isHorizontal = true;
             blur_dir->Update(&blur_dir_);
 
-            auto& mgr = renderer->GetPostProcessManager();
-            mgr.Process(outline_hrt.get(), hblur_mat.get());
+            Renderer::PostProcess(outline_hrt, hblur_mat.get());
         });
 
     SamplerState vss;
@@ -312,8 +302,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             blur_dir_.isHorizontal = false;
             blur_dir->Update(&blur_dir_);
 
-            auto& mgr = renderer->GetPostProcessManager();
-            mgr.Process(renderer->render_target().get(), vblur_mat.get());
+            Renderer::PostProcess(renderer->GetLightingRenderTarget(), vblur_mat.get());
         });
 }
 

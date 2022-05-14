@@ -37,6 +37,8 @@ public:
 
     void Clear();
 
+    void TestGenerateIrradiance();
+
 private:
     void GenerateSkybox();
     void GenerateBrdfLut(Renderer* renderer);
@@ -61,6 +63,7 @@ private:
     std::shared_ptr<Texture> skybox_texture_;
     std::shared_ptr<Texture> radiance_;
     std::shared_ptr<Texture> irradiance_;
+    std::shared_ptr<Texture> test_irradiance_;
     std::shared_ptr<Texture> brdf_lut_;
 };
 

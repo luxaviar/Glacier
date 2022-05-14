@@ -19,6 +19,8 @@ class Light;
 
 class Renderer {
 public:
+    static void PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* mat);
+
     Renderer(GfxDriver* gfx);
     virtual ~Renderer() {}
     virtual void Setup();
@@ -26,7 +28,10 @@ public:
     RenderGraph& render_graph() { return render_graph_; }
     Editor& editor() { return editor_; }
 
-    std::shared_ptr<RenderTarget>& render_target() { return render_target_; }
+
+    virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return hdr_render_target_; }
+    std::shared_ptr<RenderTarget>& GetHdrRenderTarget() { return hdr_render_target_; }
+    std::shared_ptr<RenderTarget>& GetLdrRenderTarget() { return ldr_render_target_; }
 
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
@@ -44,9 +49,10 @@ public:
     GfxDriver* driver() { return gfx_; }
 
 protected:
-    virtual void InitToneMapping();
     virtual void InitRenderTarget();
     virtual void ResolveMSAA() {}
+    virtual void DoFXAA();
+    virtual void DoToneMapping();
 
     void FilterVisibles();
     void RestoreCommonBindings();
@@ -67,14 +73,18 @@ protected:
 
     RenderGraph render_graph_;
 
-    //linear render target
-    std::shared_ptr<RenderTarget> render_target_;
+    //linear hdr render target
+    std::shared_ptr<RenderTarget> hdr_render_target_;
+    //linear ldr render target
+    std::shared_ptr<RenderTarget> ldr_render_target_;
 
     //hardware render target
     std::shared_ptr<RenderTarget> present_render_target_;
 
     std::shared_ptr<CascadedShadowManager> csm_manager_;
     std::vector<Renderable*> visibles_;
+
+    std::shared_ptr<Material> tonemapping_mat_;
 
     Editor editor_;
     PostProcessManager post_process_manager_;

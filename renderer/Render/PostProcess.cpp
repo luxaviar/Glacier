@@ -40,7 +40,6 @@ PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
 void PostProcess::Render(GfxDriver* gfx) {
     RenderTargetBindingGuard rt_guard(gfx, render_target_.get());
     MaterialGuard mat_guard(gfx, material_.get());
-    //TextureBindingGurad tex_guard(screen_tex_.get(), ShaderType::kPixel, 0);
 
     gfx->Draw(3, 0);
 }
@@ -61,15 +60,6 @@ void PostProcessManager::Render() {
     for (auto job : jobs_) {
         job.Render(gfx_);
     }
-}
-
-void PostProcessManager::Process(RenderTarget* dst, PostProcessMaterial* mat)
-{
-    RenderTargetBindingGuard rt_guard(gfx_, dst);
-    MaterialGuard mat_guard(gfx_, mat);
-    //TextureBindingGurad tex_guard(src, ShaderType::kPixel, 0);
-
-    gfx_->Draw(3, 0);
 }
 
 }

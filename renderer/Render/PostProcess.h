@@ -56,8 +56,6 @@ public:
     void Push(PostProcessDescription& desc);
     void Render();
 
-    void Process(RenderTarget* dst, PostProcessMaterial* mat);
-
 private:
     GfxDriver* gfx_;
     SamplerState linear_sampler_;

@@ -29,6 +29,7 @@ struct TextureDescription {
         return *this;
     }
     TextureDescription& SetCreateFlag(CreateFlags flags) { create_flags |= (uint32_t)flags; return *this; }
+    TextureDescription& SetCreateFlag(uint32_t flags) { create_flags = flags; return *this; }
 
     bool srgb = false;
     bool gen_mips = false;
@@ -73,6 +74,7 @@ public:
     
     virtual uint32_t GetMipLevels() const = 0;
     TextureFormat GetFormat() const { return detail_.format; }
+    uint32_t GetFlags() const { return detail_.create_flags; }
 
     uint32_t GetSampleCount() const { return detail_.sample_count; }
     uint32_t GetSampleQuality() const { return detail_.sample_quality; }
