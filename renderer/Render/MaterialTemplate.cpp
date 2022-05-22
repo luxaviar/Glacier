@@ -57,7 +57,7 @@ void MaterialTemplate::SetProgram(const std::shared_ptr<Program>& program) {
 }
 
 //TODO: check duplicate?
-void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<ConstantBuffer>& buf) {
+void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) {
     auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material template property failed for {0}.{1}", name_, name);
@@ -65,9 +65,14 @@ void MaterialTemplate::SetProperty(const char* name, const std::shared_ptr<Const
     }
 
     for (auto& prop : properties_) {
-        if (prop.shader_param == param && prop.prop_type == MaterialPropertyType::kConstantBuffer) {
-            prop.buffer = buf;
-            prop.dirty = true;
+        if (prop.shader_param == param &&
+            (prop.prop_type == MaterialPropertyType::kConstantBuffer ||
+                prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
+                prop.prop_type == MaterialPropertyType::kRWStructuredBuffer)) {
+            if (prop.buffer != buf) {
+                prop.buffer = buf;
+                prop.dirty = true;
+            }
             return;
         }
     }

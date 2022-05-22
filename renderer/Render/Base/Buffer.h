@@ -32,6 +32,22 @@ protected:
     std::shared_ptr<BufferData> data_;
 };
 
+template<typename T>
+class ConstantParameter {
+public:
+    ConstantParameter() {}
+    ConstantParameter(std::shared_ptr<ConstantBuffer>& buf) : buffer_(buf) {}
+
+    T& param() { return param_; }
+    std::shared_ptr<ConstantBuffer>& buffer() { return buffer_; }
+
+    void Update() { buffer_->Update(&param_); }
+
+private:
+    std::shared_ptr<ConstantBuffer> buffer_;
+    T param_;
+};
+
 class StructuredBuffer : public Buffer {
 public:
     StructuredBuffer(size_t element_size, size_t element_count) :

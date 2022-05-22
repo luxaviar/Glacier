@@ -35,8 +35,13 @@ public:
 
     void SetProgram(const std::shared_ptr<Program>&program);
 
+    template<typename T>
+    void SetProperty(const char* name, ConstantParameter<T>& param) {
+        SetProperty(name, param.buffer());
+    }
+
     void SetProperty(const char* name, const std::shared_ptr<Texture>&tex, const Color & default_color = Color::kWhite);
-    void SetProperty(const char* name, const std::shared_ptr<ConstantBuffer>&buf);
+    void SetProperty(const char* name, const std::shared_ptr<Buffer>& buf);
     void SetProperty(const char* name, const SamplerState& ss);
     void SetProperty(const char* name, const Color & color);
     void SetProperty(const char* name, const Vec4f & v);

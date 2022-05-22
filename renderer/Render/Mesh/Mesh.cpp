@@ -129,27 +129,5 @@ void Mesh::Draw(GfxDriver* gfx) const {
     gfx->DrawIndexed((uint32_t)index_buffer_->count());
 }
 
-//void Mesh::Draw(CommandList* commandList, uint32_t instance_count, uint32_t start_instance) const {
-//    commandList->SetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-//
-//    //for (auto vertexBuffer : m_VertexBuffers)
-//    //{
-//        commandList->SetVertexBuffer(0, std::dynamic_pointer_cast<D3D12VertexBuffer>(vertices_buf_));
-//    //}
-//
-//    auto indexCount = indices_.size();
-//    auto vertexCount = vertices_.size();
-//
-//    if (indexCount > 0)
-//    {
-//        commandList->SetIndexBuffer(std::dynamic_pointer_cast<D3D12IndexBuffer>(indices_buf_));
-//        commandList->DrawIndexed(indexCount, instance_count, 0u, 0u, start_instance);
-//    }
-//    else if (vertexCount > 0)
-//    {
-//        commandList->Draw(vertexCount, instance_count, 0u, start_instance);
-//    }
-//}
-
 }
 }

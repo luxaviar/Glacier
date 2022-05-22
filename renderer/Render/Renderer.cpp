@@ -45,6 +45,7 @@ Renderer::Renderer(GfxDriver* gfx) :
     editor_(gfx),
     post_process_manager_(gfx)
 {
+    per_frame_param_ = gfx->CreateConstantParameter<PerFrameData>(UsageType::kDynamic);
     stats_ = std::make_unique<PerfStats>(gfx);
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 15, 40, 70, 100 });
 }
@@ -79,6 +80,8 @@ void Renderer::InitRenderTarget() {
     ldr_colorframe->SetName(TEXT("ldr color frame"));
     ldr_render_target_->AttachColor(AttachmentPoint::kColor0, ldr_colorframe);
     ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
+
+    per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
 }
 
 bool Renderer::OnResize(uint32_t width, uint32_t height) {
@@ -94,11 +97,13 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
 
     editor_.OnResize(width, height);
 
+    per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
+
     return true;
 }
 
 void Renderer::DoToneMapping() {
-    tonemapping_mat_->SetProperty("PostSourceTexture_", hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    tonemapping_mat_->SetProperty("_PostSourceTexture", hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
     PostProcess(ldr_render_target_, tonemapping_mat_.get());
 }
 
@@ -121,7 +126,7 @@ void Renderer::FilterVisibles() {
     });
 }
 
-void Renderer::RestoreCommonBindings() {
+void Renderer::BindLightingTarget() {
     auto main_camera = GetMainCamera();
     gfx_->BindCamera(main_camera);
     GetLightingRenderTarget()->Bind(gfx_);
@@ -146,13 +151,49 @@ Camera* Renderer::GetMainCamera() const {
     return scene->GetMainCamera();
 }
 
+void Renderer::UpdatePerFrameData() {
+    auto camera = GetMainCamera();
+    auto view = camera->view();
+#ifdef GLACIER_REVERSE_Z
+    auto projection = camera->projection_reversez();
+#else
+    auto projection = camera->projection();
+#endif
+    auto inverse_view = view.Inverted();
+    auto inverse_projection = projection.Inverted();
+    auto farz = camera->farz();
+    auto nearz = camera->nearz();
+
+    prev_view_projection_ = projection * view;
+
+    assert(inverse_view);
+    assert(inverse_projection);
+
+    auto& param = per_frame_param_.param();
+
+    param._UnjitteredViewProjection = projection;
+    param._View = view;
+    param._InverseView = inverse_view.value();
+    param._Projection = projection;
+    param._InverseProjection = inverse_projection.value();
+    param._ViewProjection = projection * view;
+    param._CameraParams = { farz, nearz, 1.0f / farz, 1.0f / nearz };
+    param._ZBufferParams.x = 1 - farz / nearz;
+    param._ZBufferParams.y = 1 + farz / nearz;
+    param._ZBufferParams.z = param._ZBufferParams.x / farz;
+    param._ZBufferParams.w = param._ZBufferParams.y / farz;
+}
+
 void Renderer::PreRender() {
     PerfSample("PreRender");
     stats_->PreRender();
 
     hdr_render_target_->Clear();
 
-    RestoreCommonBindings();
+    UpdatePerFrameData();
+    per_frame_param_.Update();
+
+    BindLightingTarget();
     FilterVisibles();
 }
 
@@ -162,7 +203,12 @@ void Renderer::PostRender() {
     // present
     //gfx_->EndFrame();
 
+    auto& param = per_frame_param_.param();
+    param._PrevViewProjection = prev_view_projection_;
+
     render_graph_.Reset();
+
+    ++frame_count_;
 }
 
 void Renderer::Render() {
@@ -195,10 +241,15 @@ void Renderer::Render() {
 
     ResolveMSAA();
 
+    DoTAA();
+
+    HdrPostProcess();
+
     DoToneMapping();
     
     {
         PerfSample("Post Process");
+        LdrPostProcess();
         post_process_manager_.Render();
     }
 
@@ -208,7 +259,7 @@ void Renderer::Render() {
 
     if (show_gizmo_) {
         PerfSample("Draw Gizmos");
-        physics::World::Instance()->OnDrawGizmos(true);
+        //physics::World::Instance()->OnDrawGizmos(true);
         editor_.DrawGizmos();
         Gizmos::Instance()->Render(gfx_);
     }
@@ -282,7 +333,7 @@ void Renderer::AddShadowPass() {
 
             csm_manager_->Render(main_camera_, visibles_, main_light);
 
-            renderer->RestoreCommonBindings();
+            renderer->BindLightingTarget();
         });
 }
 
@@ -371,7 +422,7 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
             //for binding as PSV, tex can't be render target simultaneously
             rt->UnBind(gfx);
 
-            renderer->RestoreCommonBindings();
+            renderer->BindLightingTarget();
         });
 
     render_graph_.AddPass("solid",

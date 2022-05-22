@@ -89,7 +89,7 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
         float nDotL = max(dot(N, L), 0.0);
         if (nDotL > 0.0)
         {
-            prefiltered_color += SkyboxTextureCube_.Sample(linear_sampler, L).rgb * nDotL;
+            prefiltered_color += _SkyboxTextureCube.Sample(linear_sampler, L).rgb * nDotL;
             total_weight += nDotL;
         }
     }

@@ -354,7 +354,19 @@ struct Mat4x4 {
         return (const T*)value;
     }
 
-    Vec3<T> GetTranslation() const {
+    Vec3<T> right() const {
+        return { value[0][0], value[1][0], value[2][0] };
+    }
+
+    Vec3<T> up() const {
+        return { value[0][1], value[1][1], value[2][1] };
+    }
+
+    Vec3<T> forward() const {
+        return { value[0][2], value[1][2], value[2][2] };
+    }
+
+    Vec3<T> translation() const {
         return { value[0][3], value[1][3], value[2][3] };
     }
 

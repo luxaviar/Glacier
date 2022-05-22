@@ -250,6 +250,11 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
 
     template_->SetRasterState(rs);
     template_->SetInputLayout(desc);
+
+    SamplerState ss;
+    ss.filter = FilterMode::kBilinear;
+    ss.warpU = ss.warpV = WarpMode::kClamp;
+    SetProperty("linear_sampler", ss);
 }
 
 void MaterialManager::Add(std::unique_ptr<Material>&& mat) {

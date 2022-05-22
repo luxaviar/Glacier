@@ -32,7 +32,7 @@ Editor::Editor(GfxDriver* gfx) :
     mat_->GetTemplate()->SetRasterState(rs);
     mat_->GetTemplate()->SetInputLayout(Mesh::kDefaultLayout);
     mat_->SetProperty("color", color_buf_);
-    mat_->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    mat_->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
 }
 
 void Editor::OnResize(uint32_t width, uint32_t height) {
@@ -179,7 +179,7 @@ void Editor::DrawScenePanel() {
 void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto& render_graph = renderer->render_graph();
     auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"));
-    outline_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx));
+    outline_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx));
 
     RasterStateDesc outline_rs;
     outline_rs.depthWrite = false;
@@ -210,7 +210,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
-    outline_solid_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx));
+    outline_solid_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx));
 
     outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
 
@@ -253,7 +253,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     hblur_mat->SetProperty("Kernel", blur_param);
     hblur_mat->SetProperty("Control", blur_dir);
     hblur_mat->SetProperty("point_sampler", ss);
-    hblur_mat->SetProperty("PostSourceTexture_", outline_draw_tex);
+    hblur_mat->SetProperty("_PostSourceTexture", outline_draw_tex);
 
     render_graph.AddPass("horizontal blur",
         [&](PassNode& pass) {
@@ -289,7 +289,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vblur_mat->SetProperty("Kernel", blur_param);
     vblur_mat->SetProperty("Control", blur_dir);
     //vblur_mat->SetProperty("point_sampler", ss);
-    vblur_mat->SetProperty("PostSourceTexture_", outline_htex);
+    vblur_mat->SetProperty("_PostSourceTexture", outline_htex);
 
     render_graph.AddPass("vertical blur",
         [&](PassNode& pass) {

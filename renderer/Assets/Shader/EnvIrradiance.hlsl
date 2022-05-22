@@ -45,7 +45,7 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
             //Tangent space to world space
             float3 sampleDir = tangentSample.x * right + tangentSample.y * up + tangentSample.z * normal;
 
-            irradiance += SkyboxTextureCube_.Sample(linear_sampler, sampleDir).rgb * cos(theta) * sin(theta);
+            irradiance += _SkyboxTextureCube.Sample(linear_sampler, sampleDir).rgb * cos(theta) * sin(theta);
 
             nSamples++;
         }

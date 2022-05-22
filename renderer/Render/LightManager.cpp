@@ -77,16 +77,16 @@ DirectionalLight* LightManager::GetMainLight() {
 
 void LightManager::SetupMaterial(MaterialTemplate* mat) {
     mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("BrdfLutTexture_", brdf_lut_);
-    mat->SetProperty("RadianceTextureCube_", radiance_);
-    mat->SetProperty("IrradianceTextureCube_", irradiance_);
+    mat->SetProperty("_BrdfLutTexture", brdf_lut_);
+    mat->SetProperty("_RadianceTextureCube", radiance_);
+    mat->SetProperty("_IrradianceTextureCube", irradiance_);
 }
 
 void LightManager::SetupMaterial(Material* mat) {
     mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("BrdfLutTexture_", brdf_lut_);
-    mat->SetProperty("RadianceTextureCube_", radiance_);
-    mat->SetProperty("IrradianceTextureCube_", irradiance_);
+    mat->SetProperty("_BrdfLutTexture", brdf_lut_);
+    mat->SetProperty("_RadianceTextureCube", radiance_);
+    mat->SetProperty("_IrradianceTextureCube", irradiance_);
 }
 
 void LightManager::Update() {
@@ -139,7 +139,7 @@ void LightManager::GenerateSkybox() {
     skybox_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
-    skybox_material_->SetProperty("SkyboxTextureCube_", skybox_texture_);
+    skybox_material_->SetProperty("_SkyboxTextureCube", skybox_texture_);
     skybox_material_->SetProperty("linear_sampler", SamplerState{});
 
     VertexCollection vertices;
@@ -185,7 +185,7 @@ void LightManager::GenerateIrradiance() {
     auto convolve_matrix_ = gfx_->CreateConstantBuffer<Matrix4x4>();
 
     convolve_material_->SetProperty("linear_sampler", ss);
-    convolve_material_->SetProperty("SkyboxTextureCube_", skybox_texture_);
+    convolve_material_->SetProperty("_SkyboxTextureCube", skybox_texture_);
     convolve_material_->SetProperty("vp_matrix", convolve_matrix_);
 
     RasterStateDesc rs;
@@ -258,7 +258,7 @@ void LightManager::GenerateRadiance() {
     prefilter_material->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     prefilter_material->SetProperty("linear_sampler", ss);
-    prefilter_material->SetProperty("SkyboxTextureCube_", skybox_texture_);
+    prefilter_material->SetProperty("_SkyboxTextureCube", skybox_texture_);
     prefilter_material->SetProperty("vp_matrix", prefiter_matrix);
     prefilter_material->SetProperty("Roughness", roughness);
 

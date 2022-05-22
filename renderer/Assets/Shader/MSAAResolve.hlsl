@@ -1,26 +1,9 @@
+#include "PostProcessCommon.hlsl"
+#include "Common/Colors.hlsli"
+
 #ifndef MSAASamples_
     #define MSAASamples_ 1
 #endif
-
-struct VSOut {
-    float4 position : SV_Position;
-    float2 uv : Texcoord;
-};
-
-VSOut main_vs(uint id : SV_VertexID)
-{
-   VSOut output;
-
-   // Calculate the UV via the id
-   output.uv = float2((id << 1) & 2, id & 2);
-
-   // Convert the UV to the (-1, 1) to (3, -3) range for position
-   output.position = float4(output.uv, 0, 1);
-   output.position.x = output.position.x * 2 -1;
-   output.position.y = output.position.y * -2 + 1;
-
-   return output;
-}
 
 Texture2DMS<float4> color_buffer : register(t0);
 Texture2DMS<float> depth_buffer : register(t1);
@@ -31,15 +14,19 @@ struct PSOut
     float depth : SV_Depth;
 };
 
-PSOut main_ps(VSOut IN)
+PSOut main_ps(float4 position : SV_Position, float2 uv : Texcoord)
 {
     PSOut output;
-    output.depth = depth_buffer.Load(int2(IN.position.xy), 0);
+    output.depth = depth_buffer.Load(int2(position.xy), 0);
+    float4 color = 0;
     for(uint i = 0; i < MSAASamples_; i++)
     {
-        output.color += color_buffer.Load(int2(IN.position.xy), i);
+        float4 sub_sample = color_buffer.Load(int2(position.xy), i);
+        color += FastTonemap(sub_sample);
     }
-    output.color /= MSAASamples_;
+
+    color /= MSAASamples_;
+    output.color = FastTonemapInvert(color);
 
     return output;
 }

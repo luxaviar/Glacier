@@ -1,6 +1,5 @@
 #pragma once
 #include "render/base/gfxdriver.h"
-//#include "channels.h"
 #include "Math/Vec3.h"
 #include "camera.h"
 #include "core/component.h"

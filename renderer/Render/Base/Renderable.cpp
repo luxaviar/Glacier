@@ -28,19 +28,19 @@ void Renderable::UpdateTransform(GfxDriver* gfx) const {
     const auto& m = transform().LocalToWorldMatrix();
     const auto& mv = gfx->view() * m;
     const auto& mvp = gfx->projection() * mv;
+
     RenderableTransform tx_data = {
         m,
         mv,
         mvp,
+        prev_model_,
         material_ ? material_->GetTexTilingOffset() : Vec4f{1.0f, 1.0f, 0.0f, 0.0f}
     };
     
     auto& tx_cbuf = GetTransformCBuffer(gfx);
     tx_cbuf->Update(&tx_data);
-    //tx_cbuf->Bind(ShaderType::kVertex, 0);
-    //if (mat) {
-    //    mat->SetProperty("object_transform", tx_buf_);
-    //}
+
+    prev_model_ = m;
 }
 
 const AABB& Renderable::world_bounds() const {

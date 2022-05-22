@@ -24,7 +24,7 @@ PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
         material_->SetProperty("linear_sampler", desc.sampler);
     }
 
-    material_->SetProperty("PostSourceTexture_", desc.src_tex);
+    material_->SetProperty("_PostSourceTexture", desc.src_tex);
 
     if (!desc.dst_rt) {
         auto& tex = desc.dst_tex;

@@ -27,7 +27,6 @@ void PbrScene::OnLoad(Renderer* renderer) {
     main_camera_ = camera_go.AddComponent<Camera>();
     main_camera_->position({ 11.0f,8.0f,-20.0f });
     main_camera_->LookAt({ -0.0f,0.0f,0.0f });
-    main_camera_->farz(100.0f);
 
     camera_go.AddComponent<CameraController>(main_camera_);
 

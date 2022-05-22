@@ -1,12 +1,6 @@
 #include "Common/Lighting.hlsli"
 #include "PostProcessCommon.hlsl"
 
-cbuffer frame_data
-{
-    matrix inverse_projection;
-    matrix inverse_view;
-};
-
 Texture2D albedo_tex;
 Texture2D<float2> normal_tex;
 Texture2D ao_metalroughness_tex;
@@ -24,16 +18,16 @@ float3 DecodeNormalOct(float2 f)
 
 float3 ComputeViewPosition(float2 texcoord, float depth)
 {
-    #ifdef GLACIER_REVERSE_Z
-        depth = 1 - depth;
-    #endif
+    //#ifdef GLACIER_REVERSE_Z
+        //depth = 1 - depth;
+    //#endif
 
     float4 ndc_position;
     ndc_position.xy = texcoord * 2.0f - 1.0f;
     ndc_position.y *= -1; //[0,0] is top left in directx
     ndc_position.z = depth;
     ndc_position.w = 1.0f;
-    float4 view_position = mul(ndc_position, inverse_projection);
+    float4 view_position = mul(ndc_position, _InverseProjection);
     return view_position.xyz / view_position.w;
 }
 
@@ -44,9 +38,9 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
     float3 emissive = emissive_tex.Sample(linear_sampler, uv).rgb;
     float3 ao_metalroughness = ao_metalroughness_tex.Sample(linear_sampler, uv).rgb;
 
-    float depth = DepthBuffer_.Sample(linear_sampler, uv).r;
+    float depth = _DepthBuffer.Sample(linear_sampler, uv).r;
     float3 view_position = ComputeViewPosition(uv, depth);
-    float3 world_position = (float3)mul(float4(view_position, 1.0f), inverse_view);
+    float3 world_position = (float3)mul(float4(view_position, 1.0f), _InverseView);
 
     //normal = normalize(normal);
     float ao = ao_metalroughness.r;
@@ -69,7 +63,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, view_position, world_position,
-                shadow_info, ShadowTexture_, shadow_cmp_sampler);
+                _ShadowParam, _ShadowTexture, shadow_cmp_sampler);
         }
 
         final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic) * shadow_level;
@@ -84,7 +78,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         }
     }
     
-    float3 ambient = EvaluateIBL(RadianceTextureCube_, IrradianceTextureCube_, BrdfLutTexture_, linear_sampler,
+    float3 ambient = EvaluateIBL(_IrradianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 

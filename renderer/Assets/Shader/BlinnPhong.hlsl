@@ -29,15 +29,15 @@ Texture2D normal_tex : register(t5);
 VSOut main_vs(AppData IN)
 {
     VSOut vso;
-    vso.world_position = (float3) mul(float4(IN.position, 1.0f), model);
-    vso.view_position = (float3) mul(float4(IN.position, 1.0f), model_view);
-    vso.view_normal = mul(IN.normal, (float3x3) model_view);
-    vso.view_tangent = mul(IN.tangent, (float3x3) model_view);
-    //vso.view_binormal = mul(IN.binormal, (float3x3) model_view);
-    vso.position = mul(float4(IN.position, 1.0f), model_view_proj);
+    vso.world_position = (float3) mul(float4(IN.position, 1.0f), _Model);
+    vso.view_position = (float3) mul(float4(IN.position, 1.0f), _ModelView);
+    vso.view_normal = mul(IN.normal, (float3x3) _ModelView);
+    vso.view_tangent = mul(IN.tangent, (float3x3) _ModelView);
+    //vso.view_binormal = mul(IN.binormal, (float3x3) _ModelView);
+    vso.position = mul(float4(IN.position, 1.0f), _ModelViewProjection);
     vso.tex_coord = IN.tex_coord;
     
-    //vso.shadowHomoPos = ToShadowHomoSpace(pos, model);
+    //vso.shadowHomoPos = ToShadowHomoSpace(pos, _Model);
     return vso;
 }
 
@@ -82,7 +82,7 @@ float4 main_ps(VSOut IN) : SV_Target
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
-                shadow_info, ShadowTexture_, shadow_cmp_sampler);
+                _ShadowParam, _ShadowTexture, shadow_cmp_sampler);
         }
         
         color += DoPhongLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;

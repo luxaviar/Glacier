@@ -1,3 +1,4 @@
+#include "Common/BasicBuffer.hlsli"
 #include "Common/BasicSampler.hlsli"
 #include "Common/BasicTexture.hlsli"
 

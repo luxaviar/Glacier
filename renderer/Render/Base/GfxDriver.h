@@ -76,6 +76,12 @@ public:
         return CreateConstantBuffer(nullptr, sizeof(T), usage);
     }
 
+    template<typename T>
+    ConstantParameter<T> CreateConstantParameter(UsageType usage = UsageType::kDynamic) {
+        auto cbuf = CreateConstantBuffer(nullptr, sizeof(T), usage);
+        return ConstantParameter<T>(cbuf);
+    }
+
     virtual std::shared_ptr<PipelineState> CreatePipelineState(RasterStateDesc rs, const InputLayoutDesc& layout) =0;
 
     virtual std::shared_ptr<Shader> CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point = nullptr, 

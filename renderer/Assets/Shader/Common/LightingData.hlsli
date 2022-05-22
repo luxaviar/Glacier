@@ -1,9 +1,6 @@
 #ifndef COMMON_LIGHTING_DATA_
 #define COMMON_LIGHTING_DATA_
 
-#include "Common/BasicSampler.hlsli"
-#include "Common/BasicTexture.hlsli"
-#include "Common/Transform.hlsli"
 #include "Common/Shadow.hlsli"
 
 #ifndef NUM_LIGHTS
@@ -84,7 +81,7 @@ cbuffer LightList
 
 cbuffer CascadeShadowData
 {
-    CascadeShadowMapInfo shadow_info;
+    CascadeShadowMapInfo _ShadowParam;
 }
 
 #endif

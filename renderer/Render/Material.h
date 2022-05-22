@@ -31,6 +31,11 @@ public:
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;
 
+    template<typename T>
+    void SetProperty(const char* name, ConstantParameter<T>& param) {
+        SetProperty(name, param.buffer());
+    }
+
     void SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color = Color::kWhite);
     void SetProperty(const char* name, const std::shared_ptr<Buffer>& buf);
     void SetProperty(const char* name, const Color& color);

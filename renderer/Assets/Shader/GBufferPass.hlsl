@@ -1,5 +1,7 @@
-#include "Common/Transform.hlsli"
+#include "Common/BasicBuffer.hlsli"
+#include "Common/BasicSampler.hlsli"
 #include "Common/Lighting.hlsli"
+#include "Common/Utils.hlsli"
 
 struct VertexOut
 {
@@ -7,6 +9,8 @@ struct VertexOut
     float3 view_normal  : NORMAL;
     float3 view_tangent : TANGENT;
     float2 tex_coord : TEXCOORD;
+    float4 cur_position : POSITION0;
+    float4 prev_position : POSITION1;
 };
 
 struct FragOut
@@ -15,6 +19,7 @@ struct FragOut
     float2 view_normal  : SV_TARGET1;
     float4 ao_metal_roughness	: SV_TARGET2;
     float4 emissive     : SV_TARGET3;
+    float2 velocity     : SV_TARGET4;
 };
 
 struct PbrMaterial
@@ -52,17 +57,21 @@ float2 EncodeNormalOct(float3 n)
 VertexOut main_vs(AppData IN)
 {
     VertexOut Out = (VertexOut)0.0f;
-    Out.view_normal = mul(IN.normal, (float3x3)model_view);
-    Out.view_tangent = mul(IN.tangent, (float3x3)model_view);
-    Out.position = mul(float4(IN.position, 1.0f), model_view_proj);
-    Out.tex_coord = IN.tex_coord * tex_ts.xy + tex_ts.zw;
+    float4 wpos = mul(float4(IN.position, 1.0f), _Model);
+    Out.view_normal = mul(IN.normal, (float3x3)_ModelView);
+    Out.view_tangent = mul(IN.tangent, (float3x3)_ModelView);
+    Out.position = mul(wpos, _ViewProjection);
+    Out.cur_position = mul(wpos, _UnjitteredViewProjection);
+    Out.prev_position = mul(mul(float4(IN.position, 1.0f), _PrevModel), _PrevViewProjection);
+
+    Out.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
 
     return Out;
 }
 
 FragOut main_ps(VertexOut IN)
 {
-    FragOut Out;
+    FragOut Out = (FragOut)0;
 
     // BaseColor
     Out.albedo_color = albedo_tex.Sample(linear_sampler, IN.tex_coord);
@@ -90,6 +99,17 @@ FragOut main_ps(VertexOut IN)
 
     // Emissive
     Out.emissive = float4(emissive_tex.Sample(linear_sampler, IN.tex_coord).rgb, 1.0f);
+
+    // Velocity
+    float4 cur_pos = IN.cur_position;
+    cur_pos /= cur_pos.w;
+    cur_pos.xy = NDCToUV(cur_pos);
+    
+    float4 prev_pos = IN.prev_position;
+    prev_pos /= prev_pos.w;
+    prev_pos.xy = NDCToUV(prev_pos);
+
+    Out.velocity = cur_pos.xy - prev_pos.xy;
 
     return Out;
 }

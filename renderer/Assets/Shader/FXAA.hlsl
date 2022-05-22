@@ -2,15 +2,14 @@
 
 cbuffer fxaa_param {
     float4 _FXAAConfig; //_ContrastThreshold, _RelativeThreshold, _SubpixelBlending
-    float2 PostSourceTexture_TexelSize_;
 }
 
 float4 GetSource(float2 uv) {
-    return PostSourceTexture_.Sample(linear_sampler, uv);
+    return _PostSourceTexture.Sample(linear_sampler, uv);
 }
 
 float GetLuma (float2 uv, float uOffset = 0.0, float vOffset = 0.0) {
-    uv += float2(uOffset, vOffset) * PostSourceTexture_TexelSize_.xy;
+    uv += float2(uOffset, vOffset) * _ScreenParam.zw;
     #if defined(FXAA_ALPHA_CONTAINS_LUMA)
         return GetSource(uv).a;
     #else
@@ -64,12 +63,12 @@ FXAAEdge GetFXAAEdge (LumaNeighborhood luma) {
     edge.isHorizontal = IsHorizontalEdge(luma);
     float lumaP, lumaN;
     if (edge.isHorizontal) {
-        edge.pixelStep = PostSourceTexture_TexelSize_.y;
+        edge.pixelStep = _ScreenParam.w;
         lumaP = luma.n;
         lumaN = luma.s;
     }
     else {
-        edge.pixelStep = PostSourceTexture_TexelSize_.x;
+        edge.pixelStep = _ScreenParam.z;
         lumaP = luma.e;
         lumaN = luma.w;
     }
@@ -124,11 +123,11 @@ float GetEdgeBlendFactor (LumaNeighborhood luma, FXAAEdge edge, float2 uv) {
     float2 uvStep = 0.0;
     if (edge.isHorizontal) {
         edgeUV.y += 0.5 * edge.pixelStep;
-        uvStep.x = PostSourceTexture_TexelSize_.x;
+        uvStep.x = _ScreenParam.z;
     }
     else {
         edgeUV.x += 0.5 * edge.pixelStep;
-        uvStep.y = PostSourceTexture_TexelSize_.y;
+        uvStep.y = _ScreenParam.w;
     }
 
     float edgeLuma = 0.5 * (luma.m + edge.otherLuma);
@@ -138,7 +137,7 @@ float GetEdgeBlendFactor (LumaNeighborhood luma, FXAAEdge edge, float2 uv) {
     float lumaDeltaP = GetLuma(uvP) - edgeLuma;
     bool atEndP = abs(lumaDeltaP) >= gradientThreshold;
 
-    //[unroll]
+    [unroll(10)]
     for (int i = 0; i < EXTRA_EDGE_STEPS && !atEndP; i++) {
         uvP += uvStep * edgeStepSizes[i];
         lumaDeltaP = GetLuma(uvP) - edgeLuma;
@@ -151,8 +150,8 @@ float GetEdgeBlendFactor (LumaNeighborhood luma, FXAAEdge edge, float2 uv) {
     float2 uvN = edgeUV - uvStep;
     float lumaDeltaN = GetLuma(uvN) - edgeLuma;
     bool atEndN = abs(lumaDeltaN) >= gradientThreshold;
-
-    //[unroll]
+    
+    [unroll(10)]
     for (int j = 0; j < EXTRA_EDGE_STEPS && !atEndN; j++) {
         uvN -= uvStep * edgeStepSizes[j];
         lumaDeltaN = GetLuma(uvN) - edgeLuma;

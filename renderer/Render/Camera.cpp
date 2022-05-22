@@ -34,31 +34,22 @@ Matrix4x4 Camera::view() const noexcept {
     return Matrix4x4::LookToLH(transform().position(), forward(), Vec3f::up);
 }
 
-Matrix4x4 Camera::projection(bool raw) const noexcept {
-    if (raw) {
-        if (type_ == CameraType::kPersp) {
-            return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[2], param_[3]);
-        }
-        else {
-            return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[2], param_[3]);
-        }
-    }
-
-#ifdef GLACIER_REVERSE_Z
-    if (type_ == CameraType::kPersp) {
-        return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[3], param_[2]);
-    }
-    else {
-        return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[3], param_[2]);
-    }
-#else
+Matrix4x4 Camera::projection() const noexcept {
     if (type_ == CameraType::kPersp) {
         return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[2], param_[3]);
     }
     else {
         return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[2], param_[3]);
     }
-#endif
+}
+
+Matrix4x4 Camera::projection_reversez() const noexcept {
+    if (type_ == CameraType::kPersp) {
+        return Matrix4x4::PerspectiveFovLH(param_[0] * math::kDeg2Rad, param_[1], param_[3], param_[2]);
+    }
+    else {
+        return Matrix4x4::OrthoLH(param_[0] * param_[4], param_[1] * param_[4], param_[3], param_[2]);
+    }
 }
 
 Vec3f Camera::CameraToWorld(const Vec3f& pos) const {

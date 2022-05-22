@@ -1,3 +1,6 @@
+#include "Common/BasicSampler.hlsli"
+#include "Common/BasicBuffer.hlsli"
+#include "Common/BasicTexture.hlsli"
 #include "Common/Lighting.hlsli"
 
 struct PbrMaterial
@@ -22,15 +25,15 @@ Texture2D emissive_tex : register(t8);
 VSOut main_vs(AppData IN)
 {
     VSOut vso;
-    vso.world_position = (float3) mul(float4(IN.position, 1.0f), model);
-    vso.view_position = (float3) mul(float4(IN.position, 1.0f), model_view);
-    vso.view_normal = mul(IN.normal, (float3x3) model_view);
-    vso.view_tangent = mul(IN.tangent, (float3x3) model_view);
-    //vso.view_binormal = mul(IN.binormal, (float3x3) model_view);
-    vso.position = mul(float4(IN.position, 1.0f), model_view_proj);
-    vso.tex_coord = IN.tex_coord * tex_ts.xy + tex_ts.zw;
+    vso.world_position = (float3) mul(float4(IN.position, 1.0f), _Model);
+    vso.view_position = (float3) mul(float4(IN.position, 1.0f), _ModelView);
+    vso.view_normal = mul(IN.normal, (float3x3) _ModelView);
+    vso.view_tangent = mul(IN.tangent, (float3x3) _ModelView);
+    //vso.view_binormal = mul(IN.binormal, (float3x3) _ModelView);
+    vso.position = mul(float4(IN.position, 1.0f), _ModelViewProjection);
+    vso.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
     
-    //vso.shadowHomoPos = ToShadowHomoSpace(pos, model);
+    //vso.shadowHomoPos = ToShadowHomoSpace(pos, _Model);
     return vso;
 }
 
@@ -69,7 +72,7 @@ float4 main_ps(VSOut IN) : SV_Target
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
-                shadow_info, ShadowTexture_, shadow_cmp_sampler);
+                _ShadowParam, _ShadowTexture, shadow_cmp_sampler);
         }
         
         //final_color += DoLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
@@ -85,7 +88,7 @@ float4 main_ps(VSOut IN) : SV_Target
         }
     }
     
-    float3 ambient = EvaluateIBL(RadianceTextureCube_, IrradianceTextureCube_, BrdfLutTexture_, linear_sampler,
+    float3 ambient = EvaluateIBL(_IrradianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 

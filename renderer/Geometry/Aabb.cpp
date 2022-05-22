@@ -37,13 +37,33 @@ Vec3f AABB::RotateExtents(const Vec3f& extents, const Matrix3x3& rotation) {
     return result;
 }
 
-//it's a loosen fit
 AABB AABB::Transform(const AABB& a, const Matrix4x4& tx) {
-    Vec3f extents = RotateExtents(a.Extent(), tx);
-    Vec3f center = tx.MultiplyPoint3X4(a.Center());
-    AABB result;
-    result.SetCenterAndExtent(center, extents);
-    return result;
+    //it's a loosen fit
+    //Vec3f extents = RotateExtents(a.Extent(), tx);
+    //Vec3f center = tx.MultiplyPoint3X4(a.Center());
+    //AABB result;
+    //result.SetCenterAndExtent(center, extents);
+    //return result;
+
+    //https://dev.theomader.com/transform-bounding-boxes/
+    auto right = tx.right();
+    auto up = tx.up();
+    auto forward = tx.forward();
+    auto trans = tx.translation();
+
+    Vector3 xa = right * a.min.x;
+    Vector3 xb = right * a.max.x;
+
+    Vector3 ya = up * a.min.y;
+    Vector3 yb = up * a.max.y;
+
+    Vector3 za = forward * a.min.z;
+    Vector3 zb = forward * a.max.z;
+
+    Vector3 pmin = Vector3::Min(xa, xb) + Vector3::Min(ya, yb) + Vector3::Min(za, zb) + trans;
+    Vector3 pmax = Vector3::Max(xa, xb) + Vector3::Max(ya, yb) + Vector3::Max(za, zb) + trans;
+
+    return {pmin, pmax};
 }
 
 AABB::AABB() : AABB(Vec3f{ FLT_MAX }, Vec3f{ -FLT_MAX }) {}

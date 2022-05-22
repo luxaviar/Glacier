@@ -29,6 +29,6 @@ VSOut main_vs(float3 pos : Position)
 
 float4 main_ps(float3 wpos : Position) : SV_TARGET
 {
-    float4 col = SkyboxTextureCube_.Sample(linear_sampler, wpos);
+    float4 col = _SkyboxTextureCube.Sample(linear_sampler, wpos);
     return col;
 }

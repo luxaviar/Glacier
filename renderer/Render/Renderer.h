@@ -17,6 +17,19 @@ class CascadedShadowManager;
 class OldPointLight;
 class Light;
 
+struct PerFrameData {
+    Matrix4x4 _View;
+    Matrix4x4 _InverseView;
+    Matrix4x4 _Projection;
+    Matrix4x4 _InverseProjection;
+    Matrix4x4 _ViewProjection;
+    Matrix4x4 _PrevViewProjection;
+    Matrix4x4 _UnjitteredViewProjection;
+    Vector4 _ScreenParam;
+    Vector4 _CameraParams;
+    Vector4 _ZBufferParams;
+};
+
 class Renderer {
 public:
     static void PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* mat);
@@ -27,7 +40,6 @@ public:
 
     RenderGraph& render_graph() { return render_graph_; }
     Editor& editor() { return editor_; }
-
 
     virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return hdr_render_target_; }
     std::shared_ptr<RenderTarget>& GetHdrRenderTarget() { return hdr_render_target_; }
@@ -49,13 +61,20 @@ public:
     GfxDriver* driver() { return gfx_; }
 
 protected:
+    virtual void UpdatePerFrameData();
     virtual void InitRenderTarget();
+
+    virtual void DoTAA() {}
     virtual void ResolveMSAA() {}
-    virtual void DoFXAA();
+    virtual void HdrPostProcess() {}
+
     virtual void DoToneMapping();
+    virtual void LdrPostProcess() {}
+
+    virtual void DoFXAA();
 
     void FilterVisibles();
-    void RestoreCommonBindings();
+    void BindLightingTarget();
 
     void InitMaterial();
 
@@ -64,6 +83,7 @@ protected:
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
     GfxDriver* gfx_;
+    uint64_t frame_count_ = 0;
     bool init_ = false;
     bool show_imgui_demo_ = false;
     bool show_gui_ = true;
@@ -72,6 +92,10 @@ protected:
     uint32_t quality_level_ = 0;
 
     RenderGraph render_graph_;
+
+    ConstantParameter<PerFrameData> per_frame_param_;
+    //PerFrameData per_frame_data_;
+    //std::shared_ptr<Buffer> per_frame_cbuffer_;
 
     //linear hdr render target
     std::shared_ptr<RenderTarget> hdr_render_target_;
@@ -89,6 +113,8 @@ protected:
     Editor editor_;
     PostProcessManager post_process_manager_;
     std::unique_ptr<PerfStats> stats_;
+
+    Matrix4x4 prev_view_projection_;
 };
 
 }

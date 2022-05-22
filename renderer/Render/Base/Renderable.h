@@ -33,6 +33,7 @@ struct RenderableTransform
     Matrix4x4 m;
     Matrix4x4 mv;
     Matrix4x4 mvp;
+    Matrix4x4 prev_m;
     Vec4f uv_st = { 1.0f, 1.0f, 0.0f, 0.0f };
 };
 
@@ -79,9 +80,9 @@ protected:
     uint32_t mask_ = 0;
     mutable uint32_t bounds_version_ = 0;
 
-    //std::vector<PassNode*> passes_;
     AABB local_bounds_;
     mutable AABB world_bounds_;
+    mutable Matrix4x4 prev_model_ = Matrix4x4::identity;
 
     Material* material_ = nullptr;
 };

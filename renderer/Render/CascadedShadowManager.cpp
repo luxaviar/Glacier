@@ -64,7 +64,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     }
 
     material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
-    material_->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    material_->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
     material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     shadow_sampler_.warpU = shadow_sampler_.warpV = WarpMode::kBorder;
@@ -252,13 +252,13 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
 
 void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
     mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
-    mat->SetProperty("ShadowTexture_", shadow_map_);
+    mat->SetProperty("_ShadowTexture", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 
 void CascadedShadowManager::SetupMaterial(Material* mat) {
     mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
-    mat->SetProperty("ShadowTexture_", shadow_map_);
+    mat->SetProperty("_ShadowTexture", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 

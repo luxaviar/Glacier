@@ -43,7 +43,9 @@ public:
 
     Vec3f forward() const;
     Matrix4x4 view() const noexcept;
-    Matrix4x4 projection(bool raw=false) const noexcept;
+
+    Matrix4x4 projection() const noexcept;
+    Matrix4x4 projection_reversez() const noexcept;
 
     Vec3f position() const noexcept { return transform().position(); }
     void position(const Vec3f& pos) noexcept { transform().position(pos); }
@@ -83,7 +85,7 @@ private:
     CameraType type_ = CameraType::kPersp;
     //Persp: fov/aspect/near/far
     //Orhto: width/height/near/far/scale
-    float param_[5] = {60.0f, 16.0f / 10.0f, 0.5f, 150.0f, 5.0f};
+    float param_[5] = {60.0f, 16.0f / 10.0f, 0.3f, 250.0f, 5.0f};
 };
 
 }

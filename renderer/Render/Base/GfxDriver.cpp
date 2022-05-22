@@ -12,7 +12,11 @@ GfxDriver* GfxDriver::driver_ = nullptr;
 
 void GfxDriver::BindCamera(const Camera* cam) {
     camera_position_ = cam->position();
+#ifdef GLACIER_REVERSE_Z
+    projection_ = cam->projection_reversez();
+#else
     projection_ = cam->projection();
+#endif
     view_ = cam->view();
 }
 

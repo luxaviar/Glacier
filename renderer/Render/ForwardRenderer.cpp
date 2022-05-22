@@ -92,6 +92,11 @@ void ForwardRenderer::InitRenderTarget() {
 
     if (msaa_ == MSAAType::kNone) {
         msaa_render_target_ = hdr_render_target_;
+        //auto colorframe = hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
+        //auto backbuffer_depth_tex = hdr_render_target_->GetDepthStencil();
+
+        //msaa_render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
+        //msaa_render_target_->AttachDepthStencil(backbuffer_depth_tex);
         return;
     }
 
@@ -182,7 +187,7 @@ void ForwardRenderer::InitHelmetPbr(GfxDriver* gfx) {
     pbr_mat->SetProperty("metalroughness_tex", metal_roughness_tex);
     pbr_mat->SetProperty("ao_tex", ao_tex);
     pbr_mat->SetProperty("emissive_tex", emissive_tex);
-    pbr_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    pbr_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
@@ -203,7 +208,7 @@ void ForwardRenderer::InitDefaultPbr(GfxDriver* gfx) {
     pbr_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
     pbr_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
     pbr_mat->SetProperty("emissive_tex", nullptr, Color::kBlack);
-    pbr_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    pbr_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
@@ -248,6 +253,17 @@ void ForwardRenderer::InitFloorPbr(GfxDriver* gfx) {
         .SetFile(TEXT("assets\\textures\\floor_normal.png"));
     auto normal_tex = gfx->CreateTexture(normal_desc);
 
+    // auto metal_desc = Texture::Description()
+    //     .SetFile(TEXT("assets\\textures\\floor_metallic.png"))
+    //     .EnableMips();
+    // auto metal_roughness_tex = gfx->CreateTexture(metal_desc);
+
+    // auto ao_desc = Texture::Description()
+    //     .SetFile(TEXT("assets\\textures\\floor_roughness.png"))
+    //     .EnableMips()
+    //     .EnableSRGB();
+    // auto ao_tex = gfx->CreateTexture(ao_desc);
+
     auto pbr_mat = std::make_unique<Material>("pbr_floor", pbr_template_);
     pbr_mat->SetTexTilingOffset({5.0f, 5.0f, 0.0f, 0.0f});
 
@@ -256,7 +272,7 @@ void ForwardRenderer::InitFloorPbr(GfxDriver* gfx) {
     pbr_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
     pbr_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
     pbr_mat->SetProperty("emissive_tex", nullptr, Color::kBlack);
-    pbr_mat->SetProperty("object_transform", Renderable::GetTransformCBuffer(gfx_));
+    pbr_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
 
     struct PbrMaterial {
         Vec3f f0 = Vec3f(0.04f);
