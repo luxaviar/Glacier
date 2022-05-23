@@ -65,6 +65,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
 
     float3 curr_color = total_curr_color / total_curr_weight;
     if (any(prev_uv != saturate(prev_uv))) {
+        curr_color = FastTonemapInvert(YCoCgR2RGB(curr_color));
         return float4(curr_color, 1.0f);
     }
 
