@@ -17,6 +17,10 @@ bool Component::IsActive() const {
     return enable_ && game_object_->IsActive();
 }
 
+bool Component::IsHidden() const {
+    return hide_ || game_object_->IsHidden();
+}
+
 void Component::Enable() {
     if (enable_) return;
 

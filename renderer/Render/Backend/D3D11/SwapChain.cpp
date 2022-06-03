@@ -73,7 +73,7 @@ D3D11SwapChain::~D3D11SwapChain() {
 void D3D11SwapChain::CreateRenderTarget() {
     assert(!render_target_);
 
-    render_target_ = std::make_shared<D3D11RenderTarget>(width_, height_);
+    render_target_ = D3D11RenderTarget::Create(width_, height_);
     auto back_texture = driver_->CreateTexture(this);
     back_texture->SetName(TEXT("swapchain color texture"));
 

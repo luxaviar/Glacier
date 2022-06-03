@@ -19,6 +19,7 @@ protected:
     void Init(BufferType type, size_t size, UsageType usage = UsageType::kDefault, const void* data = nullptr);
     void UpdateResource(const void* data, size_t size) const;
 
+    D3D11_BUFFER_DESC desc_;
     ComPtr<ID3D11Buffer> buffer_;
 };
 

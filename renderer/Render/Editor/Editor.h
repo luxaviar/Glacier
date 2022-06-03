@@ -30,17 +30,34 @@ public:
 
     void RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer);
 
+    bool ShowStats() const { return show_windows_ && show_stats_; }
+
+    void Render();
     void DrawGizmos();
     void DrawPanel();
 
 private:
-    void DrawInspectorPanel();
+    void DrawMainMenu();
     void DrawScenePanel();
+    void DrawInspectorPanel();
 
     GfxDriver* gfx_;
 
     int width_;
     int height_;
+
+    bool show_windows_ = true;
+    bool show_scene_hierachy_ = true;
+    bool show_inspector_ = true;
+    bool show_stats_ = true;
+    bool show_imgui_demo_ = false;
+
+    bool enable_gizmos_ = true;
+    bool scene_gizmos_ = false;
+    bool scene_bvh_ = false;
+    bool physics_gizmos_ = false;
+
+    bool renderer_option_window_ = false;
 
     //Picking pick_;
     std::shared_ptr<ConstantBuffer> color_buf_;

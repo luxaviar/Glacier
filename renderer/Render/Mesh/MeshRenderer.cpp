@@ -22,12 +22,30 @@ void MeshRenderer::AddMesh(const std::shared_ptr<Mesh>& mesh) {
 
     meshes_.push_back(mesh);
     local_bounds_ = AABB::Union(local_bounds_, mesh->bounds());
+
+    if (!IsHidden()) {
+        RenderableManager::Instance()->UpdateBvhNode(this);
+    }
 }
 
-///TODO
-void MeshRenderer::RecalcBounds() {
-
+void MeshRenderer::OnAwake() {
+    if (!IsHidden()) {
+        transform().OnUpdate([this](const Transform& tf) {
+            RenderableManager::Instance()->UpdateBvhNode(this);
+        });
+    }
 }
+
+void MeshRenderer::OnEnable() {
+    if (!IsHidden()) {
+        RenderableManager::Instance()->UpdateBvhNode(this);
+    }
+}
+
+void MeshRenderer::OnDisable() {
+    RenderableManager::Instance()->RemoveBvhNode(this);
+}
+
 
 void MeshRenderer::Render(GfxDriver* gfx, Material* mat) const {
     UpdateTransform(gfx);

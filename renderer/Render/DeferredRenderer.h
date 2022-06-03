@@ -2,7 +2,6 @@
 
 #include <memory>
 #include "renderer.h"
-#include "Algorithm/LowDiscrepancySequence.h"
 
 namespace glacier {
 namespace render {
@@ -13,7 +12,7 @@ class Program;
 class DeferredRenderer : public Renderer
 {
 public:
-    DeferredRenderer(GfxDriver* gfx, PostAAType aa = PostAAType::kFXAA);
+    DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa = AntiAliasingType::kFXAA);
     void Setup() override;
     void PreRender() override;
 
@@ -21,10 +20,21 @@ public:
 
 protected:
     struct FXAAParam {
-        Vector4 config;
+        float contrast_threshold;
+        float relative_threshold;
+        float subpixel_blending;
+        float padding;
     };
 
-    void UpdatePerFrameData() override;
+    struct TAAParam {
+        float static_blending;
+        float dynamic_blending;
+        float motion_amplify;
+        float padding;
+    };
+
+    void DrawOptionWindow() override;
+
     void InitRenderTarget() override;
     void DoTAA() override;
     void DoFXAA() override;
@@ -37,21 +47,19 @@ protected:
     void InitFloorPbr(GfxDriver* gfx);
     void InitDefaultPbr(GfxDriver* gfx);
 
-    PostAAType aa_;
+    AntiAliasingType option_aa_;
     std::shared_ptr<MaterialTemplate> gpass_template_;
     std::shared_ptr<Material> lighting_mat_;
 
     std::shared_ptr<Material> fxaa_mat_;
     ConstantParameter<FXAAParam> fxaa_param_;
+    ConstantParameter<TAAParam> taa_param_;
 
     std::shared_ptr<Material> taa_mat_;
     std::shared_ptr<Texture> temp_hdr_texture_;
     std::shared_ptr<Texture> prev_hdr_texture_;
 
     std::shared_ptr<RenderTarget> gbuffer_render_target_;
-
-    static constexpr int kTAASampleCount = 8;
-    std::array<Vector2, kTAASampleCount> halton_sequence_;
 };
 
 }

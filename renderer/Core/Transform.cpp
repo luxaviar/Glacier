@@ -37,6 +37,10 @@ Transform::~Transform() {
     if (parent_) parent_->RemoveChild(this);
 }
 
+void Transform::OnUpdate(UpdateSignal::Delegate&& callback) {
+    signal_.Connect(std::move(callback));
+}
+
 void Transform::SetParent(Transform* parent) {
     assert(parent != this);
     if (parent_ == parent) return;
@@ -252,6 +256,8 @@ Matrix4x4 Transform::LocalToParentMatrix() const {
 
 void Transform::MarkDirty() {
     ++version_;
+    signal_.Emit(*this);
+
     for (auto child : children_) {
         child->MarkDirty();
     }
@@ -274,7 +280,7 @@ void Transform::DrawInspector() {
         ImGui::AlignTextToFramePadding();
         ImGui::Text("Rotation"); ImGui::SameLine(80);
         if (ImGui::DragFloat3("##tf-rotation", euler.value, 0.05f)) {
-            rot = Quaternion::FromEuler(euler * math::kDeg2Rad);
+            rot = Quaternion::FromEuler(euler);
             rotation(rot);
         }
 

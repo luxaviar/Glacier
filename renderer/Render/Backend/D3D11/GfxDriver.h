@@ -18,7 +18,7 @@ public:
 
     void Init(HWND hWnd, int width, int height, TextureFormat format) override;
 
-    void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) override;
+    void CheckMSAA(uint32_t sample_count, uint32_t& smaple_count, uint32_t& quality_level) override;
 
     SwapChain* GetSwapChain() const override { return swap_chain_.get(); }
     D3D11SwapChain* GetUnderlyingSwapChain() const { return swap_chain_.get(); }

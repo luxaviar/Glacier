@@ -64,7 +64,7 @@ public:
     void EndFrame() override;
     void Flush() override;
 
-    void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) override;
+    void CheckMSAA(uint32_t sample_count, uint32_t& smaple_count, uint32_t& quality_level) override;
 
     void DrawIndexed(uint32_t count) override;
     void Draw(uint32_t count, uint32_t offset) override;
@@ -105,8 +105,8 @@ public:
     void BindMaterial(Material* mat) override;
     void UnBindMaterial() override;
 
-    void SetCurrentRenderTarget(const D3D12RenderTarget* rt);
-    const D3D12RenderTarget* GetCurrentRenderTarget() { return current_render_target_; }
+    void SetCurrentRenderTarget(std::shared_ptr<D3D12RenderTarget> rt);
+    std::shared_ptr<D3D12RenderTarget>& GetCurrentRenderTarget() { return current_render_target_; }
 
 private:
     static constexpr uint32_t kQueryArraySize = 1024;
@@ -148,7 +148,7 @@ private:
     ComPtr<ID3D12Fence> inflight_fence_;
     uint64_t inflight_fence_value_;
 
-    const D3D12RenderTarget* current_render_target_ = nullptr;
+    std::shared_ptr<D3D12RenderTarget> current_render_target_ = nullptr;
 };
 
 }

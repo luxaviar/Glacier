@@ -9,8 +9,7 @@ namespace render {
 class GfxDriver;
 class Program;
 
-class ForwardRenderer : public Renderer
-{
+class ForwardRenderer : public Renderer {
 public:
     ForwardRenderer(GfxDriver* gfx, MSAAType msaa = MSAAType::kNone);
     void Setup() override;
@@ -21,7 +20,9 @@ public:
     void PreRender() override;
 
 protected:
+    void DrawOptionWindow() override;
     void InitMSAA();
+    void OnChangeMSAA();
 
     void InitRenderTarget() override;
     void ResolveMSAA() override;
@@ -33,7 +34,9 @@ protected:
     void InitFloorPbr(GfxDriver* gfx);
     void InitDefaultPbr(GfxDriver* gfx);
 
+    constexpr static std::array<const char*, 4> kMsaaDesc = { "None", "2x", "4x", "8x" };
     MSAAType msaa_ = MSAAType::kNone;
+    MSAAType option_msaa_ = MSAAType::kNone;
 
     std::shared_ptr<MaterialTemplate> pbr_template_;
 
@@ -41,7 +44,7 @@ protected:
     std::shared_ptr<RenderTarget> msaa_render_target_;
 
     //for msaa resolve
-    std::shared_ptr<Material> msaa_resolve_mat_[4]; // 0 is no use
+    std::array<std::shared_ptr<Material>, (int)MSAAType::kMax> msaa_resolve_mat_; // 0 is no use
 };
 
 }

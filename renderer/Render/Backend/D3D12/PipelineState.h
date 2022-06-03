@@ -16,8 +16,7 @@ public:
     void SetInputLayout(const InputLayoutDesc& layout) override;
     void SetRasterState(const RasterStateDesc& rs) override;
 
-    void SetProgram(D3D12Program* program);
-    void SetRenderTarget(const D3D12RenderTarget* rt);
+    void CreatePSO(D3D12Program* program);
 
     void Bind(GfxDriver* gfx) override;
 
@@ -27,9 +26,14 @@ private:
     void Create();
 
     bool dirty_ = false;
+    bool is_compute_ = false;
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC compute_desc_;
     D3D12_GRAPHICS_PIPELINE_STATE_DESC desc_;
+
     InputLayoutDesc layout_desc_;
     ComPtr<ID3D12PipelineState> pso_;
+    std::shared_ptr<D3D12RenderTarget> render_target_;
 };
 
 }

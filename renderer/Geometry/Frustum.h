@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include "plane.h"
 #include "aabb.h"
 
@@ -22,7 +23,7 @@ enum class FrustumCorner : uint8_t {
 };
 
 enum class FrustumPlane : uint8_t {
-    kNear,
+    kNear = 0,
     kFar,
     kLeft,
     kRight,
@@ -32,6 +33,7 @@ enum class FrustumPlane : uint8_t {
 };
 
 struct Frustum {
+    Frustum() {}
     Frustum(const render::Camera& camera);
     Frustum(const render::Camera& camera, float n, float f);
     Frustum(const Vec3f corners[(int)FrustumCorner::kCount]);
@@ -44,7 +46,7 @@ struct Frustum {
     bool Intersect(const AABB& aabb) const;
     bool Intersect(const Vec3f& pos, float radius) const;
 
-    Plane planes[(int)FrustumPlane::kCount]; // the bounding planes
+    std::array<Plane, (int)FrustumPlane::kCount> planes; // the bounding planes
 };
 
 }

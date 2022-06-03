@@ -30,20 +30,22 @@ public:
     uint32_t pcf_size() const { return pcf_size_; }
     void pcf_size(uint32_t v);
 
-    float bias() const { return shadow_data_.bias; }
-    void bias(float v) { shadow_data_.bias = v; }
+    float bias() const { return shadow_param_.param().bias; }
+    void bias(float v) { shadow_param_.param().bias = v; }
 
-    float blend_area() const { return shadow_data_.blend_band; }
-    void blend_area(float v) { shadow_data_.blend_band = v; }
+    float blend_area() const { return shadow_param_.param().blend_band; }
+    void blend_area(float v) { shadow_param_.param().blend_band = v; }
 
     const std::shared_ptr<Texture>& shadow_map() const { return shadow_map_; }
 
-    void GrabShadowMap();
+    void CaptureShadowMap();
+    void DrawOptionWindow();
 
 private:
-    void UpdateShadowInfo(const Camera* camera, DirectionalLight* light, const AABB& shadow_bounds);
+    void UpdateShadowData(const Camera* camera, DirectionalLight* light, const AABB& receiver_bounds, const AABB& scene_bounds);
+    void OnCascadeChange();
 
-    struct CascadeShadowData {
+    struct CascadeShadowParam {
         uint32_t cascade_levels;
         float partion_size;
         Vec2f texel_size;
@@ -53,27 +55,32 @@ private:
         float blend_band = 0.0005f;
         float cascade_interval[kMaxCascadedLevel];
         Matrix4x4 shadow_coord_trans[kMaxCascadedLevel];
+        int debug = 0;
+        float padding[3];
+    };
+
+    struct CascadeData {
+        std::shared_ptr<RenderTarget> render_target;
+        std::vector<Renderable*> casters;
+        Frustum frustum;
+        Matrix4x4 projection;
+        float partion;
     };
 
     GfxDriver* gfx_;
     uint32_t map_size_;
     uint32_t pcf_size_ = 3; //start: pcf_size_ / -2, end: pcf_size_ / 2 + 1
-    std::vector<float> cascade_partions_;
     
     std::shared_ptr<Texture> shadow_map_;
-    std::vector<std::shared_ptr<RenderTarget>> render_targets_;
     std::unique_ptr<Material> material_;
 
     Vector3 shadow_position_;
     Matrix4x4 shadow_view_;
-    Matrix4x4 shadow_proj_[kMaxCascadedLevel];
 
-    CascadeShadowData shadow_data_;
-    std::shared_ptr<ConstantBuffer> shadow_cbuffer_;
+    ConstantParameter<CascadeShadowParam> shadow_param_;
     SamplerState shadow_sampler_;
 
-    std::vector<Renderable*> casters_;
-    std::vector<Frustum> frustums_;
+    std::array<CascadeData, kMaxCascadedLevel> cascade_data_;
 };
 
 }

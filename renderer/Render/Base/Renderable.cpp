@@ -4,6 +4,7 @@
 #include "Common/Util.h"
 #include "imgui/imgui.h"
 #include "Buffer.h"
+#include "Render/Editor/Gizmos.h"
 
 namespace glacier {
 namespace render {
@@ -56,14 +57,6 @@ void Renderable::UpdateWorldBounds() const {
     auto& mat = transform().LocalToWorldMatrix();
     world_bounds_ = AABB::Transform(local_bounds_, mat);
     bounds_version_ = transform().version();
-    //Vec3f pos, scale;
-    //Quaternion rot;
-    //mat.Decompose(pos, rot, scale);
-
-    //auto extents = local_bounds_.Extents();
-    //extents = AABB::RotateExtents(extents, rot.ToMatrix());
-    //auto center = local_bounds_.Center() + pos;
-    //world_bounds_.SetCenterAndExtent(center, extents);
 }
 
 void Renderable::SetCastShadow(bool on) {
@@ -111,6 +104,69 @@ void Renderable::DrawInspectorBasic() {
         if (material_) material_->DrawInspector();
         ImGui::EndPopup();
     }
+}
+
+AABB RenderableManager::SceneBounds() {
+    auto root = tree_.root();
+    if (root) {
+        return root->bounds;
+    }
+    else {
+        AABB(Vector3::zero, Vector3::zero);
+    }
+}
+
+bool RenderableManager::Cull(const Camera& camera, std::vector<Renderable*>& result, const CullFilter& filter) {
+    Frustum frustum(camera);
+    return Cull(frustum, result, filter);
+}
+
+bool RenderableManager::Cull(const Frustum& frustum, std::vector<Renderable*>& result, const CullFilter& filter) {
+    if (filter) {
+        return tree_.QueryByFrustum(frustum, result,
+            [&filter](const RenderableTree::NodeType* node){
+                auto renderable = node->data;
+                return filter(renderable);
+            });
+    }
+    else {
+        return tree_.QueryByFrustum(frustum, result);
+    }
+
+}
+
+void RenderableManager::UpdateBvhNode(Renderable* o) {
+    if (o->node_) {
+        tree_.UpdateLeaf(o->node_, o->world_bounds(), Vector3::zero, false, true);
+    }
+    else {
+        auto node = tree_.AddLeaf(o, o->world_bounds());
+        o->node_ = node;
+    }
+}
+
+void RenderableManager::RemoveBvhNode(Renderable* o) {
+    if (o->node_) {
+        tree_.RemoveLeaf(o->node_);
+        o->node_ = nullptr;
+    }
+}
+
+void RenderableManager::OnDrawGizmos() {
+    auto root = tree_.root();
+    DrawNode(root);
+}
+
+void RenderableManager::DrawNode(const RenderableTreeNode* node) {
+    if (!node) return;
+
+    auto& gizmo = *render::Gizmos::Instance();
+
+    gizmo.SetColor(Color::kGreen);
+    gizmo.DrawCube(node->bounds.Center(), node->bounds.Extent());
+
+    DrawNode(node->left);
+    DrawNode(node->right);
 }
 
 }

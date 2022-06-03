@@ -7,9 +7,10 @@
 namespace glacier {
 namespace render {
 
-class D3D11RenderTarget : public RenderTarget {
+class D3D11RenderTarget : public RenderTarget, public std::enable_shared_from_this<D3D11RenderTarget> {
 public:
-    D3D11RenderTarget(uint32_t width, uint32_t height);
+    static std::shared_ptr<D3D11RenderTarget> Create(uint32_t width, uint32_t height);
+
     void Resize(uint32_t width, uint32_t height) override;
 
     void Bind(GfxDriver* gfx) override;
@@ -39,6 +40,8 @@ public:
     void DetachDepthStencil() override;
 
 private:
+    D3D11RenderTarget(uint32_t width, uint32_t height);
+
     D3D11_VIEWPORT viewport_;
     D3D11_RECT scissor_rect_ = { 0, 0, 0, 0 };
 

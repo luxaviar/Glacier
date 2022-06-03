@@ -140,8 +140,8 @@ void D3D11GfxDriver::EndFrame() {
 
 }
 
-void D3D11GfxDriver::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) {
-    uint32_t target_sample_count = (uint32_t)msaa;
+void D3D11GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_count, uint32_t& quality_level) {
+    //uint32_t target_sample_count = (uint32_t)msaa;
     auto backbuffer_format = GetUnderlyingFormat(swap_chain_->GetFormat());
     for (smaple_count = target_sample_count; smaple_count > 1; smaple_count--)
     {
@@ -251,7 +251,7 @@ std::shared_ptr<Texture> D3D11GfxDriver::CreateTexture(SwapChain* swapchain) {
 }
 
 std::shared_ptr<RenderTarget> D3D11GfxDriver::CreateRenderTarget(uint32_t width, uint32_t height) {
-    return std::make_shared<D3D11RenderTarget>(width, height);
+    return D3D11RenderTarget::Create(width, height);
 }
 
 std::shared_ptr<Query> D3D11GfxDriver::CreateQuery(QueryType type, int capacity) {
@@ -270,6 +270,7 @@ void D3D11GfxDriver::BindMaterial(Material* mat) {
             material_template_->UnBind(this);
         }
 
+        temp->BindPSO(this);
         temp->Bind(this);
         material_template_ = temp;
     }

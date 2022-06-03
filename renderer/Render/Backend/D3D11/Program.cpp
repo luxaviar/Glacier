@@ -37,22 +37,24 @@ void D3D11Program::UnBind(GfxDriver* gfx, Material* mat) {
     }
 }
 
-void D3D11Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
+void D3D11Program::BindPSO(GfxDriver* gfx) {
     if (pso_) {
         pso_->Bind(gfx);
     }
+}
 
+void D3D11Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
     for (auto& shader : shaders_) {
         if (shader) {
             shader->Bind();
         }
     }
 
-    //BindSampler();
-
-    auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
-        Bind(gfx, prop);
+    if (mat) {
+        auto& properties = mat->GetProperties();
+        for (auto& prop : properties) {
+            Bind(gfx, prop);
+        }
     }
 }
 

@@ -4,6 +4,7 @@
 #include <array>
 #include "texture.h"
 #include "Common/TypeTraits.h"
+#include "Common/Signal.h"
 #include "resource.h"
 
 namespace glacier {
@@ -40,6 +41,8 @@ struct AttachmentTexture {
 
 class RenderTarget : public Resource {
 public:
+    using UpdateSignal = Signal<>;
+
     RenderTarget(uint32_t width, uint32_t height) : width_(width), height_(height)
     {
     }
@@ -87,7 +90,9 @@ public:
 
     virtual void DetachColor(AttachmentPoint point) = 0;
     virtual void DetachDepthStencil() = 0;
-    
+
+    UpdateSignal& signal() { return signal_; }
+
 protected:
     bool scissor_enable_ = false;
 
@@ -95,6 +100,8 @@ protected:
     uint32_t height_;
 
     std::array<AttachmentTexture, (size_t)AttachmentPoint::kNumAttachmentPoints> attachments_;
+
+    UpdateSignal signal_;
 };
 
 using RenderTargetBindingGuard = BindingGuard<RenderTarget>;

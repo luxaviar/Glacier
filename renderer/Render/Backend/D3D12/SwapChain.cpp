@@ -81,7 +81,7 @@ void D3D12SwapChain::CreateRenderTarget() {
         back_buffer_textures_[i]->SetName((TEXT("Backbuffer[") + std::to_wstring(i) + TEXT("]")).c_str());
     }
 
-    render_target_ = std::make_shared<D3D12RenderTarget>(width_, height_);
+    render_target_ = D3D12RenderTarget::Create(width_, height_);
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)

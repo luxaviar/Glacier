@@ -22,6 +22,12 @@ D3D12PipelineState::D3D12PipelineState(const RasterStateDesc& rs, const InputLay
 
 void D3D12PipelineState::Create() {
     dirty_ = false;
+    auto device = D3D12GfxDriver::Instance()->GetDevice();
+
+    if (is_compute_) {
+        device->CreateComputePipelineState(&compute_desc_, IID_PPV_ARGS(&pso_));
+        return;
+    }
 
     desc_.PrimitiveTopologyType = GetUnderlyingTopologyType(state_.topology);
     auto& rasterDesc = desc_.RasterizerState;
@@ -75,7 +81,6 @@ void D3D12PipelineState::Create() {
     desc_.InputLayout.pInputElementDescs = layout_desc.data();
     desc_.InputLayout.NumElements = (uint32_t)layout_desc.size();
 
-    auto device = D3D12GfxDriver::Instance()->GetDevice();
     GfxThrowIfFailed(device->CreateGraphicsPipelineState(&desc_, IID_PPV_ARGS(&pso_)));
 }
 
@@ -89,7 +94,28 @@ void D3D12PipelineState::SetRasterState(const RasterStateDesc& rs) {
     dirty_ = true;
 }
 
-void D3D12PipelineState::SetProgram(D3D12Program* program) {
+void D3D12PipelineState::CreatePSO(D3D12Program* program) {
+    if (is_compute_) {
+        auto cs = program->GetShader(ShaderType::kCompute);
+        assert(cs);
+        compute_desc_.pRootSignature = program->GetRootSignature();
+        compute_desc_.CS = { cs->GetBytecode()->GetBufferPointer(), cs->GetBytecodeSize() };
+        dirty_ = true;
+
+        return;
+    }
+
+    auto rt_fmts = render_target_->GetRenderTargetFormats();
+    auto dsv_fmt = render_target_->GetDepthStencilFormat();
+
+    for (int i = 0; i < 8; ++i) {
+        desc_.RTVFormats[i] = rt_fmts.RTFormats[i];
+    }
+
+    desc_.DSVFormat = dsv_fmt;
+    desc_.SampleDesc = render_target_->GetSampleDesc();
+    desc_.NumRenderTargets = rt_fmts.NumRenderTargets;
+
     auto vs = program->GetShader(ShaderType::kVertex);
     if (vs) {
         desc_.VS = { vs->GetBytecode()->GetBufferPointer(), vs->GetBytecodeSize() };
@@ -120,28 +146,19 @@ void D3D12PipelineState::SetProgram(D3D12Program* program) {
     dirty_ = true;
 }
 
-void D3D12PipelineState::SetRenderTarget(const D3D12RenderTarget* rt) {
-    if (!rt) return;
-
-    auto rt_fmts = rt->GetRenderTargetFormats();
-    auto dsv_fmt = rt->GetDepthStencilFormat();
-
-    for (int i = 0; i < 8; ++i) {
-        desc_.RTVFormats[i] = rt_fmts.RTFormats[i];
-    }
-
-    desc_.DSVFormat = dsv_fmt;
-    desc_.SampleDesc = rt->GetSampleDesc();
-    desc_.NumRenderTargets = rt_fmts.NumRenderTargets;
-
-    dirty_ = true;
-}
 
 void D3D12PipelineState::Check(GfxDriver* gfx, D3D12Program* program) {
     if (!pso_) {
+        is_compute_ = program->IsCompute();
+
         auto driver = static_cast<D3D12GfxDriver*>(gfx);
-        SetRenderTarget(driver->GetCurrentRenderTarget());
-        SetProgram(program);
+        if (!is_compute_) {
+            render_target_ = driver->GetCurrentRenderTarget();
+            render_target_->signal().Connect([this, gfx, program]() {
+                CreatePSO(program);
+                });
+        }
+        CreatePSO(program);
     }
 }
 
@@ -154,16 +171,21 @@ void D3D12PipelineState::Bind(GfxDriver* gfx) {
     auto cmd_list = driver->GetCommandList()->GetUnderlyingCommandList();
 
     cmd_list->SetPipelineState(pso_.Get());
-    cmd_list->SetGraphicsRootSignature(desc_.pRootSignature);
-    cmd_list->IASetPrimitiveTopology(GetUnderlyingTopology(state_.topology));
 
-    if (state_.HasBlending()) {
-        FLOAT BlendFactor[4] = {1.0f,1.0f, 1.0f, 1.0f};
-        cmd_list->OMSetBlendFactor(BlendFactor);
+    if (is_compute_) {
+        cmd_list->SetComputeRootSignature(compute_desc_.pRootSignature);
     }
+    else {
+        cmd_list->SetGraphicsRootSignature(desc_.pRootSignature);
+        cmd_list->IASetPrimitiveTopology(GetUnderlyingTopology(state_.topology));
+        if (state_.HasBlending()) {
+            FLOAT BlendFactor[4] = { 1.0f,1.0f, 1.0f, 1.0f };
+            cmd_list->OMSetBlendFactor(BlendFactor);
+        }
 
-    if (state_.stencilEnable) {
-        cmd_list->OMSetStencilRef(0xff);
+        if (state_.stencilEnable) {
+            cmd_list->OMSetStencilRef(0xff);
+        }
     }
 }
 

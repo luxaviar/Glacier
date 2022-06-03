@@ -89,6 +89,10 @@ void D3D12CommandList::SetComputeRoot32BitConstants(uint32_t root_param_index, u
     command_list_->SetComputeRoot32BitConstants(root_param_index, num_32bit_value, data, offset);
 }
 
+void D3D12CommandList::SetComputeRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation) {
+    command_list_->SetComputeRootConstantBufferView(RootParameterIndex, BufferLocation->GetGpuAddress());
+}
+
 void D3D12CommandList::SetComputeRootDescriptorTable(uint32_t root_param_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor)
 {
     command_list_->SetComputeRootDescriptorTable(root_param_index, base_descriptor);

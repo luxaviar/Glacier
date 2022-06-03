@@ -6,6 +6,7 @@
 #include <functional>
 #include "Common/Freelist.h"
 #include "Geometry/Aabb.h"
+#include "Geometry/Frustum.h"
 
 namespace glacier {
 
@@ -73,7 +74,7 @@ public:
     using OnHitDelegate = std::function<void(T,T)>;
 
     using OverlayFilter = std::function<bool(const NodeType*)>;
-    using RayHitDelegate = std::function<bool(const NodeType*, const Ray&, float, float&)>;
+    using RayHitFilter = std::function<bool(const NodeType*, const Ray&, float, float&)>;
 
     struct RayHitResult {
         bool hit = false;
@@ -89,6 +90,7 @@ public:
     }
 
     uint64_t epoch() const { return epoch_; }
+    const NodeType* root() const { return root_; }
 
     NodeType* AddLeaf(T v, const AABB& bounds) {
         NodeType* node = node_allocator_.Acquire(v);
@@ -112,10 +114,10 @@ public:
         FreeNode(node);
     }
 
-    bool UpdateLeaf(NodeType* node, const AABB& bounds, const Vector3& move_hint, bool is_static) {
+    bool UpdateLeaf(NodeType* node, const AABB& bounds, const Vector3& move_hint, bool is_static, bool force=false) {
         assert(node && node->IsLeaf());
 
-        if (node->bounds.Contains(bounds)) {
+        if (!force && node->bounds.Contains(bounds)) {
             return false;
         }
 
@@ -256,7 +258,7 @@ public:
         return A;
     }
 
-    RayHitResult QueryByRay(const Ray& ray, float max, const RayHitDelegate& hit_func) {
+    RayHitResult QueryByRay(const Ray& ray, float max, const RayHitFilter& filter = {}) {
         RayHitResult res;
 
         std::queue<NodeType*> queue;
@@ -278,7 +280,7 @@ public:
                 }
 
                 if (node->IsLeaf()) {
-                    if (hit_func(node, ray, max, t) &&
+                    if ((!filter || filter(node, ray, max, t)) &&
                         (!res.hit || t < res.t))
                     {
                         res.t = t;
@@ -296,19 +298,54 @@ public:
         return res;
     }
 
-    bool QueryByBounds(const AABB& aabb, std::vector<T>& result, const OverlayFilter& filter) {
+    bool QueryByBounds(const AABB& aabb, std::vector<T>& result, const OverlayFilter& filter = {}) {
         NodeType* target = root_;
         bool hit = false;
 
         while (target) {
             if (target->IsLeaf()) {
-                if (filter(target) && target->Intersects(aabb)) {
+                if ((!filter || filter(target)) && target->Intersects(aabb)) {
                     result.push_back(target->data);
                     hit = true;
                 }
             }
             else {
                 if (target->Intersects(aabb)) {
+                    target = target->left;
+                    continue;
+                }
+            }
+
+            bool found_next = false;
+            while (target->parent != nullptr) {
+                if (target == target->parent->left) {
+                    target = target->parent->right;
+                    found_next = true;
+                    break;
+                }
+
+                target = target->parent;
+            }
+
+            if (!found_next) break;
+        }
+
+        return hit;
+    }
+
+    bool QueryByFrustum(const Frustum& frustum, std::vector<T>& result, const OverlayFilter& filter = {}) {
+        NodeType* target = root_;
+        bool hit = false;
+
+        while (target) {
+            if (target->IsLeaf()) {
+                if ((!filter || filter(target)) && frustum.Intersect(target->bounds)) {
+                    result.push_back(target->data);
+                    hit = true;
+                }
+            }
+            else {
+                if (frustum.Intersect(target->bounds)) {
                     target = target->left;
                     continue;
                 }

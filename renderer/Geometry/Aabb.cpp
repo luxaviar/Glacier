@@ -181,6 +181,10 @@ bool AABB::Intersects(const Ray& ray, float maxDistance, float& t) const {
     return true;
 }
 
+bool AABB::Intersects(const Frustum& frustum) const {
+    return Intersects(frustum.planes.data(), (int)FrustumPlane::kCount);
+}
+
 bool AABB::Intersects(const Plane* plane, int count) const {
     const Vec3f& center = Center();// center of AABB
     const Vec3f& extent = Extent();// half-diagonal

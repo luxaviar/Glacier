@@ -30,6 +30,7 @@ public:
     void SetRasterState(const RasterStateDesc& rs);
     void SetInputLayout(const InputLayoutDesc& desc);
 
+    void BindPSO(GfxDriver* gfx);
     void Bind(GfxDriver* gfx);
     void UnBind(GfxDriver* gfx);
 

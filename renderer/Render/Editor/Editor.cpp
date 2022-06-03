@@ -14,6 +14,9 @@
 #include "Render/Base/SwapChain.h"
 #include "Render/Base/RenderTexturePool.h"
 #include "../Image.h"
+#include "Inspect/Profiler.h"
+#include "Input/Input.h"
+#include "App.h"
 
 namespace glacier {
 namespace render {
@@ -118,15 +121,57 @@ void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& 
     });
 }
 
+void Editor::Render() {
+    DrawGizmos();
+    DrawPanel();
+}
+
 void Editor::DrawGizmos() {
+    PerfSample("Gizmos");
+
     if (selected_go_) {
         selected_go_->DrawSelectedGizmos();
     }
+
+    if (enable_gizmos_) {
+        if (scene_bvh_) {
+            RenderableManager::Instance()->OnDrawGizmos();
+        }
+
+        if (physics_gizmos_) {
+            physics::World::Instance()->OnDrawGizmos(true);
+        }
+
+        if (scene_gizmos_){
+            GameObjectManager::Instance()->DrawGizmos();
+        }
+    }
+
+    Gizmos::Instance()->Render(gfx_);
 }
 
 void Editor::DrawPanel() {
-    DrawScenePanel();
-    DrawInspectorPanel();
+    PerfSample("Editor");
+
+    auto& state = Input::GetJustKeyDownState();
+    if (state.Tab) {
+        show_windows_ = !show_windows_;
+    }
+
+    if (show_windows_) {
+        DrawMainMenu();
+        if (show_scene_hierachy_) {
+            DrawScenePanel();
+        }
+
+        if (show_inspector_) {
+            DrawInspectorPanel();
+        }
+
+        if (show_imgui_demo_) {
+            ImGui::ShowDemoWindow(&show_imgui_demo_);
+        }
+    }
 }
 
 void Editor::DrawInspectorPanel() {
@@ -149,6 +194,54 @@ void Editor::DrawInspectorPanel() {
     }
 
     ImGui::End();
+}
+
+void Editor::DrawMainMenu() {
+    auto& state = Input::GetJustKeyDownState();
+
+    if (renderer_option_window_) {
+        App::Self()->GetRenderer()->OptionWindow(&renderer_option_window_);
+    }
+
+    if (ImGui::BeginMainMenuBar()) {
+        if (ImGui::BeginMenu("Options")) {
+            ImGui::MenuItem("Renderer", NULL, &renderer_option_window_);
+            //ImGui::Separator();
+            //if (ImGui::MenuItem("Copy", "CTRL+C")) {}
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Windows")) {
+            ImGui::MenuItem("Enabled", "Tab", &show_windows_);
+            ImGui::MenuItem("Scene Hierarchy", "", &show_scene_hierachy_, show_windows_);
+            ImGui::MenuItem("Inspector", "", &show_inspector_, show_windows_);
+            ImGui::MenuItem("Statistics", "", &show_stats_, show_windows_);
+            ImGui::MenuItem("IMGUI Demo", "", &show_imgui_demo_, show_windows_);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Gizmos")) {
+            ImGui::MenuItem("Enabled", "", &enable_gizmos_);
+            ImGui::Separator();
+            ImGui::MenuItem("Scene", "", &scene_gizmos_, enable_gizmos_);
+            ImGui::MenuItem("Physics", "", &physics_gizmos_, enable_gizmos_);
+            ImGui::MenuItem("Scene BVH", "", &scene_bvh_, enable_gizmos_);
+            ImGui::EndMenu();
+        }
+
+        if (ImGui::BeginMenu("Tools")) {
+            if (ImGui::MenuItem("Capture Screen", "F2") || state.F2) {
+                App::Self()->GetRenderer()->CaptureScreen();
+            }
+
+            if (ImGui::MenuItem("Capture ShadowMap", "F3") || state.F3) {
+                App::Self()->GetRenderer()->CaptureShadowMap();
+            }
+            ImGui::EndMenu();
+        }
+
+        ImGui::EndMainMenuBar();
+    }
 }
 
 void Editor::DrawScenePanel() {

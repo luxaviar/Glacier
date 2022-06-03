@@ -1,6 +1,18 @@
 #ifndef COMMON_SHADOW_
 #define COMMON_SHADOW_
 
+static const float4 kCascadeColorsMultiplier[8] =
+{
+    float4(1.5f, 0.0f, 0.0f, 1.0f),
+    float4(0.0f, 1.5f, 0.0f, 1.0f),
+    float4(0.0f, 0.0f, 5.5f, 1.0f),
+    float4(1.5f, 0.0f, 5.5f, 1.0f),
+    float4(1.5f, 1.5f, 0.0f, 1.0f),
+    float4(1.0f, 1.0f, 1.0f, 1.0f),
+    float4(0.0f, 1.0f, 5.5f, 1.0f),
+    float4(0.5f, 3.5f, 0.75f, 1.0f)
+};
+
 struct CascadeShadowMapInfo
 {
     uint cascade_levels;
@@ -12,6 +24,8 @@ struct CascadeShadowMapInfo
     float blend_band;
     float4 cascade_interval[2];
     matrix coord_trans[8];
+    int debug;
+    float3 padding;
 };
 
 int CalcCascadeIndex(in float3 vpos, in CascadeShadowMapInfo info)
@@ -114,8 +128,7 @@ void CalculateBlendFactorForInterval(
 }
 
 float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos, in CascadeShadowMapInfo shadow_info,
-    in Texture2D shadow_tex,
-    in SamplerComparisonState cmp_sampler)
+    in Texture2D shadow_tex, in SamplerComparisonState cmp_sampler, out float out_index)
 {
     float3 L = normalize(-light_dir);
     float NdotL = max(dot(normal, L), 0);
@@ -124,7 +137,7 @@ float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos,
     int cascade_index = CalcCascadeIndex(vpos, shadow_info);
     float4 shadow_coord = CalcShadowCoord(wpos, cascade_index, shadow_info);
     float shadow_level = CalculatePCFShadow(shadow_coord, shadow_info, shadow_tex, cmp_sampler, bias);
-        
+
     int next_cascade_index = min(cascade_index + 1, shadow_info.cascade_levels - 1);
     if (next_cascade_index > cascade_index)
     {
@@ -141,7 +154,8 @@ float CalcShadowLevel(float3 light_dir, float3 normal, float3 vpos, float3 wpos,
             shadow_level = lerp(blend_shadow_level, shadow_level, blend_factor);
         }
     }
-    
+
+    out_index = cascade_index;
     return shadow_level;
 }
 

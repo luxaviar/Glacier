@@ -50,7 +50,7 @@ public:
     virtual void Present() = 0;
     virtual void BeginFrame() = 0;
 
-    virtual void CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) = 0;
+    virtual void CheckMSAA(uint32_t sample_count, uint32_t& smaple_count, uint32_t& quality_level) = 0;
 
     virtual void DrawIndexed(uint32_t count) = 0;
     virtual void Draw(uint32_t count, uint32_t offset) = 0;

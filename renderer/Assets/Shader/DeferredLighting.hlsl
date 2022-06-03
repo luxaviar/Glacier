@@ -54,6 +54,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
     float3 eye = { 0, 0, 0 };
     float3 P = view_position;
     float3 V = normalize(eye - P);
+    int cascade_index = 0;
     
     Light main_light = lights[0];
     float4 visualize_cascade_color = float4(1.0, 1.0, 1.0, 1.0);
@@ -63,7 +64,11 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, view_position, world_position,
-                _ShadowParam, _ShadowTexture, shadow_cmp_sampler);
+                _ShadowParam, _ShadowTexture, shadow_cmp_sampler, cascade_index);
+                
+            if (_ShadowParam.debug == 1) {
+                visualize_cascade_color = kCascadeColorsMultiplier[cascade_index];
+            }
         }
 
         final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic) * shadow_level;
@@ -78,11 +83,11 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         }
     }
     
-    float3 ambient = EvaluateIBL(_IrradianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
+    float3 ambient = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
     ambient *= ao;
 
     final_color += ambient;
-    
+
     return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
 }

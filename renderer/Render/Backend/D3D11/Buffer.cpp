@@ -8,12 +8,12 @@ namespace render {
 
 void D3D11Buffer::Init(BufferType type, size_t size, UsageType usage, const void* data)
 {
-    D3D11_BUFFER_DESC buf_desc = {};
-    buf_desc.BindFlags = ToBindFlag(type);
-    buf_desc.MiscFlags = 0;
-    buf_desc.ByteWidth = size;
-    buf_desc.Usage = ToUsage(usage);
-    buf_desc.CPUAccessFlags = usage == UsageType::kDynamic ? D3D11_CPU_ACCESS_WRITE : 0;
+    //D3D11_BUFFER_DESC desc = {};
+    desc_.BindFlags = ToBindFlag(type);
+    desc_.MiscFlags = 0;
+    desc_.ByteWidth = size;
+    desc_.Usage = ToUsage(usage);
+    desc_.CPUAccessFlags = usage == UsageType::kDynamic ? D3D11_CPU_ACCESS_WRITE : 0;
     //buf_desc.StructureByteStride = (UINT)stride; //only works for structured buffer
 
     auto device = D3D11GfxDriver::Instance()->GetDevice();
@@ -21,26 +21,31 @@ void D3D11Buffer::Init(BufferType type, size_t size, UsageType usage, const void
         D3D11_SUBRESOURCE_DATA res_data = {};
         res_data.pSysMem = data;
 
-        GfxThrowIfFailed(device->CreateBuffer(&buf_desc, &res_data, &buffer_));
+        GfxThrowIfFailed(device->CreateBuffer(&desc_, &res_data, &buffer_));
     }
     else {
-        GfxThrowIfFailed(device->CreateBuffer(&buf_desc, nullptr, &buffer_));
+        GfxThrowIfFailed(device->CreateBuffer(&desc_, nullptr, &buffer_));
     }
 }
 
 void D3D11Buffer::UpdateResource(const void* data, size_t size) const {
     if (size == 0) return;
 
-    D3D11_MAPPED_SUBRESOURCE res;
     auto context = D3D11GfxDriver::Instance()->GetContext();
-    GfxThrowIfFailed(context->Map(
-        buffer_.Get(), 0u,
-        D3D11_MAP_WRITE_DISCARD, 0u,
-        &res
-    ));
+    if (desc_.Usage == D3D11_USAGE_DEFAULT) {
+        context->UpdateSubresource(buffer_.Get(), 0, NULL, data, 0, 0);
+    }
+    else {
+        D3D11_MAPPED_SUBRESOURCE res;
+        GfxThrowIfFailed(context->Map(
+            buffer_.Get(), 0u,
+            D3D11_MAP_WRITE_DISCARD, 0u,
+            &res
+        ));
 
-    memcpy(res.pData, data, size);
-    GfxThrowIfAny(context->Unmap(buffer_.Get(), 0u));
+        memcpy(res.pData, data, size);
+        GfxThrowIfAny(context->Unmap(buffer_.Get(), 0u));
+    }
 }
 
 D3D11ConstantBuffer::D3D11ConstantBuffer(const void* data, size_t size, UsageType usage) :

@@ -332,8 +332,8 @@ void D3D12GfxDriver::Flush() {
     ResetCommandQueue();
 }
 
-void D3D12GfxDriver::CheckMSAA(MSAAType msaa, uint32_t& smaple_count, uint32_t& quality_level) {
-    uint32_t target_sample_count = (uint32_t)msaa;
+void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_count, uint32_t& quality_level) {
+    //uint32_t target_sample_count = (uint32_t)msaa;
     auto backbuffer_format = GetUnderlyingFormat(swap_chain_->GetFormat());
     for (smaple_count = target_sample_count; smaple_count > 1; smaple_count--)
     {
@@ -473,15 +473,15 @@ std::shared_ptr<Texture> D3D12GfxDriver::CreateTexture(SwapChain* swapchain) {
 }
 
 std::shared_ptr<RenderTarget> D3D12GfxDriver::CreateRenderTarget(uint32_t width, uint32_t height) {
-    return std::make_shared<D3D12RenderTarget>(width, height);
+    return D3D12RenderTarget::Create(width, height);
 }
 
 std::shared_ptr<Query> D3D12GfxDriver::CreateQuery(QueryType type, int capacity) {
     return std::make_shared<D3D12Query>(this, type, capacity);
 }
 
-void D3D12GfxDriver::SetCurrentRenderTarget(const D3D12RenderTarget* rt) {
-    current_render_target_ = rt;
+void D3D12GfxDriver::SetCurrentRenderTarget(std::shared_ptr<D3D12RenderTarget> rt) {
+    current_render_target_ = std::move(rt);
 }
 
 void D3D12GfxDriver::DrawIndexed(uint32_t count) {
@@ -509,6 +509,7 @@ void D3D12GfxDriver::BindMaterial(Material* mat) {
             material_template_->UnBind(this);
         }
 
+        temp->BindPSO(this);
         temp->Bind(this);
         material_template_ = temp;
     }

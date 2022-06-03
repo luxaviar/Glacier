@@ -14,7 +14,7 @@ public:
     PerfStats(GfxDriver* gfx);
 
     void PreRender();
-    void PostRender();
+    void PostRender(bool show_stats);
 
     void DrawStatsPanel();
 

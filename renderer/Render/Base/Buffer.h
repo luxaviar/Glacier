@@ -38,7 +38,14 @@ public:
     ConstantParameter() {}
     ConstantParameter(std::shared_ptr<ConstantBuffer>& buf) : buffer_(buf) {}
 
+    ConstantParameter<T>& operator=(const T& v) {
+        param_ = v;
+        buffer_->Update(&param_);
+        return *this;
+    }
+
     T& param() { return param_; }
+    const T& param() const { return param_; }
     std::shared_ptr<ConstantBuffer>& buffer() { return buffer_; }
 
     void Update() { buffer_->Update(&param_); }

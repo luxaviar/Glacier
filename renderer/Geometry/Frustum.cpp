@@ -13,15 +13,15 @@ Frustum::Frustum(const render::Camera& camera, float n, float f) {
 
     Vec3f corners[(int)FrustumCorner::kCount];
     camera.FetchFrustumCorners(corners, n, f);
-    render::geometry::FetchFrustumPlanes(planes, corners);
+    render::geometry::FetchFrustumPlanes(planes.data(), corners);
 }
 
 Frustum::Frustum(const Vec3f corners[(int)FrustumCorner::kCount]) {
-    render::geometry::FetchFrustumPlanes(planes, corners);
+    render::geometry::FetchFrustumPlanes(planes.data(), corners);
 }
 
 bool Frustum::Intersect(const AABB& aabb) const {
-    return aabb.Intersects(planes, (int)FrustumPlane::kCount);
+    return aabb.Intersects(planes.data(), (int)FrustumPlane::kCount);
 }
 
 bool Frustum::Intersect(const Vec3f& pos, float radius) const {

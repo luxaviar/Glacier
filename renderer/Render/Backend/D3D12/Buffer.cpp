@@ -43,7 +43,6 @@ D3D12ConstantBuffer::D3D12ConstantBuffer(const void* data, size_t size, UsageTyp
         if (data) {
             memcpy(mapped_address_, data, size);
         }
-
     }
 }
 

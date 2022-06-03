@@ -6,6 +6,10 @@
 namespace glacier {
 namespace render {
 
+std::shared_ptr<D3D12RenderTarget> D3D12RenderTarget::Create(uint32_t width, uint32_t height) {
+    return std::shared_ptr<D3D12RenderTarget>(new D3D12RenderTarget(width, height));
+}
+
 D3D12RenderTarget::D3D12RenderTarget(uint32_t width, uint32_t height) :
     RenderTarget(width, height)
 {
@@ -158,7 +162,7 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
     GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
     GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
 
-    driver->SetCurrentRenderTarget(this);
+    driver->SetCurrentRenderTarget(shared_from_this());
 }
 
 void D3D12RenderTarget::UnBind(GfxDriver* gfx) {
@@ -187,7 +191,7 @@ void D3D12RenderTarget::BindColor(GfxDriver* gfx) {
     GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
     GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
 
-    driver->SetCurrentRenderTarget(this);
+    driver->SetCurrentRenderTarget(shared_from_this());
 }
 
 void D3D12RenderTarget::BindDepthStencil(GfxDriver* gfx) {

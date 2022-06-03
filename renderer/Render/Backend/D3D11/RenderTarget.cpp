@@ -8,6 +8,10 @@
 namespace glacier {
 namespace render {
 
+std::shared_ptr<D3D11RenderTarget> D3D11RenderTarget::Create(uint32_t width, uint32_t height) {
+    return std::shared_ptr<D3D11RenderTarget>(new D3D11RenderTarget(width, height));
+}
+
 D3D11RenderTarget::D3D11RenderTarget(uint32_t width, uint32_t height) :
     RenderTarget(width, height)
 {

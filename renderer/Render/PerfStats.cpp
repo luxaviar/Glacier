@@ -23,7 +23,7 @@ void PerfStats::PreRender() {
     primitiv_query_->Begin();
 }
 
-void PerfStats::PostRender() {
+void PerfStats::PostRender(bool show_stats) {
     frame_query_->End();
     primitiv_query_->End();
     auto elapsed_time = timer_.DeltaTime();
@@ -43,7 +43,9 @@ void PerfStats::PostRender() {
         Reset();
     }
 
-    DrawStatsPanel();
+    if (show_stats) {
+        DrawStatsPanel();
+    }
 }
 
 void PerfStats::DrawStatsPanel() {

@@ -5,6 +5,7 @@
 #include "render/base/renderable.h"
 #include "imgui/imgui.h"
 #include "render/editor/gizmos.h"
+#include "Core/Scene.h"
 
 namespace glacier {
 namespace render {
@@ -113,7 +114,10 @@ void Camera::Cull(const List<Renderable>& objects,
 
 void Camera::OnDrawSelectedGizmos() {
     auto gizmo = Gizmos::Instance();
-    gizmo->DrawFrustum(*this);
+
+    if (SceneManager::Instance()->CurrentScene()->GetMainCamera() != this) {
+        gizmo->DrawFrustum(*this);
+    }
 }
 
 void Camera::DrawInspector() {

@@ -30,7 +30,7 @@ public:
     bool IsEnable() const { return enable_; }
 
     bool IsActive() const;
-    bool IsHidden() const { return hide_; }
+    bool IsHidden() const;
 
     void Hide() { hide_ = true; }
 

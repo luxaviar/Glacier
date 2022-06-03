@@ -3,6 +3,7 @@
 #include <vector>
 #include <list>
 #include <stdint.h>
+#include "Common/Signal.h"
 #include "Math/Vec3.h"
 #include "Math/Quat.h"
 #include "Math/Mat4.h"
@@ -12,6 +13,8 @@ namespace glacier {
 
 class Transform : public Component {
 public:
+    using UpdateSignal = Signal<const Transform&>;
+
     Transform(const Vec3f& pos = Vec3f::zero, 
         const Quaternion& rot = Quaternion::identity, const Vec3f& scale = Vec3f::one);
 
@@ -19,6 +22,8 @@ public:
     Transform(const Matrix4x4& mat);
 
     ~Transform();
+
+    void OnUpdate(UpdateSignal::Delegate&& callback);
 
     void SetParent(Transform* parent);
     void SetPositionAndRotation(const Vec3f& pos, const Quaternion& rot);
@@ -92,6 +97,8 @@ private:
     Transform* parent_;
     std::vector<Transform*> children_;
     int gizmo_op_;
+
+    UpdateSignal signal_;
 };
 
 }

@@ -15,12 +15,15 @@ public:
     MeshRenderer() {}
     MeshRenderer(const std::shared_ptr<Mesh>& mesh, Material* material = nullptr);
 
+    void OnAwake() override;
+    void OnEnable() override;
+    void OnDisable() override;
+
     void Render(GfxDriver* gfx, Material* mat = nullptr) const override;
     void Draw(GfxDriver* gfx) const override;
 
     void AddMesh(const std::shared_ptr<Mesh>& mesh);
 
-    void RecalcBounds();
     void OnDrawSelectedGizmos() override;
     void DrawInspector() override;
 

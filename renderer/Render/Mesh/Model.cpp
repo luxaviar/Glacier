@@ -56,14 +56,6 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, const Model* m
         tx.SetParent(parent_tx);
     }
 
-    //if (scale == 1.0f) {
-    //    ///TODO: set bounds
-    //    //mr->RecalcBounds();
-    //}
-    //else {
-    //    mr->RecalcBounds();
-    //}
-
     for (auto& child : children_) {
         child.GenerateGameObject(&tx, model, material, scale);
     }

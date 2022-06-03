@@ -19,15 +19,17 @@ enum class AttachmentPoint : uint8_t
 
 enum class MSAAType : uint8_t {
     kNone = 0,
-    k2x = 2,
-    k4x = 4,
-    k8x = 8,
+    k2x = 1,
+    k4x = 2,
+    k8x = 3,
+    kMax = 4,
 };
 
-enum class PostAAType : uint8_t {
+enum class AntiAliasingType : uint8_t {
     kNone = 0,
-    kFXAA = 1,
-    kTAA = 2,
+    kMSAA = 1,
+    kFXAA = 2,
+    kTAA = 3,
 };
 
 enum class IndexFormat : uint8_t {

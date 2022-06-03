@@ -2,16 +2,16 @@
 #include "Common/Colors.hlsli"
 #include "Common/Utils.hlsli"
 
+cbuffer taa_param {
+    float4 _TAAConfig; //STATIC_BLENDING, DYNAMIC_BLENDING, MOTION_AMPLIFY
+}
+
 Texture2D<float4> PrevColorTexture;
 Texture2D<float2> VelocityTexture;
 
 static const uint kSampleCount = 9;
 static const float kRcpSampleCount = 1.0f / kSampleCount;
 static const float kVarianceClipGamma = 1.0f;
-
-#define STATIC_BLENDING 0.95
-#define DYNAMIC_BLENDING 0.85
-#define MOTION_AMPLIFY 6000.0
 
 float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET {
     float3 total_curr_color = float3(0, 0, 0);
@@ -90,8 +90,8 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
 
     // high curr_weight for static object
     float prev_weight = clamp(
-        lerp(STATIC_BLENDING, DYNAMIC_BLENDING, length(velocity) * MOTION_AMPLIFY),
-        DYNAMIC_BLENDING, STATIC_BLENDING
+        lerp(_TAAConfig.x, _TAAConfig.y, length(velocity) * _TAAConfig.z),
+        _TAAConfig.y, _TAAConfig.x
     );
     float curr_weight = 1.0 - prev_weight;
 

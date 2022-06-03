@@ -39,6 +39,12 @@ void MaterialTemplate::SetInputLayout(const InputLayoutDesc& desc) {
     program_->SetInputLayout(desc);
 }
 
+void MaterialTemplate::BindPSO(GfxDriver* gfx) {
+    if (program_) {
+        program_->BindPSO(gfx);
+    }
+}
+
 void MaterialTemplate::Bind(GfxDriver* gfx) {
     if (program_) {
         program_->Bind(gfx, this);

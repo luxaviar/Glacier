@@ -2,6 +2,7 @@
 #include <memory>
 #include <assert.h>
 #include <algorithm>
+#include "fmt/format.h"
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui.h"
 #include "Math/Util.h"
@@ -26,14 +27,13 @@ namespace glacier {
 namespace render {
 
 ForwardRenderer::ForwardRenderer(GfxDriver* gfx, MSAAType msaa) :
-    Renderer(gfx),
-    msaa_(msaa)
+    Renderer(gfx, msaa == MSAAType::kNone ? AntiAliasingType::kNone :AntiAliasingType::kMSAA),
+    msaa_(msaa),
+    option_msaa_(msaa)
 {
     if (msaa_ != MSAAType::kNone) {
-        gfx_->CheckMSAA(msaa_, sample_count_, quality_level_);
+        gfx_->CheckMSAA(1 << toUType(msaa_), sample_count_, quality_level_);
         assert(sample_count_ <= 8);
-
-        msaa_ = (MSAAType)sample_count_;
     }
 }
 
@@ -76,6 +76,11 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
 }
 
 void ForwardRenderer::PreRender() {
+    if (msaa_ != option_msaa_) {
+        msaa_ = option_msaa_;
+        OnChangeMSAA();
+    }
+
     if (msaa_ != MSAAType::kNone) {
         msaa_render_target_->Clear();
     }
@@ -92,11 +97,6 @@ void ForwardRenderer::InitRenderTarget() {
 
     if (msaa_ == MSAAType::kNone) {
         msaa_render_target_ = hdr_render_target_;
-        //auto colorframe = hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
-        //auto backbuffer_depth_tex = hdr_render_target_->GetDepthStencil();
-
-        //msaa_render_target_->AttachColor(AttachmentPoint::kColor0, colorframe);
-        //msaa_render_target_->AttachDepthStencil(backbuffer_depth_tex);
         return;
     }
 
@@ -124,9 +124,13 @@ void ForwardRenderer::InitMSAA() {
 
     auto vert_shader = gfx_->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
 
-    std::array<std::pair<MSAAType, std::string>, 3> msaa_types = { { {MSAAType::k2x, "2"}, {MSAAType::k4x, "4"}, {MSAAType::k8x, "8"} } };
-    for (auto& v : msaa_types) {
-        auto pixel_shader = gfx_->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps", { {"MSAASamples_", v.second.c_str()}, {nullptr, nullptr} });
+    for (int i = (int)MSAAType::k2x; i < (int)MSAAType::kMax; ++i) {
+        auto sample_count = 1 << toUType(msaa_);
+        auto sample_count_str = fmt::format("{}", sample_count);
+
+        auto pixel_shader = gfx_->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps",
+            { {"MSAASamples_", sample_count_str.c_str()}, {nullptr, nullptr}});
+
         auto program = gfx_->CreateProgram("MSAA");
         program->SetShader(vert_shader);
         program->SetShader(pixel_shader);
@@ -136,15 +140,51 @@ void ForwardRenderer::InitMSAA() {
 
         mat->SetProperty("depth_buffer", msaa_render_target_->GetDepthStencil());
         mat->SetProperty("color_buffer", msaa_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-        msaa_resolve_mat_[glacier::log2((uint32_t)v.first)] = mat;
+        msaa_resolve_mat_[i] = mat;
     }
+}
+
+void ForwardRenderer::OnChangeMSAA() {
+    if (msaa_ != MSAAType::kNone) {
+        anti_aliasing_ = AntiAliasingType::kMSAA;
+        gfx_->CheckMSAA(1 << toUType(msaa_), sample_count_, quality_level_);
+        assert(sample_count_ <= 8);
+
+        auto width = present_render_target_->width();
+        auto height = present_render_target_->height();
+        auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
+            CreateFlags::kRenderTarget, sample_count_, quality_level_);
+        msaa_color->SetName(TEXT("msaa color buffer"));
+
+        msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
+
+        auto depth_tex_desc = Texture::Description()
+            .SetDimension(width, height)
+            .SetFormat(TextureFormat::kR24G8_TYPELESS)
+            .SetCreateFlag(CreateFlags::kDepthStencil)
+            .SetCreateFlag(CreateFlags::kShaderResource)
+            .SetSampleDesc(sample_count_, quality_level_);
+        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
+        depthstencil_texture->SetName(TEXT("msaa depth texture"));
+
+        msaa_render_target_->AttachDepthStencil(depthstencil_texture);
+    }
+    else {
+        sample_count_ = 1;
+        quality_level_ = 0;
+
+        msaa_render_target_->AttachColor(AttachmentPoint::kColor0, hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+        msaa_render_target_->AttachDepthStencil(hdr_render_target_->GetDepthStencil());
+    }
+
+    msaa_render_target_->signal().Emit();
 }
 
 void ForwardRenderer::ResolveMSAA() {
     PerfSample("Resolve MSAA");
     if (msaa_ == MSAAType::kNone) return;
 
-    auto& mat = msaa_resolve_mat_[log2((uint32_t)msaa_)];
+    auto& mat = msaa_resolve_mat_[toUType(msaa_)];
     PostProcess(hdr_render_target_, mat.get());
 }
 
@@ -310,6 +350,28 @@ void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
 
     render_graph_.Compile();
 }
+
+void ForwardRenderer::DrawOptionWindow() {
+    if (ImGui::CollapsingHeader("Anti-Aliasing", ImGuiTreeNodeFlags_DefaultOpen)) {
+        const char* combo_label = kMsaaDesc[(int)option_msaa_];
+
+        ImGui::Text("MSAA");
+        ImGui::SameLine(80);
+        if (ImGui::BeginCombo("##MSAA", combo_label, ImGuiComboFlags_PopupAlignLeft)) {
+            for (int n = 0; n < kMsaaDesc.size(); n++) {
+                const bool is_selected = ((int)option_msaa_ == n);
+
+                if (ImGui::Selectable(kMsaaDesc[n], is_selected))
+                    option_msaa_ = (MSAAType)n;
+
+                if (is_selected)
+                    ImGui::SetItemDefaultFocus();
+            }
+            ImGui::EndCombo();
+        }
+    }
+}
+
 
 }
 }

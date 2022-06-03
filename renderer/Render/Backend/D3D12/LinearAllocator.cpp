@@ -110,8 +110,7 @@ void LinearAllocator::Cleanup(uint64_t fence_value) {
     large_pages_.clear();
 }
 
-LinearAllocPage* LinearAllocator::AcquirePage()
-{
+LinearAllocPage* LinearAllocator::AcquirePage() {
     LinearAllocPage* ptr = nullptr;
     if (!available_pages_.empty()) {
         ptr = available_pages_.front();

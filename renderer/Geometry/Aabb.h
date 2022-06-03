@@ -8,6 +8,8 @@
 
 namespace glacier {
 
+struct Frustum;
+
 struct AABB {
     static AABB Union(const AABB& a, const AABB& b);
     static Vec3f RotateExtents(const Vec3f& extents, const Matrix4x4& rotation);
@@ -38,6 +40,7 @@ struct AABB {
     bool Intersects(const Ray& ray) const;
     bool Intersects(const Ray& ray, float maxDistance, float& t) const;
     bool Intersects(const Plane* plane, int count) const;
+    bool Intersects(const Frustum& frustum) const;
 
     float Distance(const Vec3f& point) const;
     Vec3f FarthestPoint(const Vec3f& wdir) const;

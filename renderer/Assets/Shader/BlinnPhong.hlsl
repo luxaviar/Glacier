@@ -73,6 +73,7 @@ float4 main_ps(VSOut IN) : SV_Target
     float3 eye = { 0, 0, 0};
     float3 P = IN.view_position;
     float3 V = normalize(eye - P);
+    int cascade_index = 0;
     
     Light main_light = lights[0];
     float4 visualize_cascade_color = float4(1.0, 1.0, 1.0, 1.0);
@@ -82,7 +83,11 @@ float4 main_ps(VSOut IN) : SV_Target
         if (main_light.shadow_enable)
         {
             shadow_level = CalcShadowLevel(main_light.view_direction, normal, IN.view_position, IN.world_position,
-                _ShadowParam, _ShadowTexture, shadow_cmp_sampler);
+                _ShadowParam, _ShadowTexture, shadow_cmp_sampler, cascade_index);
+
+            if (_ShadowParam.debug == 1) {
+                visualize_cascade_color = kCascadeColorsMultiplier[cascade_index];
+            }
         }
         
         color += DoPhongLighting(main_light, mat.gloss, IN, V, P, normal) * shadow_level;
@@ -99,5 +104,6 @@ float4 main_ps(VSOut IN) : SV_Target
     }
     // final color = attenuate diffuse & ambient by diffuse texture color and add specular reflected
     //return float4(saturate((diffuse + ambient) * dtex.rgb + specularReflected), 1.0f);
+
     return float4((color * albedo).rgb, albedo.a) * visualize_cascade_color;
 }

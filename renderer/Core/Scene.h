@@ -9,6 +9,7 @@ namespace glacier {
 namespace render {
 class Camera;
 class Renderer;
+class Renderable;
 }
 
 enum class SceneLoadMode : uint8_t {

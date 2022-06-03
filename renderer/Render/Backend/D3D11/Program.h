@@ -16,6 +16,8 @@ class D3D11Program : public Program {
 public:
     D3D11Program(const char* name);
 
+    void BindPSO(GfxDriver* gfx) override;
+
     void Bind(GfxDriver* gfx, Material* mat) override;
     void UnBind(GfxDriver* gfx, Material* mat) override;
 

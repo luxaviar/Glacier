@@ -32,6 +32,7 @@ public:
     void SetPipelineState(ID3D12PipelineState* ps);
     void SetComputeRoot32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value,
         const void* data, uint32_t offset);
+    void SetComputeRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation);
     void SetComputeRootDescriptorTable(uint32_t root_param_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor);
 
     void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);

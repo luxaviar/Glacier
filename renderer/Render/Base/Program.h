@@ -28,7 +28,6 @@ public:
 
     void SetRasterState(const RasterStateDesc& rs);
     void SetInputLayout(const InputLayoutDesc& desc);
-    //void SetSampler(const char* name, const SamplerState& ss);
 
     void SetShader(const std::shared_ptr<Shader>& shader);
     const Shader* GetShader(ShaderType type) const {
@@ -45,6 +44,7 @@ public:
         return nullptr;
     }
 
+    virtual void BindPSO(GfxDriver* gfx) = 0;
     virtual void Bind(GfxDriver* gfx, Material* mat) = 0;
     virtual void UnBind(GfxDriver* gfx, Material* mat) = 0;
     virtual void ReBind(GfxDriver* gfx, Material* mat) {}

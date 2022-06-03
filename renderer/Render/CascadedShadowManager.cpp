@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "CascadedShadowManager.h"
 #include "Camera.h"
 #include "Math/Util.h"
@@ -12,6 +13,7 @@
 #include "Editor/Gizmos.h"
 #include "Render/Image.h"
 #include "Inspect/Profiler.h"
+#include "imgui/imgui.h"
 
 namespace glacier {
 namespace render {
@@ -19,20 +21,23 @@ namespace render {
 CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size, 
     std::vector<float> cascade_partions) :
     gfx_(gfx),
-    map_size_(size),
-    cascade_partions_(cascade_partions)
+    map_size_(size)
 {
-    shadow_cbuffer_ = gfx->CreateConstantBuffer<CascadeShadowData>();
+    shadow_param_ = gfx->CreateConstantParameter<CascadeShadowParam>(UsageType::kDefault);
+    auto& param = shadow_param_.param();
 
     uint32_t cascade_levels = (uint32_t)cascade_partions.size();
-    shadow_data_.cascade_levels = cascade_levels;
+    param.cascade_levels = cascade_levels;
 
     assert(cascade_levels > 0 && cascade_levels <= kMaxCascadedLevel);
-    for (uint32_t i = 1; i < cascade_levels; ++i) {
-        assert(cascade_partions[i - 1] < cascade_partions[i]);
+    auto sum = 0.0f;
+    for (uint32_t i = 0; i < cascade_levels; ++i) {
+        auto p = cascade_partions[i];
+        assert(p >= 0.1f);
+        sum += p;
+        cascade_data_[i].partion = p;
     }
-    assert(cascade_partions.front() > 0.0f);
-    assert(cascade_partions.back() == 100.0f);
+    assert(sum == 100.0f);
 
     TextureDescription tex_desc = Texture::Description()
         .SetFormat(TextureFormat::kR32_TYPELESS)
@@ -43,25 +48,11 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     shadow_map_ = gfx->CreateTexture(tex_desc);
     shadow_map_->SetName(TEXT("shadow map"));
 
-    shadow_data_.texel_size.x = 1.0f / size /cascade_levels;
-    shadow_data_.texel_size.y = 1.0f / size;
-    shadow_data_.partion_size = 1.0f / cascade_levels;
+    OnCascadeChange();
 
-    render_targets_.reserve(cascade_levels);
-    for (uint32_t i = 0; i < cascade_levels; ++i) {
-        auto shadow_rt = gfx->CreateRenderTarget(size, size);
-        shadow_rt->AttachDepthStencil(shadow_map_);
-        ViewPort vp;
-        vp.top_left_x = (float)size * i;
-        vp.top_left_y = 0.0f;
-        vp.width = (float)size;
-        vp.height = (float)size;
-        vp.min_depth = 0.0f;
-        vp.max_depth = 1.0f;
-        shadow_rt->viewport(vp);
-
-        render_targets_.emplace_back(std::move(shadow_rt));
-    }
+    param.texel_size.x = 1.0f / size /cascade_levels;
+    param.texel_size.y = 1.0f / size;
+    param.partion_size = 1.0f / cascade_levels;
 
     material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
     material_->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
@@ -72,107 +63,125 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     shadow_sampler_.comp = RasterStateDesc::kDefaultDepthFuncWithEqual;
 
     pcf_size(3);
+}
 
-    frustums_.reserve(cascade_levels);
+void CascadedShadowManager::OnCascadeChange() {
+    auto cascade_levels = shadow_param_.param().cascade_levels;
+    auto size = map_size_;
+
+    for (uint32_t i = 0; i < cascade_levels; ++i) {
+        auto shadow_rt = gfx_->CreateRenderTarget(size, size);
+        shadow_rt->AttachDepthStencil(shadow_map_);
+        ViewPort vp;
+        vp.top_left_x = (float)size * i;
+        vp.top_left_y = 0.0f;
+        vp.width = (float)size;
+        vp.height = (float)size;
+        vp.min_depth = 0.0f;
+        vp.max_depth = 1.0f;
+        shadow_rt->viewport(vp);
+
+        cascade_data_[i].render_target = std::move(shadow_rt);
+    }
 }
 
 void CascadedShadowManager::pcf_size(uint32_t v) {
     assert(v >= 3);
     pcf_size_ = v;
-    shadow_data_.pcf_start = v / -2;
-    shadow_data_.pcf_end = v / 2 + 1;
+
+    auto& param = shadow_param_.param();
+    param.pcf_start = v / -2;
+    param.pcf_end = v / 2 + 1;
 }
 
 void CascadedShadowManager::Render(const Camera* camera,
     const std::vector<Renderable*> visibles, DirectionalLight* light) 
 {
-    render_targets_[0]->ClearDepthStencil();
+    cascade_data_[0].render_target->ClearDepthStencil();
 
-    //cull objects
-    AABB reciver_bounds;
+    //cull receiver objects
+    int receiver_num= 0;
+    AABB receiver_bounds;
     {
-        PerfSample("calc reciver bound");
+        PerfSample("calc receiver bound");
         for (auto o : visibles) {
-            if (o->IsReciveShadow()) {
-                reciver_bounds = AABB::Union(reciver_bounds, o->world_bounds());
+            if (o->IsActive() && o->IsReciveShadow()) {
+                receiver_bounds = AABB::Union(receiver_bounds, o->world_bounds());
+                ++receiver_num;
             }
         }
     }
 
-    AABB caster_bounds;
-    casters_.clear();
+    if (receiver_num == 0) return;
 
-    {
-        PerfSample("calc caster bound");
-        auto& renderables = RenderableManager::Instance()->GetList();
-        for (auto& node : renderables) {
-            auto& o = node.data;
-            if (o->IsActive() && o->IsCastShadow()) {
-                caster_bounds = AABB::Union(caster_bounds, o->world_bounds());
-                casters_.push_back(o);
-            }
-        }
-    }
-
-    if (casters_.empty()) return;
-
+    //caster culling
     {
         PerfSample("update shadow info");
-        UpdateShadowInfo(camera, light, AABB::Union(caster_bounds, reciver_bounds));
+        auto scene_bounds = RenderableManager::Instance()->SceneBounds();
+        UpdateShadowData(camera, light, receiver_bounds, scene_bounds);
     }
 
     PerfSample("Render shadow");
-    for (size_t i = 0; i < shadow_data_.cascade_levels; ++i) {
-        gfx_->BindCamera(shadow_position_, shadow_view_, shadow_proj_[i]);
-        RenderTargetBindingGuard guard(gfx_, render_targets_[i].get());
+    auto& param = shadow_param_.param();
+    for (size_t i = 0; i < param.cascade_levels; ++i) {
+        auto& data = cascade_data_[i];
+        auto& casters = data.casters;
+        if (casters.empty()) continue;
 
-        auto& shadow_frustum = frustums_[i];
-        for (auto o : casters_) {
-            if (shadow_frustum.Intersect(o->world_bounds())) {
-                o->Render(gfx_, material_.get());
-            }
+        gfx_->BindCamera(shadow_position_, shadow_view_, data.projection);
+        RenderTargetBindingGuard guard(gfx_, data.render_target.get());
+
+        for (auto o : casters) {
+            o->Render(gfx_, material_.get());
         }
     }
 }
 
-void CascadedShadowManager::UpdateShadowInfo(const Camera* camera, 
-    DirectionalLight* light, const AABB& scene_bounds) 
+void CascadedShadowManager::UpdateShadowData(const Camera* camera, DirectionalLight* light,
+    const AABB& receiver_bounds, const AABB& scene_bounds)
 {
+    for (auto& data : cascade_data_) {
+        data.casters.clear();
+    }
+
     auto& light_transform = light->transform();
     shadow_position_ = light_transform.position();
-    shadow_view_ = Matrix4x4::LookToLH(shadow_position_, light_transform.forward(), Vec3f::up);
+    auto light_forward = light_transform.forward();
+    if (light_forward.AlmostEquals(Vec3f::up)) {
+        shadow_view_ = Matrix4x4::LookToLH(shadow_position_, light_forward, Vector3::back);
+    }
+    else {
+        shadow_view_ = Matrix4x4::LookToLH(shadow_position_, light_forward, Vector3::up);
+    }
     
-    AABB shadow_bounds = AABB::Transform(scene_bounds, shadow_view_);
-    float nearz = shadow_bounds.min.z;
-    float farz = shadow_bounds.max.z;
+    AABB shadow_scene_bounds = AABB::Transform(scene_bounds, shadow_view_);
+    float nearz = shadow_scene_bounds.min.z;
+    //float farz = shadow_bounds.max.z;
+
+    AABB shadow_receiver_bounds = AABB::Transform(receiver_bounds, shadow_view_);
+    float receive_farz = shadow_receiver_bounds.max.z;
+    assert(receive_farz > nearz);
 
     Matrix4x4 coord_offset = Matrix4x4::Translate(Vec3f(0.5f, 0.5f, 0));
     Matrix4x4 coord_scale = Matrix4x4::Scale(Vec3f(0.5f, -0.5f, 1.0f));
 
-    frustums_.clear();
-
-    bool draw = Input::IsJustKeyDown(Keyboard::F5);
-    static std::vector<Vec3f> gizmos_corners;
-
-    if (draw) {
-        gizmos_corners.clear();
-    }
-
     float camera_near_far_range = camera->farz() - camera->nearz();
-    for (uint32_t i = 0; i < shadow_data_.cascade_levels; ++i) {
-        float interval_begin = 0;
-        if (i > 0) interval_begin = cascade_partions_[i - 1];
-        float interval_end = cascade_partions_[i];
+    auto& param = shadow_param_.param();
+    float begin_interval_percent = 0;
+    for (uint32_t i = 0; i < param.cascade_levels; ++i) {
+        auto& cascade_data = cascade_data_[i];
+        float end_interval_percent = begin_interval_percent + cascade_data.partion * 0.01f;
 
-        interval_begin /= kCascadedPartionMax;
-        interval_end /= kCascadedPartionMax;
-
-        interval_begin *= camera_near_far_range;
-        interval_end *= camera_near_far_range;
-        shadow_data_.cascade_interval[i] = interval_end;
+        float near_interval_dist = begin_interval_percent * camera_near_far_range;
+        float far_interval_dist = end_interval_percent * camera_near_far_range;
+        param.cascade_interval[i] = far_interval_dist;
 
         Vec3f corners[(int)FrustumCorner::kCount];
-        camera->FetchFrustumCorners(corners, interval_begin, interval_end);
+        camera->FetchFrustumCorners(corners,
+            near_interval_dist,
+            far_interval_dist);
+
+        begin_interval_percent = end_interval_percent;
 
         Vec3f ortho_min(FLT_MAX);
         Vec3f ortho_max(-FLT_MAX);
@@ -205,7 +214,9 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
         ortho_max = Vec3f::Floor(ortho_max);
         ortho_max *= unit_per_texel;
 
-        shadow_proj_[i] = Matrix4x4::OrthoOffCenterLH(
+        float farz = math::Min(receive_farz, ortho_max.z);
+
+        cascade_data.projection = Matrix4x4::OrthoOffCenterLH(
             ortho_min.x, ortho_max.x,
             ortho_min.y, ortho_max.y,
 #ifdef GLACIER_REVERSE_Z
@@ -215,7 +226,7 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
 #endif
         );
 
-        shadow_data_.shadow_coord_trans[i] = coord_offset * coord_scale * shadow_proj_[i] * shadow_view_;
+        param.shadow_coord_trans[i] = coord_offset * coord_scale * cascade_data.projection * shadow_view_;
 
         Vec3f ortho_corners[(int)FrustumCorner::kCount] = {
             {ortho_min.x, ortho_min.y, nearz},
@@ -232,41 +243,131 @@ void CascadedShadowManager::UpdateShadowInfo(const Camera* camera,
             p = light_transform.ApplyTransform(p);// light camera space to world space;
         }
 
-        if (draw) {
-            for (auto p : ortho_corners) {
-                gizmos_corners.push_back(p);
-            }
-        }
+        cascade_data.frustum = ortho_corners;
 
-        frustums_.emplace_back(ortho_corners);
-    }
-
-    if (!gizmos_corners.empty()) {
-        auto gizmos = Gizmos::Instance();
-        gizmos->SetColor(Color::kRed);
-        for (size_t i = 0; i < gizmos_corners.size(); i += 8) {
-            gizmos->DrawFrustum(gizmos_corners.data() + i);
+        {
+            PerfSample("shadow caster culling");
+            RenderableManager::Instance()->Cull(cascade_data.frustum, cascade_data.casters,
+                [](const Renderable* o) {
+                    return o->IsActive() && o->IsCastShadow();
+                });
         }
     }
 }
 
 void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
-    mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
+    mat->SetProperty("CascadeShadowData", shadow_param_);
     mat->SetProperty("_ShadowTexture", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 
 void CascadedShadowManager::SetupMaterial(Material* mat) {
-    mat->SetProperty("CascadeShadowData", shadow_cbuffer_);
+    mat->SetProperty("CascadeShadowData", shadow_param_);
     mat->SetProperty("_ShadowTexture", shadow_map_);
     mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
 }
 
 void CascadedShadowManager::Update() {
-    shadow_cbuffer_->Update(&shadow_data_);
+    shadow_param_.Update();
 }
 
-void CascadedShadowManager::GrabShadowMap() {
+void CascadedShadowManager::DrawOptionWindow() {
+    if (!ImGui::CollapsingHeader("Shadow", ImGuiTreeNodeFlags_DefaultOpen)) return;
+
+    auto& param = shadow_param_.param();
+    ImGui::Text("PCF Size");
+    ImGui::SameLine(80);
+    if (ImGui::SliderInt("##Shadow PCF Size", (int*)&pcf_size_, 3, 5)) {
+        pcf_size(pcf_size_);
+    }
+
+    ImGui::Text("Bias");
+    ImGui::SameLine(80);
+    ImGui::SliderFloat("##Shadow Bias", &param.bias, 0.0005f, 0.01f);
+
+    ImGui::Text("Blend Band");
+    ImGui::SameLine(80);
+    ImGui::SliderFloat("##Blend Band", &param.blend_band, 0.0001f, 0.001f, "%.4f");
+
+    constexpr std::array<const char*, 3> cascades_desc = {"None", "Two Cascades","Four Cascades"};
+    const char* combo_lable = cascades_desc[0];
+    if (param.cascade_levels == 2) {
+        combo_lable = cascades_desc[1];
+    }
+    else if (param.cascade_levels == 4) {
+        combo_lable = cascades_desc[2];
+    }
+
+    ImGui::Text("Cascades");
+    ImGui::SameLine(80);
+    if (ImGui::BeginCombo("##Shadow Cascades", combo_lable, ImGuiComboFlags_PopupAlignLeft)) {
+        for (int n = 0; n < cascades_desc.size(); n++) {
+            const bool is_selected = ((int)param.cascade_levels == 1 << n);
+
+            if (ImGui::Selectable(cascades_desc[n], is_selected)) {
+                param.cascade_levels = 1 << n;
+                OnCascadeChange();
+            }
+
+            if (is_selected)
+                ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+
+        if (param.cascade_levels == 1) {
+            cascade_data_[0].partion = 100.0f;
+        } else if (param.cascade_levels == 2) {
+            cascade_data_[0].partion = 33.3f;
+            cascade_data_[1].partion = 66.7f;
+        } else if (param.cascade_levels == 4) {
+            cascade_data_[0].partion = 10.6f;
+            cascade_data_[1].partion = 18.6f;
+            cascade_data_[2].partion = 19.2f;
+            cascade_data_[3].partion = 51.6f;
+        }
+    }
+
+    if (param.cascade_levels == 2) {
+        std::array<float, 2> value = { cascade_data_[0].partion, cascade_data_[1].partion };
+        if (ImGui::SliderFloat2("##Cascade Split2", value.data(), 0.1f, 99.9f, "%.1f")) {
+            if (cascade_data_[1].partion != value[1]) {
+                cascade_data_[1].partion = value[1];
+                cascade_data_[0].partion = 100.0f - value[1];
+            }
+            else {
+                cascade_data_[0].partion = value[0];
+                cascade_data_[1].partion = 100.0f - value[0];
+            }
+        }
+    } else if (param.cascade_levels == 4) {
+        std::array<float, 4> value = { cascade_data_[0].partion, cascade_data_[1].partion, cascade_data_[2].partion, cascade_data_[3].partion };
+        if (ImGui::SliderFloat4("##Cascade Split4", value.data(), 0.1f, 99.9f)) {
+            if (cascade_data_[0].partion != value[0]) {
+                auto range = cascade_data_[0].partion + cascade_data_[1].partion;
+                cascade_data_[0].partion = math::Clamp(value[0], 0.1f, range - 0.1f);
+                cascade_data_[1].partion = range - cascade_data_[0].partion;
+            }
+            else if (cascade_data_[1].partion != value[1]) {
+                auto range = cascade_data_[1].partion + cascade_data_[2].partion;
+                cascade_data_[1].partion = math::Clamp(value[1], 0.1f, range - 0.1f);
+                cascade_data_[2].partion = range - cascade_data_[1].partion;
+            }
+            else if (cascade_data_[2].partion != value[2]) {
+                auto range = cascade_data_[2].partion + cascade_data_[3].partion;
+                cascade_data_[2].partion = math::Clamp(value[2], 0.1f, range - 0.1f);
+                cascade_data_[3].partion = range - cascade_data_[2].partion;
+            } else if (cascade_data_[3].partion != value[3]) {
+                auto range = cascade_data_[2].partion + cascade_data_[3].partion;
+                cascade_data_[3].partion = math::Clamp(value[3], 0.1f, range - 0.1f);
+                cascade_data_[2].partion = range - cascade_data_[3].partion;
+            }
+        }
+    }
+
+    ImGui::Checkbox("Debug Cascades", (bool*)&param.debug);
+}
+
+void CascadedShadowManager::CaptureShadowMap() {
     auto& shadow_tex = shadow_map_;
     uint32_t width = shadow_map_->width();
     uint32_t height = shadow_map_->height();
@@ -289,7 +390,7 @@ void CascadedShadowManager::GrabShadowMap() {
                 data += raw_pitch;
             }
 
-            image.Save(TEXT("shadowmap_grab.png"), false);
+            image.Save(TEXT("ShadowMapCaptured.png"), false);
         });
 }
 

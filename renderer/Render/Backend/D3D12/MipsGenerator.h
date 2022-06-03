@@ -31,18 +31,14 @@ public:
     using UavHeapAllocator = D3D12PlacedHeapAllocator<next_log_of2(DEFAULT_DEFAULT_HEAP_SIZE), next_log_of2(DEFAULT_RESOURCE_ALIGNMENT)>;
 
     MipsGenerator(ID3D12Device* device);
-
     void Generate(D3D12CommandList* command_list, D3D12Resource* texture);
 
 private:
-    void GenerateTexture2D(D3D12CommandList* command_list,
-        D3D12Resource* texture);// , D3D12_RESOURCE_STATES state);
+    void GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture);
+    void GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture);
 
-    void GenerateTextureArray(D3D12CommandList* command_list,
-        D3D12Resource* texture);// , D3D12_RESOURCE_STATES state);
-
-    void CreateUavResource(D3D12CommandList* command_list,
-        D3D12Resource* texture, std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res);
+    void CreateUavResource(D3D12CommandList* command_list, D3D12Resource* texture,
+        std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res);
 
     void CreateRootSignature();
     void CreatePSO();

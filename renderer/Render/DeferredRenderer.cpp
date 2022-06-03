@@ -2,7 +2,6 @@
 #include <memory>
 #include <assert.h>
 #include <algorithm>
-#include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui.h"
 #include "Math/Util.h"
 #include "Render/Graph/PassNode.h"
@@ -23,23 +22,21 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
 #include "Render/Base/RenderTexturePool.h"
-#include <Common/Log.h>
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
 
-DeferredRenderer::DeferredRenderer(GfxDriver* gfx, PostAAType aa) :
-    Renderer(gfx),
-    aa_(aa)
+DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
+    Renderer(gfx, aa),
+    option_aa_(aa)
 {
-    fxaa_param_ = gfx->CreateConstantParameter<FXAAParam>(UsageType::kDynamic);
-    fxaa_param_.param().config = { 0.0833f, 0.166f, 0.75f, 0.0f };
+    assert(aa != AntiAliasingType::kMSAA);
+    fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam>(UsageType::kDefault);
+    fxaa_param_ = { 0.0833f, 0.166f, 0.75f, 0.0f };
 
-    for (int i = 0; i < kTAASampleCount; ++i) {
-        halton_sequence_[i] = { LowDiscrepancySequence::Halton(i + 1, 2), LowDiscrepancySequence::Halton(i + 1, 3) };
-        halton_sequence_[i] = halton_sequence_[i] * 2.0f - 1.0f;
-        LOG_LOG("{}", halton_sequence_[i]);
-    }
+    taa_param_ = gfx_->CreateConstantParameter<TAAParam>(UsageType::kDefault);
+    taa_param_ = { 0.95f, 0.85f, 6000.0f, 0.0f };
 }
 
 void DeferredRenderer::Setup() {
@@ -74,8 +71,6 @@ void DeferredRenderer::Setup() {
     lighting_mat_->SetProperty("normal_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
     lighting_mat_->SetProperty("ao_metalroughness_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
     lighting_mat_->SetProperty("emissive_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
-    lighting_mat_->SetProperty("position_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
-    lighting_mat_->SetProperty("view_position_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor5));
     lighting_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
 
     fxaa_mat_ = std::make_shared<PostProcessMaterial>("FXAA", TEXT("FXAA"));
@@ -84,6 +79,7 @@ void DeferredRenderer::Setup() {
     fxaa_mat_->SetProperty("_PerFrameData", per_frame_param_);
 
     taa_mat_ = std::make_shared<PostProcessMaterial>("TAA", TEXT("TAA"));
+    taa_mat_->SetProperty("taa_param", taa_param_);
     taa_mat_->SetProperty("_PostSourceTexture", temp_hdr_texture_);
     taa_mat_->SetProperty("_PerFrameData", per_frame_param_);
     taa_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
@@ -96,7 +92,7 @@ void DeferredRenderer::Setup() {
 }
 
 void DeferredRenderer::DoTAA() {
-    if (aa_ != PostAAType::kTAA) return;
+    if (anti_aliasing_ != AntiAliasingType::kTAA) return;
 
     if (frame_count_ > 0) {
         gfx_->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0), temp_hdr_texture_);
@@ -107,7 +103,7 @@ void DeferredRenderer::DoTAA() {
 }
 
 void DeferredRenderer::DoFXAA() {
-    if (aa_ != PostAAType::kFXAA) {
+    if (anti_aliasing_ != AntiAliasingType::kFXAA) {
         Renderer::DoFXAA();
         return;
     }
@@ -162,48 +158,11 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
     return true;
 }
 
-void DeferredRenderer::UpdatePerFrameData() {
-    auto camera = GetMainCamera();
-    auto view = camera->view();
-#ifdef GLACIER_REVERSE_Z
-    auto projection = camera->projection_reversez();
-#else
-    auto projection = camera->projection();
-#endif
-
-    auto& param = per_frame_param_.param();
-    prev_view_projection_ = projection * view;
-    param._UnjitteredViewProjection = prev_view_projection_;
-
-    if (aa_ == PostAAType::kTAA) {
-        uint64_t idx = frame_count_ % kTAASampleCount;
-        double jitter_x = halton_sequence_[idx].x * (double)param._ScreenParam.z;
-        double jitter_y = halton_sequence_[idx].y * (double)param._ScreenParam.w;
-        projection[0][2] += jitter_x;
-        projection[1][2] += jitter_y;
+void DeferredRenderer::PreRender() {
+    if (option_aa_ != anti_aliasing_) {
+        anti_aliasing_ = option_aa_;
     }
 
-    auto inverse_view = view.Inverted();
-    auto inverse_projection = projection.Inverted();
-    auto farz = camera->farz();
-    auto nearz = camera->nearz();
-
-    assert(inverse_view);
-    assert(inverse_projection);
-
-    param._View = view;
-    param._InverseView = inverse_view.value();
-    param._Projection = projection;
-    param._InverseProjection = inverse_projection.value();
-    param._ViewProjection = projection * view;
-    param._CameraParams = { farz, nearz, 1.0f / farz, 1.0f / nearz };
-    param._ZBufferParams.x = 1.0f - farz / nearz;
-    param._ZBufferParams.y = 1.0f + farz / nearz;
-    param._ZBufferParams.z = param._ZBufferParams.x / farz;
-    param._ZBufferParams.w = param._ZBufferParams.y / farz;
-}
-
-void DeferredRenderer::PreRender() {
     gbuffer_render_target_->Clear();
 
     Renderer::PreRender();
@@ -376,6 +335,84 @@ void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
     editor_.RegisterHighLightPass(gfx, this);
 
     render_graph_.Compile();
+}
+
+void DeferredRenderer::DrawOptionWindow() {
+    if (ImGui::CollapsingHeader("Anti-Aliasing", ImGuiTreeNodeFlags_DefaultOpen)) {
+        auto aa_combo_label = kAADesc[(int)anti_aliasing_];
+
+        ImGui::Text("Anti-Aliasing");
+        ImGui::SameLine();
+        if (ImGui::BeginCombo("##Anti-Aliasing", aa_combo_label, ImGuiComboFlags_PopupAlignLeft)) {
+            for (int n = 0; n < kAADesc.size(); n++) {
+                if (n != (int)AntiAliasingType::kMSAA) {
+                    const bool is_selected = ((int)option_aa_ == n);
+
+                    if (ImGui::Selectable(kAADesc[n], is_selected))
+                        option_aa_ = (AntiAliasingType)n;
+
+                    if (is_selected)
+                        ImGui::SetItemDefaultFocus();
+                }
+            }
+            ImGui::EndCombo();
+        }
+
+        if (anti_aliasing_ == AntiAliasingType::kFXAA) {
+            auto& param = fxaa_param_.param();
+            bool dirty = false;
+
+            ImGui::Text("Contrast Threshold");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Contrast Threshold", &param.contrast_threshold, 0.0312f, 0.0833f)) {
+                dirty = true;
+            }
+
+            ImGui::Text("Relative Threshold");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Relative Threshold", &param.relative_threshold, 0.063f, 0.333f)) {
+                dirty = true;
+            }
+
+            ImGui::Text("Subpixel Blending");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Subpixel Blending", &param.subpixel_blending, 0.0f, 1.0f)) {
+                dirty = true;
+            }
+
+            if (dirty) {
+                fxaa_param_.Update();
+            }
+        }
+
+
+        if (anti_aliasing_ == AntiAliasingType::kTAA) {
+            auto& param = taa_param_.param();
+            bool dirty = false;
+
+            ImGui::Text("Static Blending");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Static Blending", &param.static_blending, 0.9f, 0.99f)) {
+                dirty = true;
+            }
+
+            ImGui::Text("Dynamic Blending");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Dynamic Blending", &param.dynamic_blending, 0.8f, 0.9f)) {
+                dirty = true;
+            }
+
+            ImGui::Text("Motion Amplify");
+            ImGui::SameLine(140);
+            if (ImGui::SliderFloat("##Motion Amplify", &param.motion_amplify, 4000.0f, 6000.0f)) {
+                dirty = true;
+            }
+
+            if (dirty) {
+                taa_param_.Update();
+            }
+        }
+    }
 }
 
 }

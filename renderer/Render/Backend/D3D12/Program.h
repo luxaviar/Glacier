@@ -44,6 +44,8 @@ public:
     void SetParameter(const char* name, D3D12Sampler* tex);
     void SetParameter(const char* name, const D3D12DescriptorRange& descriptor, ShaderParameterCatetory category = ShaderParameterCatetory::kSRV);
 
+    void BindPSO(GfxDriver* gfx) override;
+
     void Bind(GfxDriver* gfx, Material* mat) override;
     void UnBind(GfxDriver* gfx, Material* mat) override {}
     void ReBind(GfxDriver* gfx, Material* mat) override;
@@ -52,6 +54,8 @@ public:
     void UnBind(GfxDriver* gfx, MaterialTemplate* mat) override {}
 
     void Bind(D3D12CommandList* cmd_list);
+
+    bool IsCompute() const { return is_compute_; }
     
 protected:
     void CreateRootSignature();
@@ -61,6 +65,7 @@ protected:
 
     void BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop);
 
+    bool is_compute_ = false;
     ComPtr<ID3D12RootSignature> root_signature_;
 
     ParameterBinding cbv_def_;

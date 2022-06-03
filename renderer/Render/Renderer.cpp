@@ -40,14 +40,21 @@ void Renderer::PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* m
     gfx->Draw(3, 0);
 }
 
-Renderer::Renderer(GfxDriver* gfx) :
+Renderer::Renderer(GfxDriver* gfx, AntiAliasingType aa) :
     gfx_(gfx),
+    anti_aliasing_(aa),
     editor_(gfx),
     post_process_manager_(gfx)
 {
     per_frame_param_ = gfx->CreateConstantParameter<PerFrameData>(UsageType::kDynamic);
     stats_ = std::make_unique<PerfStats>(gfx);
-    csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 15, 40, 70, 100 });
+    csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 10.6, 18.6, 19.2, 51.6 });
+
+    for (int i = 0; i < kTAASampleCount; ++i) {
+        halton_sequence_[i] = { LowDiscrepancySequence::Halton(i + 1, 2), LowDiscrepancySequence::Halton(i + 1, 3) };
+        halton_sequence_[i] = halton_sequence_[i] * 2.0f - 1.0f;
+        LOG_LOG("{}", halton_sequence_[i]);
+    }
 }
 
 void Renderer::Setup() {
@@ -68,7 +75,7 @@ void Renderer::InitRenderTarget() {
     auto backbuffer_depth_tex = present_render_target_->GetDepthStencil();
 
     auto hdr_colorframe = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
-        CreateFlags::kRenderTarget);// , sample_count_, quality_level_);
+        CreateFlags::kRenderTarget);
     hdr_colorframe->SetName(TEXT("hdr color frame"));
 
     hdr_render_target_ = gfx_->CreateRenderTarget(width, height);
@@ -112,7 +119,7 @@ void Renderer::FilterVisibles() {
     auto main_camera = GetMainCamera();
 
     visibles_.clear();
-    main_camera->Cull(RenderableManager::Instance()->GetList(), visibles_);
+    RenderableManager::Instance()->Cull(*main_camera, visibles_);
 
     //TODO: sort by depth?
     std::sort(visibles_.begin(), visibles_.end(), [](Renderable* a, Renderable* b) {
@@ -159,29 +166,39 @@ void Renderer::UpdatePerFrameData() {
 #else
     auto projection = camera->projection();
 #endif
+
+    auto& param = per_frame_param_.param();
+    prev_view_projection_ = projection * view;
+    param._UnjitteredViewProjection = prev_view_projection_;
+
+    if (anti_aliasing_ == AntiAliasingType::kTAA) {
+        uint64_t idx = frame_count_ % kTAASampleCount;
+        double jitter_x = halton_sequence_[idx].x * (double)param._ScreenParam.z;
+        double jitter_y = halton_sequence_[idx].y * (double)param._ScreenParam.w;
+        projection[0][2] += jitter_x;
+        projection[1][2] += jitter_y;
+    }
+
     auto inverse_view = view.Inverted();
     auto inverse_projection = projection.Inverted();
     auto farz = camera->farz();
     auto nearz = camera->nearz();
 
-    prev_view_projection_ = projection * view;
-
     assert(inverse_view);
     assert(inverse_projection);
 
-    auto& param = per_frame_param_.param();
-
-    param._UnjitteredViewProjection = projection;
     param._View = view;
     param._InverseView = inverse_view.value();
     param._Projection = projection;
     param._InverseProjection = inverse_projection.value();
     param._ViewProjection = projection * view;
     param._CameraParams = { farz, nearz, 1.0f / farz, 1.0f / nearz };
-    param._ZBufferParams.x = 1 - farz / nearz;
-    param._ZBufferParams.y = 1 + farz / nearz;
+    param._ZBufferParams.x = 1.0f - farz / nearz;
+    param._ZBufferParams.y = 1.0f + farz / nearz;
     param._ZBufferParams.z = param._ZBufferParams.x / farz;
     param._ZBufferParams.w = param._ZBufferParams.y / farz;
+
+    per_frame_param_.Update();
 }
 
 void Renderer::PreRender() {
@@ -191,7 +208,6 @@ void Renderer::PreRender() {
     hdr_render_target_->Clear();
 
     UpdatePerFrameData();
-    per_frame_param_.Update();
 
     BindLightingTarget();
     FilterVisibles();
@@ -199,9 +215,6 @@ void Renderer::PreRender() {
 
 void Renderer::PostRender() {
     Gizmos::Instance()->Clear();
-
-    // present
-    //gfx_->EndFrame();
 
     auto& param = per_frame_param_.param();
     param._PrevViewProjection = prev_view_projection_;
@@ -213,17 +226,6 @@ void Renderer::PostRender() {
 
 void Renderer::Render() {
     auto& state = Input::GetJustKeyDownState();
-    if (state.Tab) {
-        show_gui_ = !show_gui_;
-    }
-
-    if (state.F4) {
-        show_gizmo_ = !show_gizmo_;
-    }
-
-    if (state.F1) {
-        show_imgui_demo_ = !show_imgui_demo_;
-    }
 
     PreRender();
 
@@ -236,8 +238,6 @@ void Renderer::Render() {
         PerfSample("Exexute render graph");
         render_graph_.Execute(this);
     }
-
-    hdr_render_target_->UnBind(gfx_);
 
     ResolveMSAA();
 
@@ -257,31 +257,9 @@ void Renderer::Render() {
 
     present_render_target_->Bind(gfx_);
 
-    if (show_gizmo_) {
-        PerfSample("Draw Gizmos");
-        //physics::World::Instance()->OnDrawGizmos(true);
-        editor_.DrawGizmos();
-        Gizmos::Instance()->Render(gfx_);
-    }
+    editor_.Render();
 
-    if (show_gui_) {
-        PerfSample("Editor");
-        editor_.DrawPanel();
-    }
-
-    if (show_imgui_demo_) {
-        ImGui::ShowDemoWindow(&show_imgui_demo_);
-    }
-
-    if (state.F2) {
-        GrabScreen();
-    }
-
-    if (state.F3) {
-        csm_manager_->GrabShadowMap();
-    }
-
-    stats_->PostRender();
+    stats_->PostRender(editor_.ShowStats());
 
     gfx_->Present();
 
@@ -293,13 +271,16 @@ void Renderer::DoFXAA() {
         present_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
-void Renderer::GrabScreen() {
-    auto render_target = gfx_->GetSwapChain()->GetRenderTarget();
-    auto width = render_target->width();
-    auto height = render_target->height();
+void Renderer::CaptureShadowMap() {
+    csm_manager_->CaptureShadowMap();
+}
 
-    auto& tex = render_target->GetColorAttachment(AttachmentPoint::kColor0);
-    tex->ReadBackImage(0, 0, render_target->width(), render_target->height(), 0, 0,
+void Renderer::CaptureScreen() {
+    auto width = ldr_render_target_->width();
+    auto height = ldr_render_target_->height();
+
+    auto& tex = ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
+    tex->ReadBackImage(0, 0, width, height, 0, 0,
         [width, height, this](const uint8_t* data, size_t raw_pitch) {
             Image image(width, height, false);
 
@@ -314,7 +295,7 @@ void Renderer::GrabScreen() {
                 data += raw_pitch;
             }
 
-            image.Save(TEXT("screen_grab.png"), false);
+            image.Save(TEXT("ScreenCaptured.png"), false);
         });
 }
 
@@ -470,6 +451,26 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
             MaterialGuard guard(renderer->driver(), phong_mat_ptr);
             pass.Render(renderer, visibles_);
         });
+}
+
+void Renderer::OptionWindow(bool* open) {
+    auto width = present_render_target_->width();
+    auto height = present_render_target_->height();
+    ImGui::SetNextWindowPos(ImVec2(width * 0.3f, height * 0.3f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(400, 600), ImGuiCond_FirstUseEver);
+
+    ImGuiWindowFlags window_flags = 0;// ImGuiWindowFlags_AlwaysAutoResize;
+    if (!ImGui::Begin("Renderer Option", open, window_flags)) {
+        // Early out if the window is collapsed, as an optimization.
+        ImGui::End();
+        return;
+    }
+
+    DrawOptionWindow();
+
+    csm_manager_->DrawOptionWindow();
+
+    ImGui::End();
 }
 
 }

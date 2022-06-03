@@ -8,6 +8,7 @@
 #include "Editor/Editor.h"
 #include "Render/PerfStats.h"
 #include "Render/PostProcess.h"
+#include "Algorithm/LowDiscrepancySequence.h"
 
 namespace glacier {
 namespace render {
@@ -34,7 +35,7 @@ class Renderer {
 public:
     static void PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* mat);
 
-    Renderer(GfxDriver* gfx);
+    Renderer(GfxDriver* gfx, AntiAliasingType aa = AntiAliasingType::kNone);
     virtual ~Renderer() {}
     virtual void Setup();
 
@@ -48,7 +49,8 @@ public:
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
-    void GrabScreen();
+    void CaptureScreen();
+    void CaptureShadowMap();
 
     virtual void PreRender();
     void Render();
@@ -59,8 +61,11 @@ public:
     const std::vector<Renderable*>& GetVisibles() const { return visibles_; }
 
     GfxDriver* driver() { return gfx_; }
+    void OptionWindow(bool* open);
 
 protected:
+    virtual void DrawOptionWindow() {}
+
     virtual void UpdatePerFrameData();
     virtual void InitRenderTarget();
 
@@ -85,17 +90,14 @@ protected:
     GfxDriver* gfx_;
     uint64_t frame_count_ = 0;
     bool init_ = false;
-    bool show_imgui_demo_ = false;
-    bool show_gui_ = true;
-    bool show_gizmo_ = true;
     uint32_t sample_count_ = 1;
     uint32_t quality_level_ = 0;
 
+    constexpr static std::array<const char*, 4> kAADesc = { "None", "MSAA", "FXAA", "TAA" };
     RenderGraph render_graph_;
+    AntiAliasingType anti_aliasing_ = AntiAliasingType::kNone;
 
     ConstantParameter<PerFrameData> per_frame_param_;
-    //PerFrameData per_frame_data_;
-    //std::shared_ptr<Buffer> per_frame_cbuffer_;
 
     //linear hdr render target
     std::shared_ptr<RenderTarget> hdr_render_target_;
@@ -115,6 +117,9 @@ protected:
     std::unique_ptr<PerfStats> stats_;
 
     Matrix4x4 prev_view_projection_;
+
+    static constexpr int kTAASampleCount = 8;
+    std::array<Vector2, kTAASampleCount> halton_sequence_;
 };
 
 }

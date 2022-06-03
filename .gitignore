@@ -36,4 +36,5 @@ x64/
 packages/
 .vscode/
 viewer/imgui.ini
-screen_grab.png
+ScreenCaptured.png
+ShadowMapCaptured.png

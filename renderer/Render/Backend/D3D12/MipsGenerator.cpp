@@ -36,10 +36,10 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
     }
 
     if (tex_desc.DepthOrArraySize > 1) {
-        GenerateTextureArray(command_list, uav_tex);// , uav_state);
+        GenerateTextureArray(command_list, uav_tex);
     }
     else {
-        GenerateTexture2D(command_list, uav_tex);// , uav_state);
+        GenerateTexture2D(command_list, uav_tex);
     }
 
     if (uav_res) {
@@ -47,8 +47,6 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
         command_list->AliasResource(uav_tex->GetUnderlyingResource().Get(), alias_res->GetUnderlyingResource().Get());
         command_list->CopyResource(alias_res.get(), texture);
 
-        // Make sure the heap does not go out of scope until the command list
-        // is finished executing on the command queue.
         gfx->AddInflightResource(std::move(uav_res));
         gfx->AddInflightResource(std::move(alias_res));
     }
@@ -56,8 +54,7 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
     command_list->TransitionBarrier(texture, old_state);
 }
 
-void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture)
-{
+void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture) {
     //Set root signature, pso and descriptor heap
     command_list->SetComputeRootSignature(root_signature.Get());
     command_list->SetPipelineState(pso.Get());
@@ -78,7 +75,7 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
     D3D12_SHADER_RESOURCE_VIEW_DESC src_srv_desc = {};
     src_srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     src_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-    src_srv_desc.Format = tex_desc.Format;// cbuffer.IsSRGB ? GetSRGBFormat(tex_desc.Format) : tex_desc.Format;
+    src_srv_desc.Format = tex_desc.Format;
     src_srv_desc.Texture2D.MipLevels = tex_desc.MipLevels;
     src_srv_desc.Texture2D.MostDetailedMip = 0;
 
@@ -141,7 +138,6 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
             uav_arr[mip] = dst_slot.GetDescriptorHandle(mip);
 
             device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, uav_arr[mip]);
-            //command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, srcMip + mip + 1);
         }
 
         // Pad any unused mip levels with a default UAV. Doing this keeps the DX12 runtime happy.
@@ -170,8 +166,7 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
     gfx->AddInflightResource(std::move(src_slot));
 }
 
-void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture)
-{
+void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture) {
     //Set root signature, pso and descriptor heap
     command_list->SetComputeRootSignature(root_signature.Get());
     command_list->SetPipelineState(pso.Get());
@@ -193,9 +188,9 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
     D3D12_SHADER_RESOURCE_VIEW_DESC src_srv_desc = {};
     src_srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
     src_srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2DARRAY;
-    src_srv_desc.Format = tex_desc.Format;// GetUAVCompatableFormat(tex_desc.Format);
+    src_srv_desc.Format = tex_desc.Format;
     src_srv_desc.Texture2DArray.ArraySize = 1;
-    src_srv_desc.Texture2DArray.MipLevels = -1;// tex_desc.MipLevels;
+    src_srv_desc.Texture2DArray.MipLevels = -1;
     src_srv_desc.Texture2DArray.MostDetailedMip = 0;
 
     for (int array_index = 0; array_index < tex_desc.DepthOrArraySize; ++array_index) {
@@ -263,8 +258,6 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
                 uav_arr[mip] = dst_slot.GetDescriptorHandle(mip);
 
                 device->CreateUnorderedAccessView(resource, nullptr, &uavDesc, uav_arr[mip]);
-                //command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-                //    array_index * tex_desc.MipLevels + srcMip + mip + 1);
             }
 
             // Pad any unused mip levels with a default UAV. Doing this keeps the DX12 runtime happy.
@@ -280,7 +273,6 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
 
             command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
-            //make GPU Validation happy
             command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
                 array_index * tex_desc.MipLevels + srcMip);
 

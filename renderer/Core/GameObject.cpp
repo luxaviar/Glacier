@@ -57,7 +57,7 @@ void GameObject::ToggleStatic(bool on, bool recursively) {
 
     if (!recursively) return;
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->ToggleStatic(on, recursively);
     }
@@ -116,7 +116,7 @@ void GameObject::OnParentChagne() {
         c->OnParentChange();
     }
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->OnParentChagne();
     }
@@ -130,7 +130,7 @@ void GameObject::Activate() {
 
     EnableComponent();
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->ActivateByParent();
     }
@@ -144,7 +144,7 @@ void GameObject::Deactivate() {
     
     DisableComponent();
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->DeactivateByParent();
     }
@@ -158,7 +158,7 @@ void GameObject::ActivateByParent() {
         EnableComponent();
     }
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->ActivateByParent();
     }
@@ -172,7 +172,7 @@ void GameObject::DeactivateByParent() {
         DisableComponent();
     }
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         ch->game_object()->DeactivateByParent();
     }
@@ -188,7 +188,7 @@ void GameObject::DestryoRecursively() {
     //}
     DestroyComponent();
 
-    auto children = transform_.children();
+    auto& children = transform_.children();
     for (auto ch : children) {
         Destroy(ch->game_object());
     }

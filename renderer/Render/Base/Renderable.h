@@ -1,6 +1,8 @@
 #pragma once
 
 #include <memory>
+#include <vector>
+#include "Algorithm/Bvh.h"
 #include "render/base/gfxdriver.h"
 #include "render/material.h"
 #include "Math/Vec3.h"
@@ -37,12 +39,18 @@ struct RenderableTransform
     Vec4f uv_st = { 1.0f, 1.0f, 0.0f, 0.0f };
 };
 
+class Renderable;
+using RenderableTree = BvhTree<Renderable*>;
+using RenderableTreeNode = RenderableTree::NodeType;
+
 class Renderable :
     public Component,
     public Identifiable<Renderable>,
     public Linkable<RenderableManager, Renderable> 
 {
 public:
+    friend class RenderableManager;
+
     Renderable();
     virtual ~Renderable();
 
@@ -80,15 +88,37 @@ protected:
     uint32_t mask_ = 0;
     mutable uint32_t bounds_version_ = 0;
 
-    AABB local_bounds_;
+    AABB local_bounds_ = {Vector3::zero, Vector3::zero};
     mutable AABB world_bounds_;
     mutable Matrix4x4 prev_model_ = Matrix4x4::identity;
 
     Material* material_ = nullptr;
+
+    RenderableTreeNode* node_ = nullptr;
 };
 
-class RenderableManager : public BaseManager<RenderableManager, Renderable> {
+class Camera;
 
+class RenderableManager : public BaseManager<RenderableManager, Renderable> {
+public:
+    using CullFilter = std::function<bool(const Renderable*)>;
+
+    RenderableManager() : tree_(4096) {}
+
+    void UpdateBvhNode(Renderable* o);
+    void RemoveBvhNode(Renderable* o);
+
+    bool Cull(const Camera& camera, std::vector<Renderable*>& result, const CullFilter& filter = nullptr);
+    bool Cull(const Frustum& frustum, std::vector<Renderable*>& result, const CullFilter& filter = nullptr);
+
+    AABB SceneBounds();
+
+    void OnDrawGizmos();
+
+private:
+    void DrawNode(const RenderableTreeNode* node);
+
+    RenderableTree tree_;
 };
 
 
