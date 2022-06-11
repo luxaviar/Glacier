@@ -1,10 +1,10 @@
 #include "Common/Lighting.hlsli"
 #include "PostProcessCommon.hlsl"
 
-Texture2D albedo_tex;
-Texture2D<float2> normal_tex;
-Texture2D ao_metalroughness_tex;
-Texture2D emissive_tex;
+Texture2D AlbedoTexture;
+Texture2D<float2> NormalTexture;
+Texture2D AoMetalroughnessTexture;
+Texture2D EmissiveTexture;
 
 float3 DecodeNormalOct(float2 f)
 {
@@ -33,10 +33,10 @@ float3 ComputeViewPosition(float2 texcoord, float depth)
 
 float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
 {
-    float4 albedo = albedo_tex.Sample(linear_sampler, uv);
-    float3 normal = DecodeNormalOct(normal_tex.Sample(linear_sampler, uv).xy);
-    float3 emissive = emissive_tex.Sample(linear_sampler, uv).rgb;
-    float3 ao_metalroughness = ao_metalroughness_tex.Sample(linear_sampler, uv).rgb;
+    float4 albedo = AlbedoTexture.Sample(linear_sampler, uv);
+    float3 normal = DecodeNormalOct(NormalTexture.Sample(linear_sampler, uv).xy);
+    float3 emissive = EmissiveTexture.Sample(linear_sampler, uv).rgb;
+    float3 ao_metalroughness = AoMetalroughnessTexture.Sample(linear_sampler, uv).rgb;
 
     float depth = _DepthBuffer.Sample(linear_sampler, uv).r;
     float3 view_position = ComputeViewPosition(uv, depth);

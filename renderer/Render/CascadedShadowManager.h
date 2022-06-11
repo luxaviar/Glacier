@@ -11,7 +11,6 @@ class Texture;
 class RenderTarget;
 class Material;
 class Renderable;
-class MaterialTemplate;
 
 class CascadedShadowManager : public Uncopyable {
 public:
@@ -23,7 +22,6 @@ public:
     void Render(const Camera* camera, const std::vector<Renderable*> visibles,
         DirectionalLight* light);
 
-    void SetupMaterial(MaterialTemplate* mat);
     void SetupMaterial(Material* mat);
     void Update();
 

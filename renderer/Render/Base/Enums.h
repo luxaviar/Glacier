@@ -115,7 +115,7 @@ enum class FilterMode : uint8_t {
 };
 
 enum class WarpMode : uint8_t {
-    kRepeat,
+    kRepeat = 0,
     kMirror,
     kClamp,
     kBorder,

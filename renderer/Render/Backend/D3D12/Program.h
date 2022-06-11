@@ -48,10 +48,7 @@ public:
 
     void Bind(GfxDriver* gfx, Material* mat) override;
     void UnBind(GfxDriver* gfx, Material* mat) override {}
-    void ReBind(GfxDriver* gfx, Material* mat) override;
-
-    void Bind(GfxDriver* gfx, MaterialTemplate* mat) override;
-    void UnBind(GfxDriver* gfx, MaterialTemplate* mat) override {}
+    void RefreshDynamicBuffer(GfxDriver* gfx) override;
 
     void Bind(D3D12CommandList* cmd_list);
 
@@ -66,6 +63,7 @@ protected:
     void BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop);
 
     bool is_compute_ = false;
+    bool dynamic_buffer_ = false;
     ComPtr<ID3D12RootSignature> root_signature_;
 
     ParameterBinding cbv_def_;

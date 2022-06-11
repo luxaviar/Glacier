@@ -74,7 +74,6 @@ public:
 private:
     void UpdateDynamic(const void* data, size_t size);
 
-    UsageType usage_;
     LinearAllocBlock linear_block_;
 };
 

@@ -53,7 +53,7 @@ private:
     bool show_imgui_demo_ = false;
 
     bool enable_gizmos_ = true;
-    bool scene_gizmos_ = false;
+    bool scene_gizmos_ = true;
     bool scene_bvh_ = false;
     bool physics_gizmos_ = false;
 

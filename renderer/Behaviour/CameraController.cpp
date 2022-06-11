@@ -2,6 +2,7 @@
 #include "Math/Util.h"
 #include "Render/Camera.h"
 #include "Input/Input.h"
+#include "Common/Log.h"
 
 namespace glacier {
 
@@ -23,7 +24,8 @@ void CameraController::Rotate(float dx, float dy) noexcept
     yaw_ = math::WrapAngle(yaw_ + dx * kRotationSpeed);
     pitch_ = math::Clamp(pitch_ + dy * kRotationSpeed, 0.995f * -math::kPI / 2.0f, 0.995f * math::kPI / 2.0f);
 
-    auto rot = Quaternion::FromEuler(pitch_, yaw_, 0.0f);
+    auto rot = Quaternion::FromEuler(pitch_ * math::kRad2Deg, yaw_ * math::kRad2Deg, 0.0f);
+    //auto rot = camera_->rotation() * delta_rot;
     camera_->rotation(rot);
 }
 

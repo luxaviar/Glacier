@@ -20,13 +20,26 @@
 namespace glacier {
 namespace render {
 
+static void DrawHelmet() {
+    auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
+    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
+    //helmet.transform().position(Vector3{ 6.0f,4.0f,10.0f });
+}
+
+static void DrawSponza() {
+    auto& sponza = Model::GenerateGameObject("assets\\model\\sponza\\sponza.gltf", true, 10.0f);
+    //sponza.transform().position({ 6.0f,4.0f,10.0f });
+}
+
 void PbrScene::OnLoad(Renderer* renderer) {
     auto gfx = renderer->driver();
 
     auto& camera_go = GameObject::Create("MainCamera");
     main_camera_ = camera_go.AddComponent<Camera>();
-    main_camera_->position({ 11.0f,8.0f,-20.0f });
-    main_camera_->LookAt({ -0.0f,0.0f,0.0f });
+    main_camera_->position({ 102.0f, 25.5f, 4.5f });
+
+    auto rot = Quaternion::FromEuler(9.4f, 266.671f, 0);
+    main_camera_->rotation(rot);
 
     camera_go.AddComponent<CameraController>(main_camera_);
 
@@ -37,33 +50,8 @@ void PbrScene::OnLoad(Renderer* renderer) {
     auto main_light = light_go.AddComponent<DirectionalLight>(Color::kWhite, 1.0f);
     main_light->EnableShadow();
 
-    float radius = 0.5f;
-    auto solid_mat = MaterialManager::Instance()->Get("solid");
-    auto& sphere_go = Primitive::CreateSphere(solid_mat, radius);
-    sphere_go.name("light sphere");
-    auto light = sphere_go.AddComponent<PointLight>(20.0f, Color::kWhite, 1.0f);
-    sphere_go.transform().position(light->position());
-    sphere_go.GetComponent<MeshRenderer>()->SetCastShadow(false);
-
-    auto pbr_default = MaterialManager::Instance()->Get("pbr_default");
-    auto size = Vec3f{ 4.0f, 4.0f, 4.0f };
-    auto& cube_go = Primitive::CreateCube(pbr_default, size);
-    cube_go.transform().position({-6.0f, 0.0f, 0.0f});
-
-    auto& cube1_go = Primitive::CreateCube(pbr_default, size);
-    cube1_go.transform().position({ -12.0f,4.0f,0.0f });
-
-    auto& cube2_go = Primitive::CreateCube(pbr_default, size);
-    cube2_go.transform().position({ -6.0f,0.0f,20.0f });
-
-    auto& cube3_go = Primitive::CreateCube(pbr_default, size);
-    cube3_go.transform().position({ -12.0f,4.0f,20.0f });
-
-    auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
-    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\helmet.obj",
-        helmet_mat, 2.0f);
-
-    helmet.transform().position({ 6.0f,4.0f,10.0f });
+    //DrawHelmet();
+    DrawSponza();
 }
 
 }

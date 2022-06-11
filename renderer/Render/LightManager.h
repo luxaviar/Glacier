@@ -15,7 +15,6 @@ class Camera;
 class Renderer;
 class Renderable;
 class Material;
-class MaterialTemplate;
 
 class LightManager : public Singleton<LightManager> {
 public:
@@ -31,7 +30,6 @@ public:
     //Get main directional light
     DirectionalLight* GetMainLight();
 
-    void SetupMaterial(MaterialTemplate* mat);
     void SetupMaterial(Material* mat);
     void Update();
 

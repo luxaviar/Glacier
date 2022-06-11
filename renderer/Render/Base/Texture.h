@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <functional>
+#include <array>
 #include "resource.h"
 #include "common/color.h"
 #include "Common/Util.h"
@@ -31,6 +32,8 @@ struct TextureDescription {
     TextureDescription& SetCreateFlag(CreateFlags flags) { create_flags |= (uint32_t)flags; return *this; }
     TextureDescription& SetCreateFlag(uint32_t flags) { create_flags = flags; return *this; }
 
+    operator bool() const { return !file.empty() || use_color || is_backbuffer; }
+
     bool srgb = false;
     bool gen_mips = false;
     TextureFormat format = TextureFormat::kUnkown;
@@ -39,15 +42,17 @@ struct TextureDescription {
 
     //int backbuffer_index = -1;
     bool is_backbuffer = false;
-    bool use_color;
+    bool use_color = false;
     Color color;
     EngineString file;
 
-    uint32_t width;
-    uint32_t height;
+    uint32_t width = 32;
+    uint32_t height = 32;
     uint32_t sample_count = 1;
     uint32_t sample_quality = 0;
     uint32_t depth_or_array_size = 1;
+
+    std::array<WarpMode, 3> warp = {WarpMode::kRepeat};
 };
 
 class Texture : public Resource {

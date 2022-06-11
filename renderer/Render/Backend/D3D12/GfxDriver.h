@@ -102,9 +102,6 @@ public:
 
     std::shared_ptr<RenderTarget> CreateRenderTarget(uint32_t width, uint32_t height) override;
 
-    void BindMaterial(Material* mat) override;
-    void UnBindMaterial() override;
-
     void SetCurrentRenderTarget(std::shared_ptr<D3D12RenderTarget> rt);
     std::shared_ptr<D3D12RenderTarget>& GetCurrentRenderTarget() { return current_render_target_; }
 

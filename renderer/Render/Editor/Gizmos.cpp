@@ -3,14 +3,15 @@
 #include <assert.h>
 #include <algorithm>
 #include "Math/Util.h"
-#include "render/camera.h"
+#include "Render/Camera.h"
 #include "Math/Vec3.h"
 #include "Math/Mat4.h"
 #include "common/color.h"
 #include "Render/Mesh/geometry.h"
 #include "Render/Mesh/MeshRenderer.h"
-#include "render/base/buffer.h"
-#include "render/base/inputlayout.h"
+#include "Render/Base/buffer.h"
+#include "Render/Base/Program.h"
+#include "Render/Base/Inputlayout.h"
 #include "Inspect/Profiler.h"
 
 namespace glacier {
@@ -40,8 +41,8 @@ void Gizmos::Setup(GfxDriver* gfx) {
     RasterStateDesc rs;
     rs.depthWrite = false;
     rs.topology = TopologyType::kLine;
-    material_->GetTemplate()->SetRasterState(rs);
-    material_->GetTemplate()->SetInputLayout(input_layout);
+    material_->GetProgram()->SetRasterState(rs);
+    material_->GetProgram()->SetInputLayout(input_layout);
 
     occluded_material_ = std::make_shared<Material>("wireframe", TEXT("Gizmo"), TEXT("Gizmo"));
     rs.depthFunc = RasterStateDesc::kReverseDepthFuncWithEqual;
@@ -52,8 +53,8 @@ void Gizmos::Setup(GfxDriver* gfx) {
     rs.blendFunctionSrcAlpha = BlendFunction::kZero;
     rs.blendFunctionDstAlpha = BlendFunction::kDstAlpha;
 
-    occluded_material_->GetTemplate()->SetRasterState(rs);
-    occluded_material_->GetTemplate()->SetInputLayout(input_layout);
+    occluded_material_->GetProgram()->SetRasterState(rs);
+    occluded_material_->GetProgram()->SetInputLayout(input_layout);
 }
 
 void Gizmos::OnDestroy() {

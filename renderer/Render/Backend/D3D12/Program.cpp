@@ -28,60 +28,43 @@ ID3D12RootSignature* D3D12Program::GetRootSignature() {
 }
 
 void D3D12Program::Bind(GfxDriver* gfx, Material* mat) {
-    PerfSample("Material Binding");
-    auto& properties = mat->GetProperties();
     auto driver = static_cast<D3D12GfxDriver*>(gfx);
     auto cmd_list = driver->GetCommandList();
-    for (auto& prop : properties) {
+
+    auto& properties = mat->GetProperties();
+    for (auto& [_, prop] : properties) {
         BindProperty(gfx, cmd_list, prop);
     }
 
     Bind(cmd_list);
 }
 
-void D3D12Program::ReBind(GfxDriver* gfx, Material* mat) {
+void D3D12Program::RefreshDynamicBuffer(GfxDriver* gfx) {
+    if (!dynamic_buffer_) return;
+
     auto driver = static_cast<D3D12GfxDriver*>(gfx);
     auto cmd_list = driver->GetCommandList();
-    auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
-        if (prop.prop_type == MaterialPropertyType::kConstantBuffer ||
-            prop.prop_type == MaterialPropertyType::kColor ||
-            prop.prop_type == MaterialPropertyType::kFloat4 ||
-            prop.prop_type == MaterialPropertyType::kMatrix)
-        {
-            BindProperty(gfx, cmd_list, prop);
-        }
-    }
 
     for (uint32_t i = 0; i < cbv_def_.size(); ++i) {
         const auto& param = cbv_def_[i];
         assert(param.constant_buffer);
 
-        if (is_compute_) {
-            cmd_list->SetComputeRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
-        }
-        else {
-            cmd_list->SetGraphicsRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
+        if (param.constant_buffer->IsDynamic()) {
+            if (is_compute_) {
+                cmd_list->SetComputeRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
+            }
+            else {
+                cmd_list->SetGraphicsRootConstantBufferView(cbv_def_.root_slot + i, param.constant_buffer);
+            }
         }
     }
 }
-
 
 void D3D12Program::BindPSO(GfxDriver* gfx) {
     if (pso_) {
         auto d3d12pso = static_cast<D3D12PipelineState*>(pso_.get());
         d3d12pso->Check(gfx, this);
         pso_->Bind(gfx);
-    }
-}
-
-void D3D12Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
-    PerfSample("D3D12Program Binding");
-    auto cmd_list = static_cast<D3D12GfxDriver*>(gfx)->GetCommandList();
-
-    auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
-        BindProperty(gfx, cmd_list, prop);
     }
 }
 
@@ -109,6 +92,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
                 else {
                     cmd_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
                 }
+
                 SetParameter(name, tex);
             }
             break;
@@ -117,6 +101,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
                 if (!prop.sampler) {
                     prop.sampler = D3D12Sampler::Create(gfx, prop.sampler_state);
                 }
+
 
                 auto sampler = static_cast<D3D12Sampler*>(prop.sampler.get());
                 SetParameter(name, sampler);
@@ -130,6 +115,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
             break;
             case MaterialPropertyType::kStructuredBuffer:
             {
+
                 auto buf = static_cast<D3D12StructuredBuffer*>(prop.buffer.get());
                 SetParameter(name, buf);
             }
@@ -152,6 +138,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
                 else if (prop.dirty) {
                     prop.buffer->Update(&prop.matrix); //compatible with color & float4
                 }
+
                 auto cbuffer = static_cast<D3D12ConstantBuffer*>(prop.buffer.get());
                 SetParameter(name, cbuffer);
             }
@@ -340,6 +327,9 @@ void D3D12Program::SetParameter(const char* name, D3D12ConstantBuffer* cbuffer) 
     for (auto& param : cbv_def_.params) {
         if (param.name == name) {
             param.constant_buffer = cbuffer;
+            if (cbuffer->IsDynamic()) {
+                dynamic_buffer_ = true;
+            }
         }
     }
 }

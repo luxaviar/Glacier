@@ -21,7 +21,7 @@ Renderable::Renderable() :
 Renderable::~Renderable() {
 }
 
-void Renderable::SetMaterial(Material* mat) {
+void Renderable::SetMaterial(const std::shared_ptr<Material>& mat) {
     material_ = mat;
 }
 

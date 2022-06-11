@@ -31,7 +31,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
     for (int x = -1; x <= 1; x++) {
         for (int y = -1; y <= 1; y++) {
             float2 neighbor_uv = uv + float2(x, y) * _ScreenParam.zw;
-            float3 neighbor_color = _PostSourceTexture.Sample(linear_sampler, neighbor_uv).rgb;
+            float3 neighbor_color = _PostSourceTexture.Sample(point_sampler, neighbor_uv).rgb;
             neighbor_color = FastTonemap(neighbor_color);
             neighbor_color = RGB2YCoCgR(neighbor_color);
  
@@ -47,7 +47,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
             m1 += neighbor_color;
             m2 += neighbor_color * neighbor_color;
             
-            float neighbor_depth = _DepthBuffer.Sample(linear_sampler, neighbor_uv).r;
+            float neighbor_depth = _DepthBuffer.Sample(point_sampler, neighbor_uv).r;
 #ifdef GLACIER_REVERSE_Z
             if (neighbor_depth > closest_depth)
 #else
@@ -60,7 +60,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
         }
     }
 
-    float2 velocity = VelocityTexture.Sample(linear_sampler, closest_uv).xy;
+    float2 velocity = VelocityTexture.Sample(point_sampler, closest_uv).xy;
     float2 prev_uv = uv - velocity;
 
     float3 curr_color = total_curr_color / total_curr_weight;
@@ -69,7 +69,8 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET 
         return float4(curr_color, 1.0f);
     }
 
-    float3 prev_color = SampleTextureCatmullRom(PrevColorTexture, linear_sampler, prev_uv, _ScreenParam.xy).rgb;
+    float3 prev_color = SampleTextureCatmullRom(PrevColorTexture, point_sampler, prev_uv, _ScreenParam.xy).rgb;
+    //float3 prev_color = SampleTextureCatmullRom(PrevColorTexture, linear_sampler, prev_uv, _ScreenParam.xy).rgb;
 
     prev_color = FastTonemap(prev_color);
     prev_color = RGB2YCoCgR(prev_color);

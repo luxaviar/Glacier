@@ -10,7 +10,7 @@
 namespace glacier {
 namespace render {
 
-MeshRenderer::MeshRenderer(const std::shared_ptr<Mesh>& mesh, Material* material) {
+MeshRenderer::MeshRenderer(const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material) {
     local_bounds_ = mesh->bounds();
     meshes_.push_back(mesh);
 
@@ -50,7 +50,7 @@ void MeshRenderer::OnDisable() {
 void MeshRenderer::Render(GfxDriver* gfx, Material* mat) const {
     UpdateTransform(gfx);
 
-    MaterialGuard guard(gfx, mat ? mat : material_);
+    MaterialGuard guard(gfx, mat ? mat : material_.get());
     for (auto& mesh : meshes_) {
         mesh->Draw(gfx);
     }

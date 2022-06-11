@@ -52,8 +52,7 @@ void PhysicsDemo::OnLoad(Renderer* renderer) {
     ground_go.AddComponent<BoxCollider>(Vec3f{ 25.0f, 1.0f, 25.0f });
 
     auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
-    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\helmet.obj",
-        helmet_mat, 2.0f);
+    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
 
     helmet.transform().position({ 7.5f,6.0f,-14.0f });
 }

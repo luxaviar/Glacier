@@ -22,6 +22,7 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
 #include "Render/Base/RenderTexturePool.h"
+#include "Render/Base/Program.h"
 #include "Common/Log.h"
 
 namespace glacier {
@@ -32,63 +33,54 @@ DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
     option_aa_(aa)
 {
     assert(aa != AntiAliasingType::kMSAA);
-    fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam>(UsageType::kDefault);
-    fxaa_param_ = { 0.0833f, 0.166f, 0.75f, 0.0f };
+    fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam, UsageType::kDefault>(0.0833f, 0.166f, 0.75f, 0.0f);
+    //fxaa_param_ = {  };
 
-    taa_param_ = gfx_->CreateConstantParameter<TAAParam>(UsageType::kDefault);
-    taa_param_ = { 0.95f, 0.85f, 6000.0f, 0.0f };
+    taa_param_ = gfx_->CreateConstantParameter<TAAParam, UsageType::kDefault>(0.95f, 0.85f, 6000.0f, 0.0f);
+    //taa_param_ = { 0.95f, 0.85f, 6000.0f, 0.0f };
 }
 
 void DeferredRenderer::Setup() {
     if (init_) return;
 
-    Renderer::Setup();
-
-    InitRenderGraph(gfx_);
-
-    auto gpass_program = gfx_->CreateProgram("GPass", TEXT("GBufferPass"), TEXT("GBufferPass"));
-    gpass_template_ = std::make_shared<MaterialTemplate>("GPass", gpass_program);
-    gpass_template_->SetInputLayout(Mesh::kDefaultLayout);
+    gpass_program_ = gfx_->CreateProgram("GPass", TEXT("GBufferPass"), TEXT("GBufferPass"));
+    gpass_program_->SetInputLayout(Mesh::kDefaultLayout);
 
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kRepeat;
-    gpass_template_->SetProperty("linear_sampler", ss);
-    gpass_template_->SetProperty("_PerFrameData", per_frame_param_);
-    gpass_template_->AddPass("GPass");
+    gpass_program_->SetProperty("linear_sampler", ss);
+    gpass_program_->AddPass("GPass");
+
+    Renderer::Setup();
+
+    InitRenderGraph(gfx_);
 
     lighting_mat_ = std::make_shared<PostProcessMaterial>("DeferredLighting", TEXT("DeferredLighting"));
 
     ss.warpU = ss.warpV = WarpMode::kClamp;
     lighting_mat_->SetProperty("linear_sampler", ss);
-    lighting_mat_->SetProperty("_PerFrameData", per_frame_param_);
-
     lighting_mat_->AddPass("DeferredLighting");
 
-    LightManager::Instance()->SetupMaterial(lighting_mat_.get());
-    csm_manager_->SetupMaterial(lighting_mat_.get());
-
-    lighting_mat_->SetProperty("albedo_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    lighting_mat_->SetProperty("normal_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
-    lighting_mat_->SetProperty("ao_metalroughness_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
-    lighting_mat_->SetProperty("emissive_tex", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
+    lighting_mat_->SetProperty("AlbedoTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    lighting_mat_->SetProperty("NormalTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
+    lighting_mat_->SetProperty("AoMetalroughnessTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
+    lighting_mat_->SetProperty("EmissiveTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
     lighting_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
 
     fxaa_mat_ = std::make_shared<PostProcessMaterial>("FXAA", TEXT("FXAA"));
     fxaa_mat_->SetProperty("fxaa_param", fxaa_param_);
     fxaa_mat_->SetProperty("_PostSourceTexture", ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    fxaa_mat_->SetProperty("_PerFrameData", per_frame_param_);
 
     taa_mat_ = std::make_shared<PostProcessMaterial>("TAA", TEXT("TAA"));
     taa_mat_->SetProperty("taa_param", taa_param_);
     taa_mat_->SetProperty("_PostSourceTexture", temp_hdr_texture_);
-    taa_mat_->SetProperty("_PerFrameData", per_frame_param_);
     taa_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
     taa_mat_->SetProperty("PrevColorTexture", prev_hdr_texture_);
     taa_mat_->SetProperty("VelocityTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
+}
 
-    InitHelmetPbr(gfx_);
-    InitFloorPbr(gfx_);
-    InitDefaultPbr(gfx_);
+std::shared_ptr<Material> DeferredRenderer::CreateLightingMaterial(const char* name) {
+    return std::make_shared<Material>(name, gpass_program_);
 }
 
 void DeferredRenderer::DoTAA() {
@@ -166,133 +158,6 @@ void DeferredRenderer::PreRender() {
     gbuffer_render_target_->Clear();
 
     Renderer::PreRender();
-}
-
-void DeferredRenderer::InitHelmetPbr(GfxDriver* gfx) {
-    auto albedo_desc = Texture::Description()
-        .SetFile(TEXT("assets\\model\\helmet\\helmet_albedo.png"))
-        .EnableSRGB()
-        .EnableMips();
-    auto albedo_tex = gfx->CreateTexture(albedo_desc);
-
-    auto normal_desc = Texture::Description()
-        .SetFile(TEXT("assets\\model\\helmet\\helmet_normal.png"));
-    auto normal_tex = gfx->CreateTexture(normal_desc);
-
-    auto metal_desc = Texture::Description()
-        .SetFile(TEXT("assets\\model\\helmet\\helmet_metalroughness.png"))
-        .EnableMips();
-    auto metal_roughness_tex = gfx->CreateTexture(metal_desc);
-
-    auto ao_desc = Texture::Description()
-        .SetFile(TEXT("assets\\model\\helmet\\helmet_occlusion.png"))
-        .EnableMips()
-        .EnableSRGB();
-    auto ao_tex = gfx->CreateTexture(ao_desc);
-
-    auto em_desc = Texture::Description()
-        .SetFile(TEXT("assets\\model\\helmet\\helmet_emission.png"))
-        .EnableMips()
-        .EnableSRGB();
-    auto emissive_tex = gfx->CreateTexture(em_desc);
-
-    auto helmet_mat = std::make_unique<Material>("pbr_helmet", gpass_template_);
-
-    SamplerState ss;
-    ss.warpU = ss.warpV = WarpMode::kMirror;
-
-    helmet_mat->SetProperty("linear_sampler", ss);
-    helmet_mat->SetProperty("albedo_tex", albedo_tex);
-    helmet_mat->SetProperty("normal_tex", normal_tex);
-    helmet_mat->SetProperty("metalroughness_tex", metal_roughness_tex);
-    helmet_mat->SetProperty("ao_tex", ao_tex);
-    helmet_mat->SetProperty("emissive_tex", emissive_tex);
-    helmet_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
-
-    struct PbrMaterial {
-        Vec3f f0 = Vec3f(0.04f);
-        uint32_t use_normal = 1;
-    };
-
-    PbrMaterial pbr_param;
-    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
-    helmet_mat->SetProperty("object_material", mat_cbuf);
-
-    MaterialManager::Instance()->Add(std::move(helmet_mat));
-}
-
-void DeferredRenderer::InitDefaultPbr(GfxDriver* gfx) {
-    auto default_mat = std::make_unique<Material>("pbr_default", gpass_template_);
-
-    default_mat->SetProperty("albedo_tex", nullptr, Color::kWhite);
-    default_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
-    default_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
-    default_mat->SetProperty("emissive_tex", nullptr, Color::kBlack);
-    default_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
-
-    struct PbrMaterial {
-        Vec3f f0 = Vec3f(0.04f);
-        uint32_t use_normal_map = 0;
-    };
-
-    PbrMaterial pbr_param;
-    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
-    default_mat->SetProperty("object_material", mat_cbuf);
-
-    auto red_mat = std::make_unique<Material>(*default_mat);
-    red_mat->name("red_pbr_default");
-    red_mat->SetProperty("albedo_tex", nullptr, Color::kRed);
-
-    auto green_mat = std::make_unique<Material>(*default_mat);
-    green_mat->name("green_pbr_default");
-    green_mat->SetProperty("albedo_tex", nullptr, Color::kGreen);
-
-    auto orange_mat = std::make_unique<Material>(*default_mat);
-    orange_mat->name("orange_pbr_default");
-    orange_mat->SetProperty("albedo_tex", nullptr, Color::kOrange);
-
-    auto indigo_mat = std::make_unique<Material>(*default_mat);
-    indigo_mat->name("indigo_pbr_default");
-    indigo_mat->SetProperty("albedo_tex", nullptr, Color::kIndigo);
-
-    MaterialManager::Instance()->Add(std::move(default_mat));
-    MaterialManager::Instance()->Add(std::move(red_mat));
-    MaterialManager::Instance()->Add(std::move(green_mat));
-    MaterialManager::Instance()->Add(std::move(orange_mat));
-    MaterialManager::Instance()->Add(std::move(indigo_mat));
-}
-
-void DeferredRenderer::InitFloorPbr(GfxDriver* gfx) {
-    auto albedo_desc = Texture::Description()
-        .SetFile(TEXT("assets\\textures\\floor_albedo.png"))
-        .EnableSRGB()
-        .EnableMips();
-    auto albedo_tex = gfx->CreateTexture(albedo_desc);
-
-    auto normal_desc = Texture::Description()
-        .SetFile(TEXT("assets\\textures\\floor_normal.png"));
-    auto normal_tex = gfx->CreateTexture(normal_desc);
-
-    auto floor_mat = std::make_unique<Material>("pbr_floor", gpass_template_);
-    floor_mat->SetTexTilingOffset({5.0f, 5.0f, 0.0f, 0.0f});
-
-    floor_mat->SetProperty("albedo_tex", albedo_tex);
-    floor_mat->SetProperty("normal_tex", normal_tex);
-    floor_mat->SetProperty("metalroughness_tex", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
-    floor_mat->SetProperty("ao_tex", nullptr, Color::kWhite);
-    floor_mat->SetProperty("emissive_tex", nullptr, Color::kBlack);
-    floor_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
-
-    struct PbrMaterial {
-        Vec3f f0 = Vec3f(0.04f);
-        uint32_t use_normal_map = 1;
-    };
-
-    PbrMaterial pbr_param;
-    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
-    floor_mat->SetProperty("object_material", mat_cbuf);
-
-    MaterialManager::Instance()->Add(std::move(floor_mat));
 }
 
 void DeferredRenderer::AddGPass() {

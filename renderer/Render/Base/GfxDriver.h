@@ -33,7 +33,6 @@ class Query;
 class SwapChain;
 class Program;
 class PipelineState;
-class MaterialTemplate;
 
 class GfxDriver : private Uncopyable {
 public:
@@ -76,9 +75,16 @@ public:
         return CreateConstantBuffer(nullptr, sizeof(T), usage);
     }
 
-    template<typename T>
-    ConstantParameter<T> CreateConstantParameter(UsageType usage = UsageType::kDynamic) {
-        auto cbuf = CreateConstantBuffer(nullptr, sizeof(T), usage);
+    template<typename T, UsageType U>
+    ConstantParameter<T> CreateConstantParameter(nullptr_t v) {
+        auto cbuf = CreateConstantBuffer(nullptr, sizeof(T), U);
+        return ConstantParameter<T>(cbuf);
+    }
+
+    template<typename T, UsageType U, typename ...Args>
+    ConstantParameter<T> CreateConstantParameter(Args&&... args) {
+        T param{ std::forward<Args>(args)... };
+        auto cbuf = CreateConstantBuffer(&param, sizeof(T), U);
         return ConstantParameter<T>(cbuf);
     }
 
@@ -113,8 +119,8 @@ public:
     const uint32_t& layout_signature() const { return input_layout_; }
     void layout_signature(const uint32_t& sig) { input_layout_ = sig; }
 
-    virtual void BindMaterial(Material* mat) = 0;
-    virtual void UnBindMaterial() = 0;
+    virtual void BindMaterial(Material* mat);
+    virtual void UnBindMaterial();
 
     virtual void Flush() {}
 
@@ -131,7 +137,7 @@ protected:
     RasterStateDesc raster_state_;
     uint32_t input_layout_ = { 0 };
     Material* material_ = nullptr;
-    MaterialTemplate* material_template_ = nullptr;
+    Program* program_ = nullptr;
 
     bool imgui_enable_ = true;
 };

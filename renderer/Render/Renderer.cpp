@@ -25,6 +25,7 @@
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/Program.h"
 #include "Render/Base/RenderTexturePool.h"
 #include "Inspect/Profiler.h"
 #include "Common/Log.h"
@@ -46,7 +47,7 @@ Renderer::Renderer(GfxDriver* gfx, AntiAliasingType aa) :
     editor_(gfx),
     post_process_manager_(gfx)
 {
-    per_frame_param_ = gfx->CreateConstantParameter<PerFrameData>(UsageType::kDynamic);
+    per_frame_param_ = gfx->CreateConstantParameter<PerFrameData, UsageType::kDynamic>(nullptr);
     stats_ = std::make_unique<PerfStats>(gfx);
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 10.6, 18.6, 19.2, 51.6 });
 
@@ -66,6 +67,9 @@ void Renderer::Setup() {
 
     Gizmos::Instance()->Setup(gfx_);
     LightManager::Instance()->Setup(gfx_, this);
+
+    InitFloorPbr(gfx_);
+    InitDefaultPbr(gfx_);
 }
 
 void Renderer::InitRenderTarget() {
@@ -123,8 +127,8 @@ void Renderer::FilterVisibles() {
 
     //TODO: sort by depth?
     std::sort(visibles_.begin(), visibles_.end(), [](Renderable* a, Renderable* b) {
-        auto template_a = a->GetMaterial()->GetTemplate()->id();
-        auto template_b = b->GetMaterial()->GetTemplate()->id();
+        auto template_a = a->GetMaterial()->GetProgram()->id();
+        auto template_b = b->GetMaterial()->GetProgram()->id();
         if (template_a == template_b) {
             return a->GetMaterial()->id() < b->GetMaterial()->id();
         }
@@ -142,7 +146,7 @@ void Renderer::BindLightingTarget() {
 void Renderer::InitMaterial() {
     auto solid_mat = std::make_unique<Material>("solid", TEXT("Solid"), TEXT("Solid"));
     solid_mat->SetProperty("color", Color{ 1.0f,1.0f,1.0f, 1.0f });
-    solid_mat->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+    solid_mat->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     MaterialManager::Instance()->Add(std::move(solid_mat));
 
@@ -275,6 +279,19 @@ void Renderer::CaptureShadowMap() {
     csm_manager_->CaptureShadowMap();
 }
 
+void Renderer::SetupBuiltinProperty(Material* mat) {
+    if (mat->HasParameter("_PerFrameData")) {
+        mat->SetProperty("_PerFrameData", per_frame_param_);
+    }
+
+    if (mat->HasParameter("_PerObjectData")) {
+        mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
+    }
+
+    csm_manager_->SetupMaterial(mat);
+    LightManager::Instance()->SetupMaterial(mat);
+}
+
 void Renderer::CaptureScreen() {
     auto width = ldr_render_target_->width();
     auto height = ldr_render_target_->height();
@@ -393,7 +410,6 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
                 camera->position({ light_pos.x, light_pos.y, light_pos.z });
                 gfx->BindCamera(camera);
 
-                //MaterialGuard guard(gfx, shadow_mat_ptr);
                 for (auto o : visibles_) {
                     o->Render(gfx, shadow_mat_ptr);
                 }
@@ -428,9 +444,9 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     auto phong_mat = std::make_unique<Material>("lambert_cube");
     phong_mat->SetProperty("shadow_trans", shadow_space_tx);
     phong_mat->SetProperty("shadow_map", shadow_map_cube);
-    phong_mat->GetTemplate()->SetProperty("sampler1", ss);
-    phong_mat->GetTemplate()->SetProperty("sampler2", ss1);
-    phong_mat->GetTemplate()->SetInputLayout(Mesh::kDefaultLayout);
+    phong_mat->GetProgram()->SetProperty("sampler1", ss);
+    phong_mat->GetProgram()->SetProperty("sampler2", ss1);
+    phong_mat->GetProgram()->SetInputLayout(Mesh::kDefaultLayout);
 
     auto phong_mat_ptr = phong_mat.get();
     MaterialManager::Instance()->Add(std::move(phong_mat));
@@ -451,6 +467,89 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
             MaterialGuard guard(renderer->driver(), phong_mat_ptr);
             pass.Render(renderer, visibles_);
         });
+}
+
+void Renderer::InitDefaultPbr(GfxDriver* gfx) {
+    auto pbr_mat = CreateLightingMaterial("pbr_default");
+
+    pbr_mat->SetProperty("AlbedoTexture", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("MetalRoughnessTexture", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
+    pbr_mat->SetProperty("AoTexture", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("EmissiveTexture", nullptr, Color::kBlack);
+
+    struct PbrMaterial {
+        Vec3f f0 = Vec3f(0.04f);
+        uint32_t use_normal_map = 0;
+    };
+
+    PbrMaterial pbr_param;
+    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
+    pbr_mat->SetProperty("object_material", mat_cbuf);
+
+    auto red_pbr = std::make_unique<Material>(*pbr_mat);
+    red_pbr->name("red_pbr_default");
+    red_pbr->SetProperty("AlbedoTexture", nullptr, Color::kRed);
+
+    auto green_pbr = std::make_unique<Material>(*pbr_mat);
+    green_pbr->name("green_pbr_default");
+    green_pbr->SetProperty("AlbedoTexture", nullptr, Color::kGreen);
+
+    auto orange_pbr = std::make_unique<Material>(*pbr_mat);
+    orange_pbr->name("orange_pbr_default");
+    orange_pbr->SetProperty("AlbedoTexture", nullptr, Color::kOrange);
+
+    auto indigo_pbr = std::make_unique<Material>(*pbr_mat);
+    indigo_pbr->name("indigo_pbr_default");
+    indigo_pbr->SetProperty("AlbedoTexture", nullptr, Color::kIndigo);
+
+    MaterialManager::Instance()->Add(std::move(pbr_mat));
+    MaterialManager::Instance()->Add(std::move(red_pbr));
+    MaterialManager::Instance()->Add(std::move(green_pbr));
+    MaterialManager::Instance()->Add(std::move(orange_pbr));
+    MaterialManager::Instance()->Add(std::move(indigo_pbr));
+}
+
+void Renderer::InitFloorPbr(GfxDriver* gfx) {
+    auto albedo_desc = Texture::Description()
+        .SetFile(TEXT("assets\\textures\\floor_albedo.png"))
+        .EnableSRGB()
+        .EnableMips();
+    auto albedo_tex = gfx->CreateTexture(albedo_desc);
+
+    auto normal_desc = Texture::Description()
+        .SetFile(TEXT("assets\\textures\\floor_normal.png"));
+    auto normal_tex = gfx->CreateTexture(normal_desc);
+
+    // auto metal_desc = Texture::Description()
+    //     .SetFile(TEXT("assets\\textures\\floor_metallic.png"))
+    //     .EnableMips();
+    // auto metal_roughness_tex = gfx->CreateTexture(metal_desc);
+
+    // auto ao_desc = Texture::Description()
+    //     .SetFile(TEXT("assets\\textures\\floor_roughness.png"))
+    //     .EnableMips()
+    //     .EnableSRGB();
+    // auto ao_tex = gfx->CreateTexture(ao_desc);
+
+    auto pbr_mat = CreateLightingMaterial("pbr_floor");
+    pbr_mat->SetTexTilingOffset({ 5.0f, 5.0f, 0.0f, 0.0f });
+
+    pbr_mat->SetProperty("AlbedoTexture", albedo_tex);
+    pbr_mat->SetProperty("NormalTexture", normal_tex);
+    pbr_mat->SetProperty("MetalRoughnessTexture", nullptr, Color(0.0f, 0.5f, 0.0f, 1.0f));
+    pbr_mat->SetProperty("AoTexture", nullptr, Color::kWhite);
+    pbr_mat->SetProperty("EmissiveTexture", nullptr, Color::kBlack);
+
+    struct PbrMaterial {
+        Vec3f f0 = Vec3f(0.04f);
+        uint32_t use_normal_map = 1;
+    };
+
+    PbrMaterial pbr_param;
+    auto mat_cbuf = gfx->CreateConstantBuffer<PbrMaterial>(pbr_param, UsageType::kDefault);
+    pbr_mat->SetProperty("object_material", mat_cbuf);
+
+    MaterialManager::Instance()->Add(std::move(pbr_mat));
 }
 
 void Renderer::OptionWindow(bool* open) {

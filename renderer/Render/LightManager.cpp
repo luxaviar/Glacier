@@ -14,6 +14,7 @@
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/RenderTexturePool.h"
+#include "Render/Base/Program.h"
 
 namespace glacier {
 namespace render {
@@ -75,18 +76,19 @@ DirectionalLight* LightManager::GetMainLight() {
     return nullptr;
 }
 
-void LightManager::SetupMaterial(MaterialTemplate* mat) {
-    mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("_BrdfLutTexture", brdf_lut_);
-    mat->SetProperty("_RadianceTextureCube", radiance_);
-    mat->SetProperty("_IrradianceTextureCube", irradiance_);
-}
-
 void LightManager::SetupMaterial(Material* mat) {
-    mat->SetProperty("LightList", light_cbuffer_);
-    mat->SetProperty("_BrdfLutTexture", brdf_lut_);
-    mat->SetProperty("_RadianceTextureCube", radiance_);
-    mat->SetProperty("_IrradianceTextureCube", irradiance_);
+    if (mat->HasParameter("LightList")) {
+        mat->SetProperty("LightList", light_cbuffer_);
+    }
+    if (mat->HasParameter("_BrdfLutTexture")) {
+        mat->SetProperty("_BrdfLutTexture", brdf_lut_);
+    }
+    if (mat->HasParameter("_RadianceTextureCube")) {
+        mat->SetProperty("_RadianceTextureCube", radiance_);
+    }
+    if (mat->HasParameter("_IrradianceTextureCube")) {
+        mat->SetProperty("_IrradianceTextureCube", irradiance_);
+    }
 }
 
 void LightManager::Update() {
@@ -135,8 +137,8 @@ void LightManager::GenerateSkybox() {
     rs.depthWrite = false;
     rs.depthFunc = RasterStateDesc::kDefaultDepthFuncWithEqual;
     rs.culling = CullingMode::kFront;
-    skybox_material_->GetTemplate()->SetRasterState(rs);
-    skybox_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+    skybox_material_->GetProgram()->SetRasterState(rs);
+    skybox_material_->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     skybox_material_->SetProperty("vp_matrix", skybox_matrix_);
     skybox_material_->SetProperty("_SkyboxTextureCube", skybox_texture_);
@@ -162,7 +164,7 @@ void LightManager::GenerateBrdfLut(Renderer* renderer) {
     rs.depthFunc = CompareFunc::kAlways;
 
     auto integrate_material_ = std::make_unique<PostProcessMaterial>("integrate", TEXT("IntegrateBRDF"));
-    integrate_material_->GetTemplate()->SetRasterState(rs);
+    integrate_material_->GetProgram()->SetRasterState(rs);
 
     constexpr int kSize = 512;
     brdf_lut_ = RenderTexturePool::Get(kSize, kSize, TextureFormat::kR16G16B16A16_FLOAT);
@@ -193,8 +195,8 @@ void LightManager::GenerateIrradiance() {
     rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
-    convolve_material_->GetTemplate()->SetRasterState(rs);
-    convolve_material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+    convolve_material_->GetProgram()->SetRasterState(rs);
+    convolve_material_->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     auto constexpr count = toUType(CubeFace::kCount);
     Matrix4x4 view[count] = {
@@ -254,8 +256,8 @@ void LightManager::GenerateRadiance() {
     rs.depthEnable = false;
     rs.depthFunc = CompareFunc::kAlways;
     rs.culling = CullingMode::kFront;
-    prefilter_material->GetTemplate()->SetRasterState(rs);
-    prefilter_material->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+    prefilter_material->GetProgram()->SetRasterState(rs);
+    prefilter_material->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     prefilter_material->SetProperty("linear_sampler", ss);
     prefilter_material->SetProperty("_SkyboxTextureCube", skybox_texture_);

@@ -3,7 +3,8 @@
 #include "render/material.h"
 #include "inputlayout.h"
 #include "pipelinestate.h"
-#include "Render/MaterialTemplate.h"
+#include "Program.h"
+#include "../Material.h"
 
 namespace glacier {
 namespace render {
@@ -25,6 +26,40 @@ void GfxDriver::BindCamera(const Vector3& pos, const Matrix4x4& view, const Matr
     projection_ = projection;
     view_ = view;
 }
+
+void GfxDriver::BindMaterial(Material* mat) {
+    if (!mat) return;
+
+    auto program = mat->GetProgram().get();
+    if (material_ == mat) {
+        program->RefreshDynamicBuffer(this);
+        return;
+    }
+
+    if (program != program_) {
+        program->BindPSO(this);
+        program_ = program;
+    }
+
+    if (material_) {
+        material_->UnBind(this);
+    }
+
+    material_ = mat;
+    material_->Bind(this);
+
+    return;
+}
+
+void GfxDriver::UnBindMaterial() {
+    if (material_) {
+        material_->UnBind(this);
+    }
+
+    material_ = nullptr;
+    program_ = nullptr;
+}
+
 
 }
 }

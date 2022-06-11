@@ -28,8 +28,7 @@ void D3D12Buffer::UpdateResource(const void* data, size_t size) {
 }
 
 D3D12ConstantBuffer::D3D12ConstantBuffer(const void* data, size_t size, UsageType usage) :
-    ConstantBuffer(size),
-    usage_(usage)
+    ConstantBuffer(size, usage)
 {
     if (usage == UsageType::kDynamic) {
         UpdateDynamic(data, size);

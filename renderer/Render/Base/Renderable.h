@@ -72,8 +72,8 @@ public:
     void SetReciveShadow(bool on);
     void SetPickable(bool on);
 
-    void SetMaterial(Material* mat);
-    Material* GetMaterial() const { return material_; }
+    void SetMaterial(const std::shared_ptr<Material>& mat);
+    const std::shared_ptr<Material>& GetMaterial() const { return material_; }
 
     void DrawInspectorBasic();
 
@@ -92,7 +92,7 @@ protected:
     mutable AABB world_bounds_;
     mutable Matrix4x4 prev_model_ = Matrix4x4::identity;
 
-    Material* material_ = nullptr;
+    std::shared_ptr<Material> material_;
 
     RenderableTreeNode* node_ = nullptr;
 };

@@ -23,8 +23,8 @@ cbuffer object_material : register(b3)
     PhongMaterial mat;
 };
 
-Texture2D albedo_tex : register(t4);
-Texture2D normal_tex : register(t5);
+Texture2D AlbedoTexture : register(t4);
+Texture2D NormalTexture : register(t5);
 
 VSOut main_vs(AppData IN)
 {
@@ -55,7 +55,7 @@ static const float4 CascadeColorsMultiplier[8] =
 
 float4 main_ps(VSOut IN) : SV_Target
 {
-    float4 albedo = albedo_tex.Sample(linear_sampler, IN.tex_coord);
+    float4 albedo = AlbedoTexture.Sample(linear_sampler, IN.tex_coord);
     float3 normal = IN.view_normal;
     ///TODO: use macro variant
     if (mat.use_normal_map)
@@ -64,7 +64,7 @@ float4 main_ps(VSOut IN) : SV_Target
         float3 tangent_vs = normalize(IN.view_tangent);
         float3 binormal_vs = normalize(cross(normal_vs, tangent_vs));
         float3x3 TBN = float3x3(tangent_vs, binormal_vs, normal_vs);
-        normal = DoNormalMapping(TBN, normal_tex, linear_sampler, IN.tex_coord);
+        normal = DoNormalMapping(TBN, NormalTexture, linear_sampler, IN.tex_coord);
     }
     
     float4 color = mat.ambient_color * mat.ka;

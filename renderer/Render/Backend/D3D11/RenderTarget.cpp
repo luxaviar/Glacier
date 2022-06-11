@@ -219,7 +219,6 @@ void D3D11RenderTarget::ClearDepthStencil(float depth, uint8_t stencil) {
     GfxThrowIfAny(D3D11GfxDriver::Instance()->GetContext()->ClearDepthStencilView(depth_stencil_view_.Get(), D3D11_CLEAR_DEPTH | D3D11_CLEAR_STENCIL, depth, stencil));
 }
 
-
 ViewPort D3D11RenderTarget::viewport() const {
     return { viewport_.TopLeftX, viewport_.TopLeftY, viewport_.Width, viewport_.Height, viewport_.MinDepth, viewport_.MaxDepth };
 }

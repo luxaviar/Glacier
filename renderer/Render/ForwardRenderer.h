@@ -14,6 +14,8 @@ public:
     ForwardRenderer(GfxDriver* gfx, MSAAType msaa = MSAAType::kNone);
     void Setup() override;
 
+    std::shared_ptr<Material> CreateLightingMaterial(const char* name) override;
+
     virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return msaa_render_target_; }
     bool OnResize(uint32_t width, uint32_t height) override;
 
@@ -30,15 +32,12 @@ protected:
     void AddLightingPass();
     
     void InitRenderGraph(GfxDriver* gfx);
-    void InitHelmetPbr(GfxDriver* gfx);
-    void InitFloorPbr(GfxDriver* gfx);
-    void InitDefaultPbr(GfxDriver* gfx);
 
     constexpr static std::array<const char*, 4> kMsaaDesc = { "None", "2x", "4x", "8x" };
     MSAAType msaa_ = MSAAType::kNone;
     MSAAType option_msaa_ = MSAAType::kNone;
 
-    std::shared_ptr<MaterialTemplate> pbr_template_;
+    std::shared_ptr<Program> pbr_program_;
 
     //intermediate (MSAA) render target
     std::shared_ptr<RenderTarget> msaa_render_target_;

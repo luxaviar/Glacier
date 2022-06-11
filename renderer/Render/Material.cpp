@@ -1,225 +1,225 @@
 #include "material.h"
 #include <stdexcept>
 #include "common/color.h"
-#include "render/base/renderable.h"
+#include "Render/Base/Renderable.h"
 #include "imgui/imgui.h"
 #include "Render/Graph/PassNode.h"
-#include "render/base/Buffer.h"
-#include "render/base/texture.h"
+#include "Render/Base/Buffer.h"
+#include "Render/Base/Texture.h"
+#include "Render/Base/Program.h"
 #include "Common/Log.h"
+#include "App.h"
+#include "Render/Renderer.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
 
-Material::Material(const char* name, const std::shared_ptr<MaterialTemplate>& temp) :
-    name_(name),
-    template_(temp)
-{
-    CloneSamplers();
-}
-
 Material::Material(const char* name, const std::shared_ptr<Program>& program) :
-    Material(name, std::make_shared<MaterialTemplate>(name, program))
+    name_(name),
+    program_(program)
 {
 
 }
 
 Material::Material(const char* name, const TCHAR* vs, const TCHAR* ps):
-    Material(name, std::make_shared<MaterialTemplate>(name, vs, ps))
+    Material(name, Program::Create(name, vs, ps))
 {
 }
 
-void Material::CloneSamplers() {
-    auto& props = template_->GetSamplers();
-    for (auto& prop : props) {
-        properties_.emplace_back(prop);
-    }
+void Material::SetupBuiltinProperty() {
+    setup_builtin_props_ = true;
+    auto renderer = App::Self()->GetRenderer();
+    renderer->SetupBuiltinProperty(this);
 }
 
 void Material::Bind(GfxDriver* gfx) {
-    template_->GetProgram()->Bind(gfx, this);
+    PerfSample("Material Binding");
+
+    if (!setup_builtin_props_) {
+        SetupBuiltinProperty();
+    }
+
+    if (propgram_version_ != program_->version()) {
+        program_->SetupMaterial(this);
+    }
+
+    program_->Bind(gfx, this);
 }
 
 void Material::UnBind(GfxDriver* gfx) {
-    template_->GetProgram()->UnBind(gfx, this);
-}
-
-void Material::ReBind(GfxDriver* gfx) {
-    template_->GetProgram()->ReBind(gfx, this);
+    program_->UnBind(gfx, this);
 }
 
 void Material::AddPass(const char* pass_name) {
-    template_->AddPass(pass_name);
+    program_->AddPass(pass_name);
 }
 
 bool Material::HasPass(const PassNode* pass) const {
-    return template_->HasPass(pass);
+    return program_->HasPass(pass);
+}
+
+bool Material::HasParameter(const char* name) const {
+    return program_->FindParameter(name) != nullptr;
 }
 
 void Material::SetTexTilingOffset(const Vec4f& st) {
     tex_ts_ = st;
 }
 
-//TODO: check duplicate?
 void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (prop.shader_param == param && 
-            (prop.prop_type == MaterialPropertyType::kConstantBuffer ||
-                prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
-                prop.prop_type == MaterialPropertyType::kRWStructuredBuffer)) {
-            if (prop.buffer != buf) {
-                prop.buffer = buf;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, buf });
+        return;
     }
 
-    properties_.emplace_back(param, buf);
+    auto& prop = it->second;
+    assert(prop.shader_param == param);
+    assert(prop.prop_type == MaterialPropertyType::kConstantBuffer ||
+        prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
+        prop.prop_type == MaterialPropertyType::kRWStructuredBuffer);
+
+    prop.buffer = buf;
+    prop.dirty = true;
 }
 
 void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color) 
 {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param) {
-            if (prop.texture != tex || prop.default_color != default_color)
-            {
-                prop.texture = tex;
-                prop.default_color = default_color;
-                prop.use_default = !tex;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, tex, default_color });
+        return;
     }
 
-    properties_.emplace_back(param, tex, default_color);
+    auto& prop = it->second;
+    assert(prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param);
+
+    prop.texture = tex;
+    prop.default_color = default_color;
+    prop.use_default = !tex;
+    prop.dirty = true;
 }
 
 void Material::SetProperty(const char* name, const Color& color) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (param == prop.shader_param) {
-            assert(prop.prop_type == MaterialPropertyType::kColor);
-            if (prop.color != color) {
-                prop.color = color;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, color });
+        return;
     }
 
-    properties_.emplace_back(param, color);
+    auto& prop = it->second;
+    assert(prop.prop_type == MaterialPropertyType::kColor && prop.shader_param == param);
+
+    prop.color = color;
+    prop.dirty = true;
 }
 
 void Material::SetProperty(const char* name, const Vec4f& v) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (param == prop.shader_param) {
-            assert(prop.prop_type == MaterialPropertyType::kFloat4);
-            if (prop.float4 != v) {
-                prop.float4 = v;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, v });
+        return;
     }
 
-    properties_.emplace_back(param, v);
+    auto& prop = it->second;
+    assert(prop.prop_type == MaterialPropertyType::kFloat4 && prop.shader_param == param);
+
+    prop.float4 = v;
+    prop.dirty = true;
 }
 
 void Material::SetProperty(const char* name, const Matrix4x4& v) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (param == prop.shader_param) {
-            assert(prop.prop_type == MaterialPropertyType::kMatrix);
-            if (prop.matrix != v) {
-                prop.matrix = v;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, v });
+        return;
     }
 
-    properties_.emplace_back(param, v);
+    auto& prop = it->second;
+    assert(prop.prop_type == MaterialPropertyType::kMatrix && prop.shader_param == param);
+
+    prop.matrix = v;
+    prop.dirty = true;
 }
 
 void Material::SetProperty(const char* name, const SamplerState& ss) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (param == prop.shader_param) {
-            assert(prop.prop_type == MaterialPropertyType::kSampler);
-            if (prop.sampler_state != ss) {
-                prop.sampler_state = ss;
-                prop.dirty = true;
-            }
-            return;
-        }
+    auto it = properties_.find(name);
+    if (it == properties_.end()) {
+        properties_.emplace_hint(it, name, MaterialProperty{ param, ss });
+        return;
     }
 
-    properties_.emplace_back(param, ss);
+    auto& prop = it->second;
+    assert(prop.prop_type == MaterialPropertyType::kSampler && prop.shader_param == param);
+
+    prop.sampler_state = ss;
+    prop.dirty = true;
 }
 
 void Material::UpdateProperty(const char* name, const void* data) {
-    auto param = template_->GetProgram()->FindParameter(name);
+    auto param = program_->FindParameter(name);
     if (!param) {
         LOG_WARN("Set material property failed for {0}.{1}", name_, name);
         return;
     }
 
-    for (auto& prop : properties_) {
-        if (param == prop.shader_param) {
-            assert(prop.prop_type == MaterialPropertyType::kConstantBuffer ||
-                prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
-                prop.prop_type == MaterialPropertyType::kRWStructuredBuffer);
-            prop.buffer->Update(data);
-            prop.dirty = true;
-            return;
-        }
+    auto it = properties_.find(name);
+
+    if (it != properties_.end()) {
+        auto& prop = it->second;
+        assert(prop.prop_type == MaterialPropertyType::kConstantBuffer && prop.shader_param == param);
+        prop.buffer->Update(data);
+        prop.dirty = true;
+        return;
     }
 
     assert("Can't find suitable material property for UpdateProperty!" && false);
 }
 
 void Material::DrawInspector() {
-    if (template_) {
-        template_->DrawInspector();
+    if (program_) {
+        program_->DrawInspector();
     }
 
     ImGui::Text("Property");
-    for (auto& p : properties_) {
+    for (auto& [_, p] : properties_) {
         for (auto& param : *p.shader_param) {
             if (!param) continue;
 
@@ -239,7 +239,7 @@ void Material::DrawInspector() {
 }
 
 PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
-    Material(name, std::make_shared<MaterialTemplate>(name, TEXT("PostProcessCommon"), ps))
+    Material(name, Program::Create(name, TEXT("PostProcessCommon"), ps))
 {
     RasterStateDesc rs;
     rs.depthWrite = false;
@@ -248,8 +248,8 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
 
     InputLayoutDesc desc;
 
-    template_->SetRasterState(rs);
-    template_->SetInputLayout(desc);
+    program_->SetRasterState(rs);
+    program_->SetInputLayout(desc);
 
     SamplerState ss;
     ss.filter = FilterMode::kBilinear;
@@ -257,7 +257,7 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
     SetProperty("linear_sampler", ss);
 }
 
-void MaterialManager::Add(std::unique_ptr<Material>&& mat) {
+void MaterialManager::Add(std::shared_ptr<Material>&& mat) {
     auto& name = mat->name();
     auto it = materials_.find(name);
     ///TODO: throw exception;
@@ -273,10 +273,10 @@ void MaterialManager::Remove(const char* name) {
     }
 }
 
-Material* MaterialManager::Get(const char* name) {
+const std::shared_ptr<Material>& MaterialManager::Get(const char* name) {
     auto it = materials_.find(name);
     if (it != materials_.end()) {
-        return it->second.get();
+        return it->second;
     }
 
     return nullptr;

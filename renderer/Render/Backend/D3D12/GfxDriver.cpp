@@ -494,45 +494,5 @@ void D3D12GfxDriver::Draw(uint32_t count, uint32_t offset) {
     cmd_list->DrawInstanced(count, 1, 0, 0);
 }
 
-void D3D12GfxDriver::BindMaterial(Material* mat) {
-    if (!mat) return;
-
-    if (mat == material_) {
-        mat->ReBind(this);
-        return;
-    }
-
-    auto temp = mat->GetTemplate().get();
-
-    if (temp != material_template_) {
-        if (material_template_) {
-            material_template_->UnBind(this);
-        }
-
-        temp->BindPSO(this);
-        temp->Bind(this);
-        material_template_ = temp;
-    }
-
-    if (material_) {
-        material_->UnBind(this);
-    }
-
-    material_ = mat;
-    material_->Bind(this);
-}
-
-void D3D12GfxDriver::UnBindMaterial() {
-    if (material_) {
-        material_->UnBind(this);
-        material_ = nullptr;
-    }
-
-    if (material_template_) {
-        material_template_->UnBind(this);
-        material_template_ = nullptr;
-    }
-}
-
 }
 }

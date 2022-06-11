@@ -29,7 +29,7 @@ App* App::self_ = nullptr;
 
 App::App( const std::string& commandLine ) :
     cmd_line_(commandLine),
-    wnd_(1280, 720, TEXT("Engine Viewer"))
+    wnd_(1280, 720, TEXT("Engine Renderer"))
 {
     self_ = this;
     gfx_ = render::D3D12GfxDriver::Instance();
@@ -139,7 +139,7 @@ void App::OnStart() {
     SceneManager::Instance()->Add(std::move(physics_scene));
     SceneManager::Instance()->Add(std::move(pbr_scene));
 
-    SceneManager::Instance()->Load("physics", SceneLoadMode::kSingle);
+    SceneManager::Instance()->Load("pbr", SceneLoadMode::kSingle);
 }
 
 int App::Go() {

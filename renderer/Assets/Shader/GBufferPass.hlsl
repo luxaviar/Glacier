@@ -35,11 +35,11 @@ cbuffer object_material : register(b3)
     PbrMaterial mat;
 };
 
-Texture2D albedo_tex : register(t4);
-Texture2D normal_tex : register(t5);
-Texture2D metalroughness_tex : register(t6);
-Texture2D ao_tex : register(t7);
-Texture2D emissive_tex : register(t8);
+Texture2D AlbedoTexture : register(t4);
+Texture2D NormalTexture : register(t5);
+Texture2D MetalRoughnessTexture : register(t6);
+Texture2D AoTexture : register(t7);
+Texture2D EmissiveTexture : register(t8);
 
 float2 OctWrap(float2 v)
 {
@@ -74,7 +74,12 @@ FragOut main_ps(VertexOut IN)
     FragOut Out = (FragOut)0;
 
     // BaseColor
-    Out.albedo_color = albedo_tex.Sample(linear_sampler, IN.tex_coord);
+    float4 albedo_color = AlbedoTexture.Sample(linear_sampler, IN.tex_coord);
+    if (albedo_color.a == 0.0f) {
+        discard;
+    }
+
+    Out.albedo_color = albedo_color;
 
     ///TODO: use macro variant
     if (mat.use_normal_map)
@@ -83,22 +88,22 @@ FragOut main_ps(VertexOut IN)
         float3 tangent_vs = normalize(IN.view_tangent);
         float3 binormal_vs = normalize(cross(normal_vs, tangent_vs));
         float3x3 TBN = float3x3(tangent_vs, binormal_vs, normal_vs);
-        float3 normal = DoNormalMapping(TBN, normal_tex, linear_sampler, IN.tex_coord);
+        float3 normal = DoNormalMapping(TBN, NormalTexture, linear_sampler, IN.tex_coord);
         Out.view_normal = EncodeNormalOct(normal);
     }
     else {
         Out.view_normal = EncodeNormalOct(IN.view_normal);
     }
 
-    float4 metal_roughness = metalroughness_tex.Sample(linear_sampler, IN.tex_coord);
+    float4 metal_roughness = MetalRoughnessTexture.Sample(linear_sampler, IN.tex_coord);
     float metallic = metal_roughness.b;
     float roughness = metal_roughness.g;
     
-    float ao = ao_tex.Sample(linear_sampler, IN.tex_coord).r;
+    float ao = AoTexture.Sample(linear_sampler, IN.tex_coord).r;
     Out.ao_metal_roughness = float4(ao, roughness, metallic, 0.0f);
 
     // Emissive
-    Out.emissive = float4(emissive_tex.Sample(linear_sampler, IN.tex_coord).rgb, 1.0f);
+    Out.emissive = float4(EmissiveTexture.Sample(linear_sampler, IN.tex_coord).rgb, 1.0f);
 
     // Velocity
     float4 cur_pos = IN.cur_position;

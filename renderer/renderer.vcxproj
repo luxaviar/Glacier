@@ -283,7 +283,6 @@
     <ClCompile Include="Render\LightManager.cpp" />
     <ClCompile Include="Render\Material.cpp" />
     <ClCompile Include="Render\MaterialProperty.cpp" />
-    <ClCompile Include="Render\MaterialTemplate.cpp" />
     <ClCompile Include="Render\Mesh\Geometry.cpp" />
     <ClCompile Include="Render\Mesh\Mesh.cpp" />
     <ClCompile Include="Render\Mesh\MeshRenderer.cpp" />
@@ -300,6 +299,7 @@
     <ClInclude Include="3rdparty\assimp\aabb.h" />
     <ClInclude Include="3rdparty\assimp\ai_assert.h" />
     <ClInclude Include="3rdparty\assimp\anim.h" />
+    <ClInclude Include="3rdParty\assimp\Base64.hpp" />
     <ClInclude Include="3rdparty\assimp\BaseImporter.h" />
     <ClInclude Include="3rdparty\assimp\Bitmap.h" />
     <ClInclude Include="3rdparty\assimp\BlobIOSystem.h" />
@@ -318,12 +318,12 @@
     <ClInclude Include="3rdparty\assimp\DefaultIOStream.h" />
     <ClInclude Include="3rdparty\assimp\DefaultIOSystem.h" />
     <ClInclude Include="3rdparty\assimp\DefaultLogger.hpp" />
-    <ClInclude Include="3rdparty\assimp\Defines.h" />
     <ClInclude Include="3rdparty\assimp\defs.h" />
     <ClInclude Include="3rdparty\assimp\Exceptional.h" />
     <ClInclude Include="3rdparty\assimp\Exporter.hpp" />
     <ClInclude Include="3rdparty\assimp\fast_atof.h" />
     <ClInclude Include="3rdparty\assimp\GenericProperty.h" />
+    <ClInclude Include="3rdParty\assimp\GltfMaterial.h" />
     <ClInclude Include="3rdparty\assimp\Hash.h" />
     <ClInclude Include="3rdparty\assimp\Importer.hpp" />
     <ClInclude Include="3rdparty\assimp\importerdesc.h" />
@@ -343,6 +343,7 @@
     <ClInclude Include="3rdparty\assimp\mesh.h" />
     <ClInclude Include="3rdparty\assimp\metadata.h" />
     <ClInclude Include="3rdparty\assimp\NullLogger.hpp" />
+    <ClInclude Include="3rdParty\assimp\ObjMaterial.h" />
     <ClInclude Include="3rdparty\assimp\ParsingUtils.h" />
     <ClInclude Include="3rdparty\assimp\pbrmaterial.h" />
     <ClInclude Include="3rdparty\assimp\port\AndroidJNI\AndroidJNIIOSystem.h" />
@@ -570,7 +571,6 @@
     <ClInclude Include="Render\LightManager.h" />
     <ClInclude Include="Render\Material.h" />
     <ClInclude Include="Render\MaterialProperty.h" />
-    <ClInclude Include="Render\MaterialTemplate.h" />
     <ClInclude Include="Render\Mesh\Geometry.h" />
     <ClInclude Include="Render\Mesh\Mesh.h" />
     <ClInclude Include="Render\Mesh\MeshRenderer.h" />

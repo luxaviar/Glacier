@@ -49,19 +49,22 @@ public:
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
-    void CaptureScreen();
-    void CaptureShadowMap();
-
     virtual void PreRender();
     void Render();
     virtual void PostRender();
 
+    virtual std::shared_ptr<Material> CreateLightingMaterial(const char* name) = 0;
     virtual bool OnResize(uint32_t width, uint32_t height);
+
+    void SetupBuiltinProperty(Material* mat);
 
     const std::vector<Renderable*>& GetVisibles() const { return visibles_; }
 
     GfxDriver* driver() { return gfx_; }
     void OptionWindow(bool* open);
+
+    void CaptureScreen();
+    void CaptureShadowMap();
 
 protected:
     virtual void DrawOptionWindow() {}
@@ -86,6 +89,9 @@ protected:
     void AddShadowPass();
 
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
+
+    void InitFloorPbr(GfxDriver* gfx);
+    void InitDefaultPbr(GfxDriver* gfx);
 
     GfxDriver* gfx_;
     uint64_t frame_count_ = 0;

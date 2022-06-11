@@ -49,7 +49,7 @@ void D3D11Buffer::UpdateResource(const void* data, size_t size) const {
 }
 
 D3D11ConstantBuffer::D3D11ConstantBuffer(const void* data, size_t size, UsageType usage) :
-    ConstantBuffer(size)
+    ConstantBuffer(size, usage)
 {
     Init(type_, size_, usage, data);
 }

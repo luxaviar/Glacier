@@ -6,28 +6,29 @@
 #include "Shader.h"
 #include "PipelineState.h"
 #include "SamplerState.h"
+#include "Render/MaterialProperty.h"
 
 namespace glacier {
 namespace render {
 
 class Material;
-class MaterialTemplate;
 class GfxDriver;
+class PassNode;
 
-struct SamplerParameter {
-    SamplerState state;
-    const ShaderParameter* param;
-};
-
-class Program : private Uncopyable {
+class Program : private Uncopyable, public Identifiable<Material>{
 public:
+    static std::shared_ptr<Program> Create(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
+
     Program(const char* name);
     virtual ~Program() {}
 
     const std::string& name() const { return name_; }
+    uint32_t version() const { return version_; }
 
     void SetRasterState(const RasterStateDesc& rs);
     void SetInputLayout(const InputLayoutDesc& desc);
+
+    void SetupMaterial(Material* material);
 
     void SetShader(const std::shared_ptr<Shader>& shader);
     const Shader* GetShader(ShaderType type) const {
@@ -47,23 +48,26 @@ public:
     virtual void BindPSO(GfxDriver* gfx) = 0;
     virtual void Bind(GfxDriver* gfx, Material* mat) = 0;
     virtual void UnBind(GfxDriver* gfx, Material* mat) = 0;
-    virtual void ReBind(GfxDriver* gfx, Material* mat) {}
+    virtual void RefreshDynamicBuffer(GfxDriver* gfx) {}
 
-    virtual void Bind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
-    virtual void UnBind(GfxDriver* gfx, MaterialTemplate* mat) = 0;
+    void AddPass(const char* pass_name);
+    bool HasPass(const PassNode* pass) const;
 
-    const ShaderParameterSet* FindParameter(const std::string& name) const {
-        return FindParameter(name.c_str());
+    const ShaderParameterSet* FindParameter(const std::string& name) const;
+    const ShaderParameterSet* FindParameter(const char* name) const;
+
+    template<typename T>
+    void SetProperty(const char* name, ConstantParameter<T>& param) {
+        SetProperty(name, param.buffer());
     }
 
-    const ShaderParameterSet* FindParameter(const char* name) const {
-        auto it = params_.find(name);
-        if (it != params_.end()) {
-            return &it->second;
-        }
-
-        return nullptr;
-    }
+    void SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color = Color::kWhite);
+    void SetProperty(const char* name, const std::shared_ptr<Buffer>& buf);
+    void SetProperty(const char* name, const SamplerState& ss);
+    void SetProperty(const char* name, const Color& color);
+    void SetProperty(const char* name, const Vec4f& v);
+    void SetProperty(const char* name, const Matrix4x4& v);
+    void UpdateProperty(const char* name, const void* data);
 
     virtual void DrawInspector();
     
@@ -72,12 +76,15 @@ protected:
     ShaderParameterSet& FetchShaderParameterSet(const std::string& name);
     void SetShaderParameter(const std::string& name, const ShaderParameter& param);
 
+    uint32_t version_ = 0;
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
     std::unordered_map<std::string, ShaderParameterSet> params_;
     std::shared_ptr<PipelineState> pso_;
 
-    //std::vector<SamplerParameter> sampler_params_;
+    std::unordered_map<std::string, MaterialProperty> properties_;
+    //std::unordered_map<std::string, MaterialProperty> samplers_;
+    std::vector<std::string> passes_;
 };
 
 }

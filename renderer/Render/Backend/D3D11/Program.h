@@ -21,18 +21,11 @@ public:
     void Bind(GfxDriver* gfx, Material* mat) override;
     void UnBind(GfxDriver* gfx, Material* mat) override;
 
-    void Bind(GfxDriver* gfx, MaterialTemplate* mat) override;
-    void UnBind(GfxDriver* gfx, MaterialTemplate* mat) override;
-
 protected:
-    //void BindSampler();
-
     void Bind(GfxDriver* gfx, const MaterialProperty& prop);
     void UnBind(GfxDriver* gfx, const MaterialProperty& prop);
 
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
-
-    //std::vector<std::shared_ptr<D3D11Sampler>> samplers_;
 };
 
 }

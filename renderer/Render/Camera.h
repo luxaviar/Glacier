@@ -85,7 +85,7 @@ private:
     CameraType type_ = CameraType::kPersp;
     //Persp: fov/aspect/near/far
     //Orhto: width/height/near/far/scale
-    float param_[5] = {60.0f, 16.0f / 10.0f, 0.3f, 250.0f, 5.0f};
+    float param_[5] = {60.0f, 16.0f / 10.0f, 0.3f, 500.0f, 5.0f};
 };
 
 }

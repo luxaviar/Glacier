@@ -8,6 +8,7 @@
 #include "Render/Base/RenderTarget.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SamplerState.h"
+#include "Render/Base/Program.h"
 #include "Core/Objectmanager.h"
 #include "Input/Input.h"
 #include "Editor/Gizmos.h"
@@ -23,7 +24,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     gfx_(gfx),
     map_size_(size)
 {
-    shadow_param_ = gfx->CreateConstantParameter<CascadeShadowParam>(UsageType::kDefault);
+    shadow_param_ = gfx->CreateConstantParameter<CascadeShadowParam, UsageType::kDefault>(nullptr);
     auto& param = shadow_param_.param();
 
     uint32_t cascade_levels = (uint32_t)cascade_partions.size();
@@ -55,8 +56,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     param.partion_size = 1.0f / cascade_levels;
 
     material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
-    material_->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
-    material_->GetTemplate()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+    material_->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     shadow_sampler_.warpU = shadow_sampler_.warpV = WarpMode::kBorder;
     shadow_sampler_.filter = FilterMode::kCmpBilinear;
@@ -99,13 +99,12 @@ void CascadedShadowManager::Render(const Camera* camera,
 {
     cascade_data_[0].render_target->ClearDepthStencil();
 
-    //cull receiver objects
     int receiver_num= 0;
     AABB receiver_bounds;
     {
         PerfSample("calc receiver bound");
         for (auto o : visibles) {
-            if (o->IsActive() && o->IsReciveShadow()) {
+            if (o->IsReciveShadow()) {
                 receiver_bounds = AABB::Union(receiver_bounds, o->world_bounds());
                 ++receiver_num;
             }
@@ -157,6 +156,9 @@ void CascadedShadowManager::UpdateShadowData(const Camera* camera, DirectionalLi
     AABB shadow_scene_bounds = AABB::Transform(scene_bounds, shadow_view_);
     float nearz = shadow_scene_bounds.min.z;
     //float farz = shadow_bounds.max.z;
+
+    //Fix self shadow artifacts when there is just one caster(due to float-point error)
+    nearz -= 20.0f;
 
     AABB shadow_receiver_bounds = AABB::Transform(receiver_bounds, shadow_view_);
     float receive_farz = shadow_receiver_bounds.max.z;
@@ -249,22 +251,22 @@ void CascadedShadowManager::UpdateShadowData(const Camera* camera, DirectionalLi
             PerfSample("shadow caster culling");
             RenderableManager::Instance()->Cull(cascade_data.frustum, cascade_data.casters,
                 [](const Renderable* o) {
-                    return o->IsActive() && o->IsCastShadow();
+                    return o->IsCastShadow();
                 });
         }
     }
 }
 
-void CascadedShadowManager::SetupMaterial(MaterialTemplate* mat) {
-    mat->SetProperty("CascadeShadowData", shadow_param_);
-    mat->SetProperty("_ShadowTexture", shadow_map_);
-    mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
-}
-
 void CascadedShadowManager::SetupMaterial(Material* mat) {
-    mat->SetProperty("CascadeShadowData", shadow_param_);
-    mat->SetProperty("_ShadowTexture", shadow_map_);
-    mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
+    if (mat->HasParameter("CascadeShadowData")) {
+        mat->SetProperty("CascadeShadowData", shadow_param_);
+    }
+    if (mat->HasParameter("_ShadowTexture")) {
+        mat->SetProperty("_ShadowTexture", shadow_map_);
+    }
+    if (mat->HasParameter("shadow_cmp_sampler")) {
+        mat->SetProperty("shadow_cmp_sampler", shadow_sampler_);
+    }
 }
 
 void CascadedShadowManager::Update() {

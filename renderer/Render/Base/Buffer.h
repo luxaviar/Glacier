@@ -25,10 +25,13 @@ protected:
 
 class ConstantBuffer : public Buffer {
 public:
-    ConstantBuffer(size_t size) : Buffer(BufferType::kConstantBuffer, size) {}
+    ConstantBuffer(size_t size, UsageType usage) : Buffer(BufferType::kConstantBuffer, size), usage_(usage) {}
+
+    bool IsDynamic() const { return usage_ == UsageType::kDynamic; }
 
 protected:
     mutable uint32_t version_ = 0;
+    UsageType usage_;
     std::shared_ptr<BufferData> data_;
 };
 

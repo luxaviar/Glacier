@@ -13,7 +13,7 @@ namespace render {
 class MeshRenderer : public Renderable {
 public:
     MeshRenderer() {}
-    MeshRenderer(const std::shared_ptr<Mesh>& mesh, Material* material = nullptr);
+    MeshRenderer(const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material = {});
 
     void OnAwake() override;
     void OnEnable() override;

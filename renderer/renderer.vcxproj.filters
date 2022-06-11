@@ -570,9 +570,6 @@
     <ClCompile Include="Render\MaterialProperty.cpp">
       <Filter>Source\Render</Filter>
     </ClCompile>
-    <ClCompile Include="Render\MaterialTemplate.cpp">
-      <Filter>Source\Render</Filter>
-    </ClCompile>
     <ClCompile Include="Concurrent\ThreadPool.cpp">
       <Filter>Source\Concurrent</Filter>
     </ClCompile>
@@ -696,9 +693,6 @@
       <Filter>Source\3rdParty\assimp</Filter>
     </ClInclude>
     <ClInclude Include="3rdparty\assimp\DefaultLogger.hpp">
-      <Filter>Source\3rdParty\assimp</Filter>
-    </ClInclude>
-    <ClInclude Include="3rdparty\assimp\Defines.h">
       <Filter>Source\3rdParty\assimp</Filter>
     </ClInclude>
     <ClInclude Include="3rdparty\assimp\defs.h">
@@ -1382,9 +1376,6 @@
     <ClInclude Include="Render\MaterialProperty.h">
       <Filter>Source\Render</Filter>
     </ClInclude>
-    <ClInclude Include="Render\MaterialTemplate.h">
-      <Filter>Source\Render</Filter>
-    </ClInclude>
     <ClInclude Include="Concurrent\FixedBuffer.h">
       <Filter>Source\Concurrent</Filter>
     </ClInclude>
@@ -1474,6 +1465,15 @@
     </ClInclude>
     <ClInclude Include="Render\Base\RenderTexturePool.h">
       <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\assimp\Base64.hpp">
+      <Filter>Source\3rdParty\assimp</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\assimp\GltfMaterial.h">
+      <Filter>Source\3rdParty\assimp</Filter>
+    </ClInclude>
+    <ClInclude Include="3rdParty\assimp\ObjMaterial.h">
+      <Filter>Source\3rdParty\assimp</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

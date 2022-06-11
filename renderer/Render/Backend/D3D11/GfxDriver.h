@@ -58,9 +58,6 @@ public:
 
     std::shared_ptr<RenderTarget> CreateRenderTarget(uint32_t width, uint32_t height) override;
 
-    void BindMaterial(Material* mat) override;
-    void UnBindMaterial() override;
-
 private:
     ComPtr<ID3D11Device> device_;
     ComPtr<ID3D11DeviceContext> context_;

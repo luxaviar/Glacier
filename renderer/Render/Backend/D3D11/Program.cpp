@@ -25,14 +25,14 @@ void D3D11Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
 
 void D3D11Program::Bind(GfxDriver* gfx, Material* mat) {
     auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
+    for (auto& [_, prop] : properties) {
         Bind(gfx, prop);
     }
 }
 
 void D3D11Program::UnBind(GfxDriver* gfx, Material* mat) {
     auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
+    for (auto& [_, prop] : properties) {
         UnBind(gfx, prop);
     }
 }
@@ -40,33 +40,6 @@ void D3D11Program::UnBind(GfxDriver* gfx, Material* mat) {
 void D3D11Program::BindPSO(GfxDriver* gfx) {
     if (pso_) {
         pso_->Bind(gfx);
-    }
-}
-
-void D3D11Program::Bind(GfxDriver* gfx, MaterialTemplate* mat) {
-    for (auto& shader : shaders_) {
-        if (shader) {
-            shader->Bind();
-        }
-    }
-
-    if (mat) {
-        auto& properties = mat->GetProperties();
-        for (auto& prop : properties) {
-            Bind(gfx, prop);
-        }
-    }
-}
-
-void D3D11Program::UnBind(GfxDriver* gfx, MaterialTemplate* mat) {
-    for (auto& shader : shaders_) {
-        if (shader)
-            shader->UnBind();
-    }
-
-    auto& properties = mat->GetProperties();
-    for (auto& prop : properties) {
-        UnBind(gfx, prop);
     }
 }
 

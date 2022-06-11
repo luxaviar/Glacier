@@ -37,10 +37,7 @@ void PassNode::Execute(Renderer* renderer) {
 void PassNode::Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat) const {
     auto gfx = renderer->driver();
 
-    //PreRender(renderer);
-
     if (mat) {
-        //MaterialGuard guard(gfx, mat);
         for (auto o : objs) {
             o->Render(gfx, mat);
         }
@@ -49,16 +46,13 @@ void PassNode::Render(Renderer* renderer, const std::vector<Renderable*>& objs, 
             auto cur_mat = o->GetMaterial();
             if (cur_mat->HasPass(this)) {
                 o->UpdateTransform(gfx);
-                gfx->BindMaterial(cur_mat);
+                gfx->BindMaterial(cur_mat.get());
                 o->Draw(gfx);
-                //o->Render(gfx);
             }
         }
 
         gfx->UnBindMaterial();
     }
-
-    //PostRender(renderer);
 }
 
 void PassNode::Render(Renderer* renderer, const Renderable* obj, Material* mat) const {

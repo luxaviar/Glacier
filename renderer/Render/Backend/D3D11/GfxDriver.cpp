@@ -259,43 +259,5 @@ std::shared_ptr<Query> D3D11GfxDriver::CreateQuery(QueryType type, int capacity)
     return ret;
 }
 
-
-void D3D11GfxDriver::BindMaterial(Material* mat) {
-    if (!mat || material_ == mat) return;
-
-    auto temp = mat->GetTemplate().get();
-
-    if (temp != material_template_) {
-        if (material_template_) {
-            material_template_->UnBind(this);
-        }
-
-        temp->BindPSO(this);
-        temp->Bind(this);
-        material_template_ = temp;
-    }
-
-    if (material_) {
-        material_->UnBind(this);
-    }
-
-    material_ = mat;
-    material_->Bind(this);
-
-    return;
-}
-
-void D3D11GfxDriver::UnBindMaterial() {
-    if (material_) {
-        material_->UnBind(this);
-        material_ = nullptr;
-    }
-
-    if (material_template_) {
-        material_template_->UnBind(this);
-        material_template_ = nullptr;
-    }
-}
-
 }
 }

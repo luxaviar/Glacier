@@ -305,6 +305,10 @@ struct Quat {
     //x/y/z degree in radians
     static Quat<T> FromEuler(T pitch, T yaw, T roll)
     {
+        pitch *= math::kDeg2Rad;
+        yaw *= math::kDeg2Rad;
+        roll *= math::kDeg2Rad;
+
         T cX(cos(pitch / 2.0f));
         T sX(sin(pitch / 2.0f));
 

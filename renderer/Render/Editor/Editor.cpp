@@ -12,6 +12,7 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/SamplerState.h"
 #include "Render/Base/SwapChain.h"
+#include "Render/Base/Program.h"
 #include "Render/Base/RenderTexturePool.h"
 #include "../Image.h"
 #include "Inspect/Profiler.h"
@@ -32,10 +33,9 @@ Editor::Editor(GfxDriver* gfx) :
     rs.scissor = true;
 
     mat_ = std::make_shared<Material>("pick", TEXT("Solid"), TEXT("Solid"));
-    mat_->GetTemplate()->SetRasterState(rs);
-    mat_->GetTemplate()->SetInputLayout(Mesh::kDefaultLayout);
+    mat_->GetProgram()->SetRasterState(rs);
+    mat_->GetProgram()->SetInputLayout(Mesh::kDefaultLayout);
     mat_->SetProperty("color", color_buf_);
-    mat_->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx_));
 }
 
 void Editor::OnResize(uint32_t width, uint32_t height) {
@@ -272,7 +272,6 @@ void Editor::DrawScenePanel() {
 void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto& render_graph = renderer->render_graph();
     auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"));
-    outline_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx));
 
     RasterStateDesc outline_rs;
     outline_rs.depthWrite = false;
@@ -280,8 +279,8 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     outline_rs.stencilEnable = true;
     outline_rs.stencilFunc = CompareFunc::kAlways;
     outline_rs.depthStencilPassOp = StencilOp::kReplace;
-    outline_mat->GetTemplate()->SetRasterState(outline_rs);
-    outline_mat->GetTemplate()->SetInputLayout(Mesh::kDefaultLayout);
+    outline_mat->GetProgram()->SetRasterState(outline_rs);
+    outline_mat->GetProgram()->SetInputLayout(Mesh::kDefaultLayout);
     
     render_graph.AddPass("outline mask",
         [&](PassNode& pass) {
@@ -303,7 +302,6 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
-    outline_solid_mat->SetProperty("_PerObjectData", Renderable::GetTransformCBuffer(gfx));
 
     outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
 
@@ -342,7 +340,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     
     auto hblur_mat = std::make_shared<PostProcessMaterial>("hightlight", TEXT("BlurOutline"));
 
-    hblur_mat->GetTemplate()->SetRasterState(hblur_rs);
+    hblur_mat->GetProgram()->SetRasterState(hblur_rs);
     hblur_mat->SetProperty("Kernel", blur_param);
     hblur_mat->SetProperty("Control", blur_dir);
     hblur_mat->SetProperty("point_sampler", ss);
@@ -378,10 +376,9 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     blur_rs.depthStencilPassOp = StencilOp::kKeep;
     blur_rs.blendFunctionSrcRGB = BlendFunction::kSrcAlpha;
     blur_rs.blendFunctionDstRGB = BlendFunction::kOneMinusSrcAlpha;
-    vblur_mat->GetTemplate()->SetRasterState(blur_rs);
+    vblur_mat->GetProgram()->SetRasterState(blur_rs);
     vblur_mat->SetProperty("Kernel", blur_param);
     vblur_mat->SetProperty("Control", blur_dir);
-    //vblur_mat->SetProperty("point_sampler", ss);
     vblur_mat->SetProperty("_PostSourceTexture", outline_htex);
 
     render_graph.AddPass("vertical blur",

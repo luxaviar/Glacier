@@ -16,11 +16,11 @@ cbuffer object_material : register(b3)
     PbrMaterial mat;
 };
 
-Texture2D albedo_tex : register(t4);
-Texture2D normal_tex : register(t5);
-Texture2D metalroughness_tex : register(t6);
-Texture2D ao_tex : register(t7);
-Texture2D emissive_tex : register(t8);
+Texture2D AlbedoTexture : register(t4);
+Texture2D NormalTexture : register(t5);
+Texture2D MetalRoughnessTexture : register(t6);
+Texture2D AoTexture : register(t7);
+Texture2D EmissiveTexture : register(t8);
 
 VSOut main_vs(AppData IN)
 {
@@ -39,7 +39,7 @@ VSOut main_vs(AppData IN)
 
 float4 main_ps(VSOut IN) : SV_Target
 {
-    float4 albedo = albedo_tex.Sample(linear_sampler, IN.tex_coord);
+    float4 albedo = AlbedoTexture.Sample(linear_sampler, IN.tex_coord);
     float3 normal = IN.view_normal;
     ///TODO: use macro variant
     if (mat.use_normal_map)
@@ -48,17 +48,17 @@ float4 main_ps(VSOut IN) : SV_Target
         float3 tangent_vs = normalize(IN.view_tangent);
         float3 binormal_vs = normalize(cross(normal_vs, tangent_vs));
         float3x3 TBN = float3x3(tangent_vs, binormal_vs, normal_vs);
-        normal = DoNormalMapping(TBN, normal_tex, linear_sampler, IN.tex_coord);
+        normal = DoNormalMapping(TBN, NormalTexture, linear_sampler, IN.tex_coord);
     }
     
-    float4 metal_roughness = metalroughness_tex.Sample(linear_sampler, IN.tex_coord);
+    float4 metal_roughness = MetalRoughnessTexture.Sample(linear_sampler, IN.tex_coord);
     float metallic = metal_roughness.b;
     float roughness = metal_roughness.g;
     
-    float ao = ao_tex.Sample(linear_sampler, IN.tex_coord).r;
+    float ao = AoTexture.Sample(linear_sampler, IN.tex_coord).r;
     float3 f0 = lerp(mat.f0, albedo.rgb, metallic);
     
-    float3 final_color = emissive_tex.Sample(linear_sampler, IN.tex_coord).rgb;
+    float3 final_color = EmissiveTexture.Sample(linear_sampler, IN.tex_coord).rgb;
 
     float3 eye = { 0, 0, 0 };
     float3 P = IN.view_position;

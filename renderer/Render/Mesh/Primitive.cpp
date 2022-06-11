@@ -5,7 +5,7 @@
 namespace glacier {
 namespace render {
 
-GameObject& Primitive::CreateCube(Material* material, const Vec3f size) {
+GameObject& Primitive::CreateCube(const std::shared_ptr<Material>& material, const Vec3f size) {
     VertexCollection vertices;
     IndexCollection indices;
 
@@ -18,7 +18,7 @@ GameObject& Primitive::CreateCube(Material* material, const Vec3f size) {
     return go;
 }
 
-GameObject& Primitive::CreateSphere(Material* material, float radius) {
+GameObject& Primitive::CreateSphere(const std::shared_ptr<Material>& material, float radius) {
     VertexCollection vertices;
     IndexCollection indices;
 
@@ -31,7 +31,7 @@ GameObject& Primitive::CreateSphere(Material* material, float radius) {
     return go;
 }
 
-GameObject& Primitive::CreateCylinder(Material* material, float radius, float height) {
+GameObject& Primitive::CreateCylinder(const std::shared_ptr<Material>& material, float radius, float height) {
     VertexCollection vertices;
     IndexCollection indices;
 
@@ -44,7 +44,7 @@ GameObject& Primitive::CreateCylinder(Material* material, float radius, float he
     return go;
 }
 
-GameObject& Primitive::CreateCapsule(Material* material, float radius, float mid_height) {
+GameObject& Primitive::CreateCapsule(const std::shared_ptr<Material>& material, float radius, float mid_height) {
     VertexCollection vertices;
     IndexCollection indices;
 
