@@ -13,10 +13,10 @@ D3D12CommandQueue::D3D12CommandQueue(D3D12GfxDriver* driver, D3D12_COMMAND_LIST_
     type_(type)
 {
     D3D12_COMMAND_QUEUE_DESC desc = {};
-    desc.Type                     = type;
-    desc.Priority                 = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
-    desc.Flags                    = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    desc.NodeMask                 = 0;
+    desc.Type = type;
+    desc.Priority = D3D12_COMMAND_QUEUE_PRIORITY_NORMAL;
+    desc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+    desc.NodeMask = 0;
 
     GfxThrowIfFailed(device_->CreateCommandQueue(&desc, IID_PPV_ARGS(&command_queue_)));
     GfxThrowIfFailed(device_->CreateFence(current_fence_value, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&fence_)));

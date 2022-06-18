@@ -54,9 +54,7 @@ public:
     void DrawInspector();
 
 protected:
-    void CloneSamplers();
     void SetupBuiltinProperty();
-
 
     std::string name_;
     uint32_t propgram_version_ = 0;

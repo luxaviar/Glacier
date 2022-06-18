@@ -16,12 +16,8 @@ public:
 
     D3D12Sampler(GfxDriver* gfx, const SamplerState& ss);
 
-    const D3D12DescriptorRange& GetDescriptorSlot() const { return sampler_slot_; }
-
 private:
     static std::map<uint32_t, std::shared_ptr<D3D12Sampler>> cache_;
-    D3D12DescriptorRange sampler_slot_;
-
 };
 
 }

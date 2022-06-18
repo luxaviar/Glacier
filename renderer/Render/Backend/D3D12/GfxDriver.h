@@ -35,8 +35,6 @@ public:
     LinearAllocator* GetLinearAllocator() const { return linear_allocator_.get(); }
 
     D3D12DescriptorHeapAllocator* GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE HeapType) const;
-    D3D12DescriptorTableHeap* GetSrvUavTableHeap() const { return srv_uav_table_.get(); }
-    D3D12DescriptorTableHeap* GetSamplerTableHeap() const { return sampler_table_.get(); }
 
     D3D12CommandList* GetCommandList(D3D12_COMMAND_LIST_TYPE type = D3D12_COMMAND_LIST_TYPE_DIRECT) const;
     D3D12CommandQueue* GetCommandQueue(D3D12_COMMAND_LIST_TYPE type = D3D12_COMMAND_LIST_TYPE_DIRECT) const;
@@ -45,8 +43,6 @@ public:
     DXGI_SAMPLE_DESC GetMultisampleQualityLevels(DXGI_FORMAT format, 
         UINT numSamples = D3D12_MAX_MULTISAMPLE_SAMPLE_COUNT,
         D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE) const;
-
-    void SetDescriptorHeaps(D3D12CommandList* command_list);
 
     void EnqueueReadback(D3D12Texture::ReadbackTask&& task);
 
@@ -125,9 +121,6 @@ private:
 
     ComPtr<ID3D12DescriptorHeap> imgui_srv_heap_;
     ComPtr<ID3D12GraphicsCommandList> imgui_command_list_;
-
-    std::unique_ptr<D3D12DescriptorTableHeap> srv_uav_table_;
-    std::unique_ptr<D3D12DescriptorTableHeap> sampler_table_;
 
     std::unique_ptr<D3D12DescriptorHeapAllocator> descriptor_allocators_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 

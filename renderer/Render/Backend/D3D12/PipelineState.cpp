@@ -12,6 +12,7 @@ namespace render {
 D3D12PipelineState::D3D12PipelineState(const RasterStateDesc& rs, const InputLayoutDesc& layout) :
     PipelineState(rs, layout),
     layout_desc_(layout),
+    compute_desc_{},
     desc_{}
 {
     desc_.SampleMask = UINT_MAX;
@@ -95,6 +96,8 @@ void D3D12PipelineState::SetRasterState(const RasterStateDesc& rs) {
 }
 
 void D3D12PipelineState::CreatePSO(D3D12Program* program) {
+    program_ = program;
+
     if (is_compute_) {
         auto cs = program->GetShader(ShaderType::kCompute);
         assert(cs);
@@ -168,23 +171,25 @@ void D3D12PipelineState::Bind(GfxDriver* gfx) {
     }
 
     auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto cmd_list = driver->GetCommandList()->GetUnderlyingCommandList();
+    auto cmd_list = driver->GetCommandList();
 
     cmd_list->SetPipelineState(pso_.Get());
 
     if (is_compute_) {
-        cmd_list->SetComputeRootSignature(compute_desc_.pRootSignature);
+        cmd_list->SetComputeRootSignature(compute_desc_.pRootSignature, program_);
     }
     else {
-        cmd_list->SetGraphicsRootSignature(desc_.pRootSignature);
-        cmd_list->IASetPrimitiveTopology(GetUnderlyingTopology(state_.topology));
+        cmd_list->SetGraphicsRootSignature(desc_.pRootSignature, program_);
+
+        auto d3d12_cmd_list = cmd_list->GetUnderlyingCommandList();
+        d3d12_cmd_list->IASetPrimitiveTopology(GetUnderlyingTopology(state_.topology));
         if (state_.HasBlending()) {
             FLOAT BlendFactor[4] = { 1.0f,1.0f, 1.0f, 1.0f };
-            cmd_list->OMSetBlendFactor(BlendFactor);
+            d3d12_cmd_list->OMSetBlendFactor(BlendFactor);
         }
 
         if (state_.stencilEnable) {
-            cmd_list->OMSetStencilRef(0xff);
+            d3d12_cmd_list->OMSetStencilRef(0xff);
         }
     }
 }

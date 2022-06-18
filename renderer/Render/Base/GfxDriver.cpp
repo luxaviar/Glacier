@@ -32,11 +32,15 @@ void GfxDriver::BindMaterial(Material* mat) {
 
     auto program = mat->GetProgram().get();
     if (material_ == mat) {
-        program->RefreshDynamicBuffer(this);
+        program->RefreshTranstientBuffer(this);
         return;
     }
 
     if (program != program_) {
+        if (program_) {
+            program_->UnBindPSO(this);
+        }
+
         program->BindPSO(this);
         program_ = program;
     }
@@ -54,6 +58,10 @@ void GfxDriver::BindMaterial(Material* mat) {
 void GfxDriver::UnBindMaterial() {
     if (material_) {
         material_->UnBind(this);
+    }
+
+    if (program_) {
+        program_->UnBindPSO(this);
     }
 
     material_ = nullptr;

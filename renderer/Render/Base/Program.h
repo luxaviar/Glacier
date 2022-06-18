@@ -46,15 +46,17 @@ public:
     }
 
     virtual void BindPSO(GfxDriver* gfx) = 0;
+    virtual void UnBindPSO(GfxDriver* gfx) {}
+
     virtual void Bind(GfxDriver* gfx, Material* mat) = 0;
-    virtual void UnBind(GfxDriver* gfx, Material* mat) = 0;
-    virtual void RefreshDynamicBuffer(GfxDriver* gfx) {}
+    virtual void UnBind(GfxDriver* gfx, Material* mat) {}
+    virtual void RefreshTranstientBuffer(GfxDriver* gfx) {}
 
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;
 
-    const ShaderParameterSet* FindParameter(const std::string& name) const;
-    const ShaderParameterSet* FindParameter(const char* name) const;
+    const ShaderParameter* FindParameter(const std::string& name) const;
+    const ShaderParameter* FindParameter(const char* name) const;
 
     template<typename T>
     void SetProperty(const char* name, ConstantParameter<T>& param) {
@@ -73,17 +75,16 @@ public:
     
 protected:
     virtual void SetupShaderParameter(const std::shared_ptr<Shader>& shader) = 0;
-    ShaderParameterSet& FetchShaderParameterSet(const std::string& name);
-    void SetShaderParameter(const std::string& name, const ShaderParameter& param);
+    ShaderParameter& FetchShaderParameter(const std::string& name);
+    void SetShaderParameter(const std::string& name, const ShaderParameter::Entry& param);
 
     uint32_t version_ = 0;
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
-    std::unordered_map<std::string, ShaderParameterSet> params_;
+    std::unordered_map<std::string, ShaderParameter> params_;
     std::shared_ptr<PipelineState> pso_;
 
     std::unordered_map<std::string, MaterialProperty> properties_;
-    //std::unordered_map<std::string, MaterialProperty> samplers_;
     std::vector<std::string> passes_;
 };
 

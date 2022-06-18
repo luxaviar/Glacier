@@ -134,29 +134,32 @@ void D3D11Shader::SetupParameter() {
         reflector->GetResourceBindingDesc(i, &bindDesc);
         std::string resourceName = bindDesc.Name;
 
-        ShaderParameterCatetory parameterType = ShaderParameterCatetory::kUnknown;
+        ShaderParameterType parameterType = ShaderParameterType::kUnknown;
 
         switch (bindDesc.Type)
         {
         case D3D_SIT_CBUFFER:
-            parameterType = ShaderParameterCatetory::kCBV;
+            parameterType = ShaderParameterType::kCBV;
             break;
         case D3D_SIT_TEXTURE:
         case D3D_SIT_STRUCTURED:
-            parameterType = ShaderParameterCatetory::kSRV;
+            parameterType = ShaderParameterType::kSRV;
             break;
         case D3D_SIT_SAMPLER:
-            parameterType = ShaderParameterCatetory::kSampler;
+            parameterType = ShaderParameterType::kSampler;
             break;
         case D3D_SIT_UAV_RWSTRUCTURED:
         case D3D_SIT_UAV_RWTYPED:
-            parameterType = ShaderParameterCatetory::kUAV;
+            parameterType = ShaderParameterType::kUAV;
             break;
         }
 
+        ShaderParameter param(resourceName);
+        param.entries[(int)type_] = {type_, parameterType, bindDesc.BindPoint, bindDesc.BindCount};
+
+
         // Create an empty shader parameter that should be filled-in by the application.
-        params_.emplace(resourceName, ShaderParameter{
-            resourceName, type_, parameterType, bindDesc.BindPoint, bindDesc.BindCount });
+        params_.emplace(resourceName, param);
     }
 }
 

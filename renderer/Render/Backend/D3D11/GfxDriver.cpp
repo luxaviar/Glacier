@@ -165,7 +165,7 @@ void D3D11GfxDriver::CopyResource(const std::shared_ptr<Resource>& src, const st
     const auto& src_res = std::dynamic_pointer_cast<D3D11Resource>(src);
     const auto& dst_res = std::dynamic_pointer_cast<D3D11Resource>(dst);
 
-    context_->CopyResource(src_res->GetUnderlyingResource(), dst_res->GetUnderlyingResource());
+    context_->CopyResource(dst_res->GetUnderlyingResource(), src_res->GetUnderlyingResource());
 }
 
 void D3D11GfxDriver::DrawIndexed(uint32_t count) {
@@ -242,8 +242,7 @@ std::shared_ptr<Program> D3D11GfxDriver::CreateProgram(const char* name, const T
 }
 
 std::shared_ptr<Texture> D3D11GfxDriver::CreateTexture(const TextureDescription& desc) {
-    auto ret = std::make_shared<D3D11Texture>(desc);
-    return ret;
+    return std::make_shared<D3D11Texture>(desc);
 }
 
 std::shared_ptr<Texture> D3D11GfxDriver::CreateTexture(SwapChain* swapchain) {

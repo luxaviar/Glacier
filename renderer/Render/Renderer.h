@@ -113,6 +113,8 @@ protected:
     //hardware render target
     std::shared_ptr<RenderTarget> present_render_target_;
 
+    std::shared_ptr<RenderTarget> hdr_color_target_;
+
     std::shared_ptr<CascadedShadowManager> csm_manager_;
     std::vector<Renderable*> visibles_;
 

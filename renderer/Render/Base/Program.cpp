@@ -51,25 +51,30 @@ void Program::SetupMaterial(Material* material) {
     }
 }
 
-ShaderParameterSet& Program::FetchShaderParameterSet(const std::string& name) {
+ShaderParameter& Program::FetchShaderParameter(const std::string& name) {
     auto it = params_.find(name);
     if (it == params_.end()) {
-        it = params_.emplace_hint(it, name, ShaderParameterSet{});
+        it = params_.emplace_hint(it, name, ShaderParameter{name});
     }
 
     return it->second;
 }
 
-void Program::SetShaderParameter(const std::string& name, const ShaderParameter& param) {
-    auto& set = FetchShaderParameterSet(name);
-    set[(int)param.shader_type] = param;
+void Program::SetShaderParameter(const std::string& name, const ShaderParameter::Entry& entry) {
+    auto& param = FetchShaderParameter(name);
+    param.entries[(int)entry.shader_type] = entry;
 }
 
-const ShaderParameterSet* Program::FindParameter(const std::string& name) const {
-    return FindParameter(name.c_str());
+const ShaderParameter* Program::FindParameter(const std::string& name) const {
+    auto it = params_.find(name);
+    if (it != params_.end()) {
+        return &it->second;
+    }
+
+    return nullptr;
 }
 
-const ShaderParameterSet* Program::FindParameter(const char* name) const {
+const ShaderParameter* Program::FindParameter(const char* name) const {
     auto it = params_.find(name);
     if (it != params_.end()) {
         return &it->second;
@@ -99,7 +104,7 @@ void Program::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) 
         prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
         prop.prop_type == MaterialPropertyType::kRWStructuredBuffer);
 
-    prop.buffer = buf;
+    prop.resource = buf;
     prop.dirty = true;
 }
 
@@ -122,7 +127,7 @@ void Program::SetProperty(const char* name, const std::shared_ptr<Texture>& tex,
     auto& prop = it->second;
     assert(prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param);
 
-    prop.texture = tex;
+    prop.resource = tex;
     prop.default_color = default_color;
     prop.use_default = !tex;
     prop.dirty = true;
@@ -230,8 +235,7 @@ void Program::UpdateProperty(const char* name, const void* data) {
     if (it != properties_.end()) {
         auto& prop = it->second;
         assert(prop.prop_type == MaterialPropertyType::kConstantBuffer && prop.shader_param == param);
-        prop.buffer->Update(data);
-        prop.dirty = true;
+        dynamic_cast<Buffer*>(prop.resource.get())->Update(data);
         return;
     }
 

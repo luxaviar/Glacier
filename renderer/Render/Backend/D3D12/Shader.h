@@ -10,16 +10,16 @@ namespace render {
 
 class D3D12ConstantBuffer;
 struct D3D12DescriptorRange;
+class D3D12Resource;
 
 struct D3D12ShaderParameter {
     std::string name;
     ShaderType shader_type = ShaderType::kUnknown;
-    ShaderParameterCatetory category = ShaderParameterCatetory::kUnknown;
+    ShaderParameterType category = ShaderParameterType::kUnknown;
     uint32_t bind_point;
     uint32_t bind_count = 1;
     uint32_t register_space = 0;
-    const D3D12ConstantBuffer* constant_buffer = nullptr;
-    std::vector<const D3D12DescriptorRange*> srv_list;
+    const D3D12Resource* resource = nullptr;
 };
 
 class D3D12Shader : public Shader {

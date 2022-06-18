@@ -400,8 +400,8 @@ void D3D12Texture::CreateViews() {
         }
 
         auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        srv_slot_ = descriptor_allocator->Allocate();
-        device->CreateShaderResourceView(resource_.Get(), &srv_desc, srv_slot_.GetDescriptorHandle());
+        descriptor_slot_ = descriptor_allocator->Allocate();
+        device->CreateShaderResourceView(resource_.Get(), &srv_desc, descriptor_slot_.GetDescriptorHandle());
     }
 
     // Create UAV for each mip (only supported for 1D and 2D textures).
@@ -411,10 +411,10 @@ void D3D12Texture::CreateViews() {
         CheckFormatSupport(D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE))
     {
         auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        uav_slot_ = descriptor_allocator->Allocate(desc_.MipLevels);
+        descriptor_slot_ = descriptor_allocator->Allocate(desc_.MipLevels);
         for (int i = 0; i < desc_.MipLevels; ++i) {
             auto uav_desc = GetUavDesc(desc_, i);
-            device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, uav_slot_.GetDescriptorHandle(i));
+            device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, descriptor_slot_.GetDescriptorHandle(i));
         }
     }
 
@@ -462,8 +462,7 @@ void D3D12Texture::GenerateMipMaps() {
 void D3D12Texture::ReleaseUnderlyingResource() {
     resource_.Reset();
     location_ = {};
-    srv_slot_ = {};
-    uav_slot_ = {};
+    descriptor_slot_ = {};
 }
 
 void D3D12Texture::ReadBackImage(int left, int top,

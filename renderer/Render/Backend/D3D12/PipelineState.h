@@ -33,6 +33,7 @@ private:
 
     InputLayoutDesc layout_desc_;
     ComPtr<ID3D12PipelineState> pso_;
+    D3D12Program* program_ = nullptr;
     std::shared_ptr<D3D12RenderTarget> render_target_;
 };
 

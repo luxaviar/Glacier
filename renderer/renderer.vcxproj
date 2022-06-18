@@ -248,6 +248,7 @@
     <ClCompile Include="Render\Backend\D3D12\CommandQueue.cpp" />
     <ClCompile Include="Render\Backend\D3D12\DescriptorHeapAllocator.cpp" />
     <ClCompile Include="Render\Backend\D3D12\DescriptorTableHeap.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\DynamicDescriptorHeap.cpp" />
     <ClCompile Include="Render\Backend\D3D12\GfxDriver.cpp" />
     <ClCompile Include="Render\Backend\D3D12\LinearAllocator.cpp" />
     <ClCompile Include="Render\Backend\D3D12\MemoryHeapAllocator.cpp" />
@@ -522,6 +523,7 @@
     <ClInclude Include="Render\Backend\D3D12\d3dx12.h" />
     <ClInclude Include="Render\Backend\D3D12\DescriptorHeapAllocator.h" />
     <ClInclude Include="Render\Backend\D3D12\DescriptorTableHeap.h" />
+    <ClInclude Include="Render\Backend\D3D12\DynamicDescriptorHeap.h" />
     <ClInclude Include="Render\Backend\D3D12\GfxDriver.h" />
     <ClInclude Include="Render\Backend\D3D12\LinearAllocator.h" />
     <ClInclude Include="Render\Backend\D3D12\MemoryHeapAllocator.h" />

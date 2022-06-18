@@ -615,6 +615,9 @@
     <ClCompile Include="Render\Base\RenderTexturePool.cpp">
       <Filter>Source\Render\Base</Filter>
     </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\DynamicDescriptorHeap.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="3rdparty\imgui\imconfig.h">
@@ -1474,6 +1477,9 @@
     </ClInclude>
     <ClInclude Include="3rdParty\assimp\ObjMaterial.h">
       <Filter>Source\3rdParty\assimp</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\DynamicDescriptorHeap.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

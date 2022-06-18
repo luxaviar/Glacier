@@ -88,7 +88,7 @@ void DeferredRenderer::DoTAA() {
 
     if (frame_count_ > 0) {
         gfx_->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0), temp_hdr_texture_);
-        PostProcess(hdr_render_target_, taa_mat_.get());
+        PostProcess(hdr_color_target_, taa_mat_.get());
     }
 
     gfx_->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0), prev_hdr_texture_);
@@ -185,7 +185,9 @@ void DeferredRenderer::AddLightingPass() {
             LightManager::Instance()->Update();
             csm_manager_->Update();
 
-            PostProcess(hdr_render_target_, lighting_mat_.get());
+            GetLightingRenderTarget()->UnBind(gfx_);
+
+            PostProcess(hdr_color_target_, lighting_mat_.get());
 
             BindLightingTarget();
         });

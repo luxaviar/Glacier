@@ -51,9 +51,6 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
     upload_allocator_ = std::make_unique<D3D12UploadBufferAllocator>(device_.Get());
     default_allocator_ = std::make_unique<D3D12DefaultBufferAllocator>(device_.Get());
     texture_allocator_ = std::make_unique<D3D12TextureResourceAllocator>(device_.Get());
-    
-    srv_uav_table_ = std::make_unique<D3D12DescriptorTableHeap>(device_.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV, 2048);
-    sampler_table_ = std::make_unique<D3D12DescriptorTableHeap>(device_.Get(), D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER, 1024);
 
     linear_allocator_ = std::make_unique<LinearAllocator>(LinearAllocator::kUploadPageSize);
 
@@ -223,14 +220,6 @@ D3D12CommandList* D3D12GfxDriver::GetCommandList(D3D12_COMMAND_LIST_TYPE type) c
     }
 }
 
-void D3D12GfxDriver::SetDescriptorHeaps(D3D12CommandList* command_list) {
-    auto srv_heap = srv_uav_table_->GetUnderlyingHeap();
-    auto sampler_heap = sampler_table_->GetUnderlyingHeap();
-
-    ID3D12DescriptorHeap* heaps[] = { srv_heap, sampler_heap };
-    command_list->GetUnderlyingCommandList()->SetDescriptorHeaps(_countof(heaps), heaps);
-}
-
 void D3D12GfxDriver::EnqueueReadback(D3D12Texture::ReadbackTask&& task) {
     readback_queue_.emplace(std::make_pair(direct_command_queue_->GetCompletedFenceValue() + 1, std::move(task)));
 }
@@ -283,12 +272,6 @@ void D3D12GfxDriver::ResetCommandQueue(D3D12_COMMAND_LIST_TYPE type) {
     auto command_queue = GetCommandQueue(type);
     auto command_list = command_queue->GetCommandList();
     command_queue->ResetCommandList();
-    //command_queue->GetCommandList()->ResetAllocator();
-    //command_queue->GetCommandList()->Reset();
-
-    if (type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-        SetDescriptorHeaps(command_list);
-    }
 }
 
 void D3D12GfxDriver::BeginFrame() {
@@ -319,8 +302,6 @@ void D3D12GfxDriver::Present() {
 
 void D3D12GfxDriver::EndFrame() {
     direct_command_queue_->Flush();
-    srv_uav_table_->Reset();
-    sampler_table_->Reset();
 
     ProcessReadback();
     ReleaseInflight();

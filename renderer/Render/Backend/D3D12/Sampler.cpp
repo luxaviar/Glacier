@@ -50,8 +50,8 @@ D3D12Sampler::D3D12Sampler(GfxDriver* gfx, const SamplerState& ss) :
     }
 
     auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
-    sampler_slot_ = descriptor_allocator->Allocate();
-    device->CreateSampler(&sampler_desc, sampler_slot_.GetDescriptorHandle());
+    descriptor_slot_ = descriptor_allocator->Allocate();
+    device->CreateSampler(&sampler_desc, descriptor_slot_.GetDescriptorHandle());
 }
 
 }

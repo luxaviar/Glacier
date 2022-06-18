@@ -60,6 +60,10 @@ public:
     void* GetMappedAddress() const { return mapped_address_; }
     D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return gpu_address_; }
 
+    const D3D12DescriptorRange& GetDescriptorSlot() const { return descriptor_slot_; }
+    D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorHandle() const { return descriptor_slot_.GetDescriptorHandle(); }
+    //virtual D3D12_CPU_DESCRIPTOR_HANDLE GetUavDescriptorHandle(uint32_t miplevel = 0) const { return {}; }
+
     void Map(uint32_t subresource = 0, const D3D12_RANGE* range = nullptr);
     void Unmap();
 
@@ -80,8 +84,9 @@ protected:
 
     void* mapped_address_ = nullptr;
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address_ = 0;
-    D3D12_FEATURE_DATA_FORMAT_SUPPORT format_support_;
+    D3D12DescriptorRange descriptor_slot_ = {};
 
+    D3D12_FEATURE_DATA_FORMAT_SUPPORT format_support_;
     EngineString name_;
 };
 

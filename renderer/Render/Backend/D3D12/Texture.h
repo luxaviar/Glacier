@@ -39,11 +39,11 @@ public:
     void Reset(ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state);
     bool Resize(uint32_t width, uint32_t height) override;
 
-    const D3D12DescriptorRange& GetSrvDescriptorSlot() const { return srv_slot_; }
-    const D3D12DescriptorRange& GetUavDescriptorSlot() const { return uav_slot_; }
+    //const D3D12DescriptorRange& GetSrvDescriptorSlot() const { return srv_slot_; }
+    //const D3D12DescriptorRange& GetUavDescriptorSlot() const { return uav_slot_; }
 
-    D3D12_CPU_DESCRIPTOR_HANDLE GetSrvDescriptorHandle() const { return srv_slot_.GetDescriptorHandle(); }
-    D3D12_CPU_DESCRIPTOR_HANDLE GetUavDescriptorHandle(uint32_t miplevel=0) const { return uav_slot_.GetDescriptorHandle(miplevel); }
+    //D3D12_CPU_DESCRIPTOR_HANDLE GetSrvDescriptorHandle() const override { return srv_slot_.GetDescriptorHandle(); }
+    //D3D12_CPU_DESCRIPTOR_HANDLE GetUavDescriptorHandle(uint32_t miplevel=0) const override { return uav_slot_.GetDescriptorHandle(miplevel); }
 
     void GenerateMipMaps() override;
     uint32_t GetMipLevels() const override;
@@ -67,8 +67,8 @@ protected:
 
     ResourceLocation location_;
 
-    D3D12DescriptorRange srv_slot_;
-    D3D12DescriptorRange uav_slot_;
+    //D3D12DescriptorRange srv_slot_;
+    //D3D12DescriptorRange uav_slot_;
 
     bool clear_value_set_ = false;
     D3D12_CLEAR_VALUE clear_value_;

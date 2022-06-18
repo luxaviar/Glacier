@@ -86,7 +86,7 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf)
         prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
         prop.prop_type == MaterialPropertyType::kRWStructuredBuffer);
 
-    prop.buffer = buf;
+    prop.resource = buf;
     prop.dirty = true;
 }
 
@@ -107,7 +107,7 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex
     auto& prop = it->second;
     assert(prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param);
 
-    prop.texture = tex;
+    prop.resource = tex;
     prop.default_color = default_color;
     prop.use_default = !tex;
     prop.dirty = true;
@@ -205,8 +205,7 @@ void Material::UpdateProperty(const char* name, const void* data) {
     if (it != properties_.end()) {
         auto& prop = it->second;
         assert(prop.prop_type == MaterialPropertyType::kConstantBuffer && prop.shader_param == param);
-        prop.buffer->Update(data);
-        prop.dirty = true;
+        dynamic_cast<Buffer*>(prop.resource.get())->Update(data);
         return;
     }
 
@@ -220,15 +219,15 @@ void Material::DrawInspector() {
 
     ImGui::Text("Property");
     for (auto& [_, p] : properties_) {
-        for (auto& param : *p.shader_param) {
+        for (auto& param : p.shader_param->entries) {
             if (!param) continue;
 
             ImGui::Bullet();
-            ImGui::Text(param.name.c_str());
+            ImGui::Text(p.shader_param->name.c_str());
             if (p.prop_type == MaterialPropertyType::kTexture && p.use_default) {
                 ImGui::SameLine(200);
                 std::string label("##material-color");
-                label.append(param.name.c_str());
+                label.append(p.shader_param->name.c_str());
                 if (ImGui::ColorEdit4(label.c_str(), &p.default_color, ImGuiColorEditFlags_NoInputs)) {
                     p.dirty = true;
                     //dirty_ = true;
@@ -251,10 +250,19 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
     program_->SetRasterState(rs);
     program_->SetInputLayout(desc);
 
-    SamplerState ss;
-    ss.filter = FilterMode::kBilinear;
-    ss.warpU = ss.warpV = WarpMode::kClamp;
-    SetProperty("linear_sampler", ss);
+    if (program_->FindParameter("linear_sampler")) {
+        SamplerState linear_ss;
+        linear_ss.filter = FilterMode::kBilinear;
+        linear_ss.warpU = linear_ss.warpV = WarpMode::kClamp;
+        SetProperty("linear_sampler", linear_ss);
+    }
+
+    if (program_->FindParameter("point_sampler")) {
+        SamplerState point_ss;
+        point_ss.filter = FilterMode::kPoint;
+        point_ss.warpU = point_ss.warpV = WarpMode::kClamp;
+        SetProperty("point_sampler", point_ss);
+    }
 }
 
 void MaterialManager::Add(std::shared_ptr<Material>&& mat) {

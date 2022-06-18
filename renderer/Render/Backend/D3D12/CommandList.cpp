@@ -23,6 +23,11 @@ D3D12CommandList::D3D12CommandList(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE
     // This is because the first time we refer to the command list we will Reset it,
     // and it needs to be closed before calling Reset.
     GfxThrowIfFailed(command_list_->Close());
+
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+        dynamic_descriptor_heap_[i] = std::make_unique<DynamicDescriptorHeap>(device_, (D3D12_DESCRIPTOR_HEAP_TYPE)i, 1024);
+        descriptor_heaps_[i] = nullptr;
+    }
 }
 
 D3D12CommandList::~D3D12CommandList() {
@@ -46,6 +51,12 @@ void D3D12CommandList::Reset() {
 
     GfxThrowIfFailed(command_list_->Reset(command_allocator_.Get(), nullptr));
     resource_state_tracker_.Reset();
+
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+    {
+        dynamic_descriptor_heap_[i]->Reset();
+        descriptor_heaps_[i] = nullptr;
+    }
 
     closed_ = false;
 }
@@ -75,27 +86,73 @@ bool D3D12CommandList::Close(D3D12CommandList* pending_cmd_list) {
     return pending_barriers > 0;
 }
 
-void D3D12CommandList::SetComputeRootSignature(ID3D12RootSignature* rs) {
-    command_list_->SetComputeRootSignature(rs);
+
+void D3D12CommandList::SetPipelineState(ID3D12PipelineState* pso) {
+    if (pso != pso_) {
+        command_list_->SetPipelineState(pso);
+    }
 }
 
-void D3D12CommandList::SetPipelineState(ID3D12PipelineState* ps) {
-    command_list_->SetPipelineState(ps);
+void D3D12CommandList::SetComputeRootSignature(ID3D12RootSignature* root_signature, D3D12Program* program) {
+    if (root_signature == root_signature_) return;
+
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+        dynamic_descriptor_heap_[i]->ParseRootSignature(program);
+    }
+
+    command_list_->SetComputeRootSignature(root_signature);
 }
 
-void D3D12CommandList::SetComputeRoot32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value,
-    const void* data, uint32_t offset)
+void D3D12CommandList::SetGraphicsRootSignature(ID3D12RootSignature* root_signature, D3D12Program* program) {
+    if (root_signature == root_signature_) return;
+
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+        dynamic_descriptor_heap_[i]->ParseRootSignature(program);
+    }
+
+    command_list_->SetGraphicsRootSignature(root_signature);
+}
+
+void D3D12CommandList::SetCompute32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value, const void* data)
 {
-    command_list_->SetComputeRoot32BitConstants(root_param_index, num_32bit_value, data, offset);
+    command_list_->SetComputeRoot32BitConstants(root_param_index, num_32bit_value, data, 0);
 }
 
-void D3D12CommandList::SetComputeRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation) {
-    command_list_->SetComputeRootConstantBufferView(RootParameterIndex, BufferLocation->GetGpuAddress());
-}
-
-void D3D12CommandList::SetComputeRootDescriptorTable(uint32_t root_param_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor)
+void D3D12CommandList::SetGraphics32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value, const void* data)
 {
-    command_list_->SetComputeRootDescriptorTable(root_param_index, base_descriptor);
+    command_list_->SetGraphicsRoot32BitConstants(root_param_index, num_32bit_value, data, 0);
+}
+
+void D3D12CommandList::SetConstantBufferView(uint32_t root_param_index, const D3D12Resource* res) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineCBV(root_param_index, res->GetGpuAddress());
+}
+
+void D3D12CommandList::SetShaderResourceView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineSRV(root_param_index, address);
+}
+
+void D3D12CommandList::SetUnorderedAccessView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineUAV(root_param_index, address);
+}
+
+void D3D12CommandList::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->
+        StageDescriptors(root_param_index, offset, 1, res->GetDescriptorHandle());
+}
+
+void D3D12CommandList::SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]->
+        StageDescriptors(root_param_index, offset, 1, res->GetDescriptorHandle());
+}
+
+void D3D12CommandList::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->
+        StageDescriptors(root_param_index, offset, range->num, range->GetDescriptorHandle());
+}
+
+void D3D12CommandList::SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range) {
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]->
+        StageDescriptors(root_param_index, offset, range->num, range->GetDescriptorHandle());
 }
 
 void D3D12CommandList::FlushBarriers() {
@@ -189,6 +246,10 @@ void D3D12CommandList::DrawIndexedInstanced(UINT IndexCountPerInstance, UINT Ins
     INT BaseVertexLocation, UINT StartInstanceLocation)
 {
     FlushBarriers();
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+    {
+        dynamic_descriptor_heap_[i]->CommitStagedDescriptorsForDraw(*this);
+    }
 
     command_list_->DrawIndexedInstanced(IndexCountPerInstance, InstanceCount, StartIndexLocation, BaseVertexLocation, StartInstanceLocation);
 }
@@ -196,19 +257,21 @@ void D3D12CommandList::DrawIndexedInstanced(UINT IndexCountPerInstance, UINT Ins
 void D3D12CommandList::DrawInstanced(UINT VertexCountPerInstance, UINT InstanceCount, UINT StartVertexLocation, UINT StartInstanceLocation) {
     FlushBarriers();
 
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+    {
+        dynamic_descriptor_heap_[i]->CommitStagedDescriptorsForDraw(*this);
+    }
+
     command_list_->DrawInstanced(VertexCountPerInstance, InstanceCount, StartVertexLocation, StartInstanceLocation);
-}
-
-void D3D12CommandList::SetGraphicsRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation) {
-    command_list_->SetGraphicsRootConstantBufferView(RootParameterIndex, BufferLocation->GetGpuAddress());
-}
-
-void D3D12CommandList::SetGraphicsRootDescriptorTable(UINT RootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor) {
-    command_list_->SetGraphicsRootDescriptorTable(RootParameterIndex, BaseDescriptor);
 }
 
 void D3D12CommandList::Dispatch(uint32_t thread_group_x, uint32_t thread_group_y, uint32_t thread_group_z) {
     FlushBarriers();
+
+    for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i)
+    {
+        dynamic_descriptor_heap_[i]->CommitStagedDescriptorsForDispatch(*this);
+    }
 
     command_list_->Dispatch(thread_group_x, thread_group_y, thread_group_z);
 }
@@ -234,6 +297,29 @@ void D3D12CommandList::ResolveSubresource(ID3D12Resource* pDstResource, UINT Dst
 
     command_list_->ResolveSubresource(pDstResource, DstSubresource, pSrcResource, SrcSubresource, Format);
 }
+
+
+void D3D12CommandList::SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE type, ID3D12DescriptorHeap* heap) {
+    if (descriptor_heaps_[type] != heap) {
+        descriptor_heaps_[type] = heap;
+        BindDescriptorHeaps();
+    }
+}
+
+void D3D12CommandList::BindDescriptorHeaps() {
+    UINT numDescriptorHeaps = 0;
+    ID3D12DescriptorHeap* descriptorHeaps[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES] = {};
+
+    for (uint32_t i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
+        ID3D12DescriptorHeap* descriptorHeap = descriptor_heaps_[i];
+        if (descriptorHeap) {
+            descriptorHeaps[numDescriptorHeaps++] = descriptorHeap;
+        }
+    }
+
+    command_list_->SetDescriptorHeaps(numDescriptorHeaps, descriptorHeaps);
+}
+
 
 }
 }

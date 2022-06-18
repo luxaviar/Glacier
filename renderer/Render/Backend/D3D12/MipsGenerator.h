@@ -9,6 +9,7 @@ namespace glacier {
 namespace render {
 
 class D3D12Texture;
+class D3D12Program;
 
 class MipsGenerator {
 public:
@@ -40,13 +41,13 @@ private:
     void CreateUavResource(D3D12CommandList* command_list, D3D12Resource* texture,
         std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res);
 
-    void CreateRootSignature();
-    void CreatePSO();
+    void CreateProgram();
     void CreateDefaultUav();
 
     ID3D12Device* device;
     ComPtr<ID3D12PipelineState> pso;
     ComPtr<ID3D12RootSignature> root_signature;
+    std::unique_ptr<D3D12Program> program_;
 
     D3D12DescriptorRange uav_slot_;
     UavHeapAllocator allocator_;

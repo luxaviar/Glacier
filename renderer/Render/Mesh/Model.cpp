@@ -210,19 +210,23 @@ Model::Model(const char* file, bool flip_uv) {
         }
 
         auto mat = renderer->CreateLightingMaterial(ai_mat->GetName().C_Str());
-        //LOG_LOG("material {}:", ai_mat->GetName().C_Str());
+        LOG_LOG("material {}:", ai_mat->GetName().C_Str());
 
-        auto albedo_tex = gfx->CreateTexture(albedo_desc);
-        mat->SetProperty("AlbedoTexture", albedo_tex);
+        mat->SetProperty("AlbedoTexture", 
+            albedo_desc.file.empty() ? nullptr : gfx->CreateTexture(albedo_desc),
+            albedo_desc.color);
 
-        auto emissive_tex = gfx->CreateTexture(emissive_desc);
-        mat->SetProperty("EmissiveTexture", emissive_tex);
+        mat->SetProperty("EmissiveTexture", 
+            emissive_desc.file.empty() ? nullptr : gfx->CreateTexture(emissive_desc),
+            emissive_desc.color);
 
-        auto ao_tex = gfx->CreateTexture(ao_desc);
-        mat->SetProperty("AoTexture", ao_tex);
+        mat->SetProperty("AoTexture", 
+            ao_desc.file.empty() ? nullptr : gfx->CreateTexture(ao_desc),
+            ao_desc.color);
 
-        auto metal_roughness_tex = gfx->CreateTexture(metal_roughness_desc);
-        mat->SetProperty("MetalRoughnessTexture", metal_roughness_tex);
+        mat->SetProperty("MetalRoughnessTexture", 
+            metal_roughness_desc.file.empty() ? nullptr : gfx->CreateTexture(metal_roughness_desc),
+            metal_roughness_desc.color);
 
         if (!normal_desc.file.empty()) {
             param.use_normal_map = 1;

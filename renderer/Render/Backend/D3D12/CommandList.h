@@ -6,6 +6,7 @@
 #include <condition_variable>  // For std::condition_variable.
 #include <cstdint>             // For uint64_t
 #include "ResourceStateTracker.h"
+#include "DynamicDescriptorHeap.h"
 
 namespace glacier {
 namespace render {
@@ -13,6 +14,8 @@ namespace render {
 class D3D12CommandQueue;
 class D3D12Resource;
 struct D3D12DescriptorRange;
+class D3D12ConstantBuffer;
+class D3D12Program;
 
 class D3D12CommandList {
 public:
@@ -28,17 +31,35 @@ public:
     void Close();
     bool Close(D3D12CommandList* pending_cmd_list);
 
-    void SetComputeRootSignature(ID3D12RootSignature* rs);
-    void SetPipelineState(ID3D12PipelineState* ps);
-    void SetComputeRoot32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value,
-        const void* data, uint32_t offset);
-    void SetComputeRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation);
-    void SetComputeRootDescriptorTable(uint32_t root_param_index, D3D12_GPU_DESCRIPTOR_HANDLE base_descriptor);
+    void SetPipelineState(ID3D12PipelineState* pso);
+    void SetComputeRootSignature(ID3D12RootSignature* root_signature, D3D12Program* program);
+    void SetGraphicsRootSignature(ID3D12RootSignature* root_signature, D3D12Program* program);
+
+    void SetGraphics32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value, const void* data);
+    template<typename T>
+    void SetGraphics32BitConstants(uint32_t root_param_index, const T& data) {
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "Size of type must be a multiple of 4 bytes");
+        SetGraphics32BitConstants(root_param_index, sizeof(T) / sizeof(uint32_t), &data);
+    }
+
+    void SetCompute32BitConstants(uint32_t root_param_index, uint32_t num_32bit_value, const void* data);
+    template<typename T>
+    void SetCompute32BitConstants(uint32_t root_param_index, const T& data) {
+        static_assert(sizeof(T) % sizeof(uint32_t) == 0, "Size of type must be a multiple of 4 bytes");
+        SetCompute32BitConstants(root_param_index, sizeof(T) / sizeof(uint32_t), &data);
+    }
+
+    void SetConstantBufferView(uint32_t root_param_index, const D3D12Resource* res);
+    void SetShaderResourceView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address);
+    void SetUnorderedAccessView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address);
+
+    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res);
+    void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res);
+
+    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
+    void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
 
     void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
-
-    //void TransitionBarrier(ID3D12Resource* res, D3D12_RESOURCE_STATES before_state,
-    //    D3D12_RESOURCE_STATES after_state);
 
     void TransitionBarrier(D3D12Resource* res, D3D12_RESOURCE_STATES after_state,
         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
@@ -73,9 +94,6 @@ public:
         INT BaseVertexLocation, UINT StartInstanceLocation);
     void DrawInstanced(UINT VertexCountPerInstance, UINT InstanceCount, UINT StartVertexLocation, UINT StartInstanceLocation);
 
-    void SetGraphicsRootConstantBufferView(UINT RootParameterIndex, const D3D12Resource* BufferLocation);
-    void SetGraphicsRootDescriptorTable(UINT RootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE BaseDescriptor);
-
     void Dispatch(uint32_t thread_group_x, uint32_t thread_group_y, uint32_t thread_group_z);
 
     void BeginQuery(ID3D12QueryHeap* pQueryHeap, D3D12_QUERY_TYPE Type, UINT Index);
@@ -90,6 +108,9 @@ public:
     ID3D12GraphicsCommandList* GetUnderlyingCommandList() { return command_list_.Get(); }
 
     void FlushBarriers();
+
+    void SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, ID3D12DescriptorHeap* heap);
+    void BindDescriptorHeaps();
 private:
 
     bool closed_ = true;
@@ -97,12 +118,16 @@ private:
     D3D12_COMMAND_LIST_TYPE type_;
     ID3D12Device* device_;
 
-    //std::vector<D3D12_RESOURCE_BARRIER> resource_barriers_;
+    ID3D12PipelineState* pso_ = nullptr;
+    ID3D12RootSignature* root_signature_ = nullptr;
 
     ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
     ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
 
     ResourceStateTracker resource_state_tracker_;
+
+    std::unique_ptr<DynamicDescriptorHeap> dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
+    ID3D12DescriptorHeap* descriptor_heaps_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 };
 
 }

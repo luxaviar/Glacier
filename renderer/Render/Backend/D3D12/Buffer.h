@@ -90,7 +90,7 @@ public:
 class D3D12RWStructuredBuffer : public D3D12Buffer, public Buffer {
 public:
     D3D12RWStructuredBuffer(uint32_t element_size, uint32_t element_count);
-    const D3D12DescriptorRange& GetUavDescriptorSlot() const { return uav_slot_; }
+    //const D3D12DescriptorRange& GetUavDescriptorSlot() const { return uav_slot_; }
 
     void Update(const void* data, size_t size) override {
         assert(size <= size_);

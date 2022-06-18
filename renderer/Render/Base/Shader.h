@@ -1,9 +1,10 @@
 #pragma once
 
 #include <unordered_map>
+#include <array>
+#include <d3dcommon.h>
 #include "Common/Util.h"
 #include "resource.h"
-#include <d3dcommon.h>
 
 namespace glacier {
 namespace render {
@@ -14,17 +15,23 @@ struct ShaderMacroEntry {
 };
 
 struct ShaderParameter {
+    struct Entry {
+        ShaderType shader_type = ShaderType::kUnknown;
+        ShaderParameterType category = ShaderParameterType::kUnknown;
+        uint32_t bind_point;
+        uint32_t bind_count = 1;
+        uint32_t register_space = 0;
+
+        operator bool() const { return shader_type != ShaderType::kUnknown; }
+    };
+
+    ShaderParameter(const std::string& name) : name(name) {}
+
     std::string name;
-    ShaderType shader_type = ShaderType::kUnknown;
-    ShaderParameterCatetory category = ShaderParameterCatetory::kUnknown;
-    uint32_t bind_point;
-    uint32_t bind_count = 1;
-    uint32_t register_space = 0;
+    std::array<Entry, (size_t)ShaderType::kUnknown> entries;
 
     operator bool() const { return !name.empty(); }
 };
-
-using ShaderParameterSet = std::array<ShaderParameter, (size_t)ShaderType::kUnknown>;
 
 class Shader : public Resource {
 public:

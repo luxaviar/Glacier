@@ -13,8 +13,7 @@ MipsGenerator::MipsGenerator(ID3D12Device* device) :
     device(device),
     allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES)
 {
-    CreateRootSignature();
-    CreatePSO();
+    CreateProgram();
     CreateDefaultUav();
 }
 
@@ -34,6 +33,8 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
         CreateUavResource(command_list, texture, uav_res, alias_res);
         uav_tex = uav_res.get();
     }
+
+    program_->BindPSO(D3D12GfxDriver::Instance());
 
     if (tex_desc.DepthOrArraySize > 1) {
         GenerateTextureArray(command_list, uav_tex);
@@ -55,13 +56,8 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
 }
 
 void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture) {
-    //Set root signature, pso and descriptor heap
-    command_list->SetComputeRootSignature(root_signature.Get());
-    command_list->SetPipelineState(pso.Get());
-
     auto gfx = D3D12GfxDriver::Instance();
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    auto desc_tb = gfx->GetSrvUavTableHeap();
 
     command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -82,8 +78,6 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
     auto src_slot = allocator->Allocate();
     D3D12_CPU_DESCRIPTOR_HANDLE src_srv = src_slot.GetDescriptorHandle();
     device->CreateShaderResourceView(resource, &src_srv_desc, src_srv);
-
-    auto src_gpu = desc_tb->AppendDescriptors(&src_srv, 1);
 
     for (uint32_t srcMip = 0; srcMip < tex_desc.MipLevels - 1u; ) {
         uint64_t srcWidth = tex_desc.Width >> srcMip;
@@ -122,8 +116,8 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
         cbuffer.TexelSize.x = 1.0f / (float)dstWidth;
         cbuffer.TexelSize.y = 1.0f / (float)dstHeight;
 
-        command_list->SetComputeRoot32BitConstants(kCbuffer, sizeof(cbuffer) / sizeof(uint32_t), &cbuffer, 0);
-        command_list->SetComputeRootDescriptorTable(kSrcMip, src_gpu);
+        command_list->SetCompute32BitConstants(kCbuffer, cbuffer);
+        command_list->SetDescriptorTable(kSrcMip, 0, &src_slot);
 
         command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, srcMip);
 
@@ -148,8 +142,7 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
             }
         }
 
-        auto dst_gpu = desc_tb->AppendDescriptors(uav_arr, 4);
-        command_list->SetComputeRootDescriptorTable(kOutMip, dst_gpu);
+        command_list->SetDescriptorTable(kOutMip, 0, &dst_slot);
 
         command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
@@ -167,13 +160,8 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
 }
 
 void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture) {
-    //Set root signature, pso and descriptor heap
-    command_list->SetComputeRootSignature(root_signature.Get());
-    command_list->SetPipelineState(pso.Get());
-
     auto gfx = D3D12GfxDriver::Instance();
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-    auto desc_tb = gfx->GetSrvUavTableHeap();
 
     //required by state tracker
     command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -199,8 +187,6 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
 
         src_srv_desc.Texture2DArray.FirstArraySlice = array_index;
         device->CreateShaderResourceView(resource, &src_srv_desc, src_srv);
-
-        auto src_gpu = desc_tb->AppendDescriptors(&src_srv, 1);
 
         for (uint32_t srcMip = 0; srcMip < tex_desc.MipLevels - 1u; ) {
             uint64_t srcWidth = tex_desc.Width >> srcMip;
@@ -239,8 +225,8 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
             cbuffer.TexelSize.x = 1.0f / (float)dstWidth;
             cbuffer.TexelSize.y = 1.0f / (float)dstHeight;
 
-            command_list->SetComputeRoot32BitConstants(kCbuffer, sizeof(cbuffer) / sizeof(uint32_t), &cbuffer, 0);
-            command_list->SetComputeRootDescriptorTable(kSrcMip, src_gpu);
+            command_list->SetCompute32BitConstants(kCbuffer, cbuffer);
+            command_list->SetDescriptorTable(kSrcMip, 0, &src_slot);
 
             command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
                 array_index * tex_desc.MipLevels + srcMip);
@@ -268,8 +254,7 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
                 }
             }
 
-            auto dst_gpu = desc_tb->AppendDescriptors(uav_arr, 4);
-            command_list->SetComputeRootDescriptorTable(kOutMip, dst_gpu);
+            command_list->SetDescriptorTable(kOutMip, 0, &dst_slot);
 
             command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
@@ -335,47 +320,19 @@ void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Resource*
     D3D12GfxDriver::Instance()->AddInflightResource(std::move(alias_location));
 }
 
-void MipsGenerator::CreateRootSignature()
-{
-    CD3DX12_DESCRIPTOR_RANGE1 srcMip(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0, 0,
-        D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
-    CD3DX12_DESCRIPTOR_RANGE1 outMip(D3D12_DESCRIPTOR_RANGE_TYPE_UAV, 4, 0, 0,
-        D3D12_DESCRIPTOR_RANGE_FLAG_DESCRIPTORS_VOLATILE);
 
-    CD3DX12_ROOT_PARAMETER1 rootParameters[kNumRootParameters];
-    rootParameters[kCbuffer].InitAsConstants(sizeof(GenerateMipsCB) / 4, 0);
-    rootParameters[kSrcMip].InitAsDescriptorTable(1, &srcMip);
-    rootParameters[kOutMip].InitAsDescriptorTable(1, &outMip);
+void MipsGenerator::CreateProgram() {
+    program_ = std::make_unique<D3D12Program>("GenerateMips");
+    auto gfx = D3D12GfxDriver::Instance();
+    auto shader = gfx->CreateShader(ShaderType::kCompute, L"GenerateMipsCS", "main");
+
+    program_->SetShader(shader);
+    program_->SetRootConstants("GenerateMipsCB", sizeof(GenerateMipsCB) / sizeof(uint32_t));
 
     CD3DX12_STATIC_SAMPLER_DESC linearClampSampler(0, D3D12_FILTER_MIN_MAG_MIP_LINEAR,
         D3D12_TEXTURE_ADDRESS_MODE_CLAMP, D3D12_TEXTURE_ADDRESS_MODE_CLAMP,
         D3D12_TEXTURE_ADDRESS_MODE_CLAMP);
-
-    CD3DX12_VERSIONED_ROOT_SIGNATURE_DESC rootSignatureDesc(kNumRootParameters, rootParameters, 1,
-        &linearClampSampler);
-
-    Microsoft::WRL::ComPtr<ID3DBlob> signature;
-    Microsoft::WRL::ComPtr<ID3DBlob> error;
-    D3D12_FEATURE_DATA_ROOT_SIGNATURE feature_data = {};
-    feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_1;
-
-    if (FAILED(device->CheckFeatureSupport(D3D12_FEATURE_ROOT_SIGNATURE, &feature_data, sizeof(feature_data))))
-    {
-        feature_data.HighestVersion = D3D_ROOT_SIGNATURE_VERSION_1_0;
-    }
-    GfxThrowIfFailed(D3DX12SerializeVersionedRootSignature(&rootSignatureDesc, feature_data.HighestVersion, &signature, &error));
-    GfxThrowIfFailed(device->CreateRootSignature(0, signature->GetBufferPointer(), signature->GetBufferSize(), IID_PPV_ARGS(&root_signature)));
-}
-
-void MipsGenerator::CreatePSO()
-{
-    auto cs_shader = std::make_shared<D3D12Shader>(ShaderType::kCompute, L"GenerateMipsCS", "main", "cs_5_1");
-    D3D12_SHADER_BYTECODE cs{ cs_shader->GetBytecode()->GetBufferPointer(), cs_shader->GetBytecode()->GetBufferSize() };
-
-    D3D12_COMPUTE_PIPELINE_STATE_DESC pso_desc = {};
-    pso_desc.pRootSignature = root_signature.Get();
-    pso_desc.CS = cs;
-    device->CreateComputePipelineState(&pso_desc, IID_PPV_ARGS(&pso));
+    program_->SetStaticSampler("LinearClampSampler", linearClampSampler);
 }
 
 void MipsGenerator::CreateDefaultUav() {

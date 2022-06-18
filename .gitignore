@@ -35,6 +35,6 @@
 x64/
 packages/
 .vscode/
-viewer/imgui.ini
+renderer/imgui.ini
 ScreenCaptured.png
 ShadowMapCaptured.png

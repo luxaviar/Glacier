@@ -86,6 +86,9 @@ void Renderer::InitRenderTarget() {
     hdr_render_target_->AttachColor(AttachmentPoint::kColor0, hdr_colorframe);
     hdr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
 
+    hdr_color_target_ = gfx_->CreateRenderTarget(width, height);
+    hdr_color_target_->AttachColor(AttachmentPoint::kColor0, hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+
     ldr_render_target_ = gfx_->CreateRenderTarget(width, height);
     auto ldr_colorframe = RenderTexturePool::Get(width, height);
     ldr_colorframe->SetName(TEXT("ldr color frame"));
@@ -104,6 +107,7 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
     swapchain->OnResize(width, height);
 
     hdr_render_target_->Resize(width, height);
+    hdr_color_target_->Resize(width, height);
     ldr_render_target_->Resize(width, height);
 
     editor_.OnResize(width, height);
