@@ -13,7 +13,7 @@ namespace render {
 class CameraController : public Behaviour
 {
 public:
-    static constexpr float kTravelSpeed = 12.0f;
+    static constexpr float kTravelSpeed = 8.0f;
     static constexpr float kRotationSpeed = 0.004f;
 
     CameraController(render::Camera* cam) noexcept;

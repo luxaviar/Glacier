@@ -1,6 +1,8 @@
 #ifndef COMMON_BRDF_
 #define COMMON_BRDF_
 
+#include "Common/BasicBuffer.hlsli"
+
 static const float PI = 3.14159265f;
 static const float EPSILON = 1e-6f;
 
@@ -118,7 +120,9 @@ float3 EvaluateIBL(in TextureCube radiance_tex, in TextureCube irradiance_tex, i
     //const float MAX_REFLECTION_LOD = 4.0;
     float3 inverseV = normalize(reflect(-V, N));
     float3 radiance = radiance_tex.SampleLevel(linear_sampler, inverseV, roughness * radianc_max_lod).rgb;
-    float3 irradiance = irradiance_tex.Sample(linear_sampler, N).rgb;
+
+    float3 normal_ws = mul(N, (float3x3)_InverseView);
+    float3 irradiance = irradiance_tex.Sample(linear_sampler, normal_ws).rgb;
 
     float VoN = max(dot(V, N), 0);
     float2 lut_uv = float2(VoN, roughness);
