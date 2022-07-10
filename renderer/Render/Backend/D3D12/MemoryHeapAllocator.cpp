@@ -5,7 +5,7 @@ namespace glacier {
 namespace render {
 
 D3D12UploadBufferAllocator::D3D12UploadBufferAllocator(ID3D12Device* device, D3D12_RESOURCE_FLAGS flags) :
-    D3D12PlacedHeapAllocator(device, D3D12_HEAP_TYPE_UPLOAD, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS)//, D3D12_RESOURCE_STATE_GENERIC_READ, flags)
+    D3D12PlacedHeapAllocator(device, D3D12_HEAP_TYPE_UPLOAD, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS)
 {
 
 }
@@ -16,9 +16,9 @@ ResourceLocation D3D12UploadBufferAllocator::CreateResource(size_t size, size_t 
 }
 
 D3D12DefaultBufferAllocator::D3D12DefaultBufferAllocator(ID3D12Device* device) :
-    default_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS),//, D3D12_RESOURCE_STATE_COMMON),
-    uav_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS),//, D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS),
-    vbo_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS)//, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER)
+    default_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS),
+    uav_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS),
+    vbo_allocator_(device, D3D12_HEAP_TYPE_DEFAULT, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS)
 {
 
 }
@@ -48,6 +48,18 @@ ResourceLocation D3D12TextureResourceAllocator::CreateResource(const D3D12_RESOU
 {
     const D3D12_RESOURCE_ALLOCATION_INFO info = device_->GetResourceAllocationInfo(0, 1, &desc);
     return AllocResource((size_t)info.SizeInBytes, DEFAULT_RESOURCE_ALIGNMENT, desc, state, clear_value);
+}
+
+
+D3D12ReadbackBufferAllocator::D3D12ReadbackBufferAllocator(ID3D12Device* device, D3D12_RESOURCE_FLAGS flags) :
+    D3D12PlacedHeapAllocator(device, D3D12_HEAP_TYPE_READBACK, D3D12_HEAP_FLAG_ALLOW_ONLY_BUFFERS)
+{
+
+}
+
+ResourceLocation D3D12ReadbackBufferAllocator::CreateResource(size_t size, size_t alignment, D3D12_RESOURCE_STATES state) {
+    CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(size, D3D12_RESOURCE_FLAG_NONE, alignment);
+    return AllocResource(size, alignment, desc, state);
 }
 
 }

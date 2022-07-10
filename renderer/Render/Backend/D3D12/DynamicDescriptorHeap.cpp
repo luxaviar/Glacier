@@ -1,5 +1,5 @@
 #include "DynamicDescriptorHeap.h"
-#include "CommandList.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -130,13 +130,13 @@ ComPtr<ID3D12DescriptorHeap> DynamicDescriptorHeap::CreateDescriptorHeap() {
     return heap;
 }
 
-void DynamicDescriptorHeap::CommitDescriptorTables(D3D12CommandList& commandList,
+void DynamicDescriptorHeap::CommitDescriptorTables(D3D12CommandBuffer& commandList,
     std::function<void( ID3D12GraphicsCommandList*, UINT, D3D12_GPU_DESCRIPTOR_HANDLE )> setFunc )
 {
     uint32_t total_descriptor_num = ComputeStaleDescriptorCount();
     if (total_descriptor_num == 0) return;
 
-    auto cmd_list = commandList.GetUnderlyingCommandList();
+    auto cmd_list = commandList.GetNativeCommandList();
     if (!cur_descriptor_heap_ || num_free_handles_ < total_descriptor_num) {
         cur_descriptor_heap_ = RequestDescriptorHeap();
         cur_cpu_handle_ = cur_descriptor_heap_->GetCPUDescriptorHandleForHeapStart();
@@ -175,12 +175,12 @@ void DynamicDescriptorHeap::CommitDescriptorTables(D3D12CommandList& commandList
     }
 }
 
-void DynamicDescriptorHeap::CommitInlineDescriptors(D3D12CommandList& commandList,
+void DynamicDescriptorHeap::CommitInlineDescriptors(D3D12CommandBuffer& commandList,
     const D3D12_GPU_VIRTUAL_ADDRESS* bufferLocations, uint32_t& bit_mask,
     std::function<void( ID3D12GraphicsCommandList*, UINT, D3D12_GPU_VIRTUAL_ADDRESS )> setFunc )
 {
     if (bit_mask != 0) {
-        auto  cmd_list = commandList.GetUnderlyingCommandList();
+        auto  cmd_list = commandList.GetNativeCommandList();
         DWORD root_index;
         while (_BitScanForward(&root_index, bit_mask))
         {
@@ -192,7 +192,7 @@ void DynamicDescriptorHeap::CommitInlineDescriptors(D3D12CommandList& commandLis
     }
 }
 
-void DynamicDescriptorHeap::CommitStagedDescriptorsForDraw(D3D12CommandList& commandList )
+void DynamicDescriptorHeap::CommitStagedDescriptorsForDraw(D3D12CommandBuffer& commandList )
 {
     CommitDescriptorTables( commandList, &ID3D12GraphicsCommandList::SetGraphicsRootDescriptorTable );
     CommitInlineDescriptors( commandList, inline_cbv_, stale_cbv_bitmask_,
@@ -203,7 +203,7 @@ void DynamicDescriptorHeap::CommitStagedDescriptorsForDraw(D3D12CommandList& com
                              &ID3D12GraphicsCommandList::SetGraphicsRootUnorderedAccessView );
 }
 
-void DynamicDescriptorHeap::CommitStagedDescriptorsForDispatch(D3D12CommandList& commandList )
+void DynamicDescriptorHeap::CommitStagedDescriptorsForDispatch(D3D12CommandBuffer& commandList )
 {
     CommitDescriptorTables( commandList, &ID3D12GraphicsCommandList::SetComputeRootDescriptorTable );
     CommitInlineDescriptors( commandList, inline_cbv_, stale_cbv_bitmask_,
@@ -214,7 +214,7 @@ void DynamicDescriptorHeap::CommitStagedDescriptorsForDispatch(D3D12CommandList&
                              &ID3D12GraphicsCommandList::SetComputeRootUnorderedAccessView );
 }
 
-D3D12_GPU_DESCRIPTOR_HANDLE DynamicDescriptorHeap::CopyDescriptor(D3D12CommandList& comandList,
+D3D12_GPU_DESCRIPTOR_HANDLE DynamicDescriptorHeap::CopyDescriptor(D3D12CommandBuffer& comandList,
     D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptor)
 {
     if (!cur_descriptor_heap_ || num_free_handles_ < 1) {

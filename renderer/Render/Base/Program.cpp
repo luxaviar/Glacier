@@ -12,7 +12,8 @@ std::shared_ptr<Program> Program::Create(const char* name, const TCHAR* vs, cons
 }
 
 Program::Program(const char* name) : name_(name) {
-    pso_ = GfxDriver::Get()->CreatePipelineState({}, {});
+    pso_ = GfxDriver::Get()->CreatePipelineState(this, {}, {});
+    pso_->SetName(ToWide(name).c_str());
 }
 
 void Program::AddPass(const char* pass_name) {

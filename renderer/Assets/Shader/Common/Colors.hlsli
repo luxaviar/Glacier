@@ -1,9 +1,6 @@
 #ifndef COMMON_COLORS_
 #define COMMON_COLORS_
 
-#define USE_OPTIMIZATIONS 1
-#define FLT_EPS 5.960464478e-8 //2^-24
-
 // Rec709 for sRGB
 float LuminanceRec709(float3 col) {
     return dot(col, float3(0.2126, 0.7152, 0.0722));

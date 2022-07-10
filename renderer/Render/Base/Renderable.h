@@ -30,7 +30,7 @@ enum class RenderableMask : uint32_t {
     kReciveShadow = 1 << 2,
 };
 
-struct RenderableTransform
+struct PerObjectData
 {
     Matrix4x4 m;
     Matrix4x4 mv;
@@ -54,10 +54,12 @@ public:
     Renderable();
     virtual ~Renderable();
 
-    virtual void Render(GfxDriver* gfx, Material* mat) const = 0;
-    virtual void Draw(GfxDriver* gfx) const = 0;
+    static void Setup();
 
-    void UpdateTransform(GfxDriver* gfx) const;
+    virtual void Render(CommandBuffer* cmd_buffer, Material* mat = nullptr) const = 0;
+    virtual void Draw(CommandBuffer* cmd_buffer) const = 0;
+
+    void UpdatePerObjectData(CommandBuffer* cmd_buffer) const;
 
     const AABB& local_bounds() const { return local_bounds_; }
     const AABB& world_bounds() const;
@@ -77,12 +79,12 @@ public:
 
     void DrawInspectorBasic();
 
-    static std::shared_ptr<ConstantBuffer>& GetTransformCBuffer(GfxDriver* gfx);
+    static std::shared_ptr<Buffer>& GetPerObjectData();
 
 protected:
     void UpdateWorldBounds() const;
 
-    static std::shared_ptr<ConstantBuffer> tx_buf_; //shared by all material
+    static std::shared_ptr<Buffer> per_object_data_; //shared by all material
     static int32_t id_counter_;
 
     uint32_t mask_ = 0;

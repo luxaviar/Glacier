@@ -15,6 +15,7 @@
 #include "Render/Image.h"
 #include "Inspect/Profiler.h"
 #include "imgui/imgui.h"
+#include "Render/Base/CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -24,7 +25,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     gfx_(gfx),
     map_size_(size)
 {
-    shadow_param_ = gfx->CreateConstantParameter<CascadeShadowParam, UsageType::kDefault>(nullptr);
+    shadow_param_ = gfx->CreateConstantParameter<CascadeShadowParam, UsageType::kDefault>();
     auto& param = shadow_param_.param();
 
     uint32_t cascade_levels = (uint32_t)cascade_partions.size();
@@ -47,7 +48,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
         .SetDimension(size * cascade_levels, size);
     
     shadow_map_ = gfx->CreateTexture(tex_desc);
-    shadow_map_->SetName(TEXT("shadow map"));
+    shadow_map_->SetName("shadow map");
 
     OnCascadeChange();
 
@@ -94,10 +95,10 @@ void CascadedShadowManager::pcf_size(uint32_t v) {
     param.pcf_end = v / 2 + 1;
 }
 
-void CascadedShadowManager::Render(const Camera* camera,
+void CascadedShadowManager::Render(CommandBuffer* cmd_buffer, const Camera* camera,
     const std::vector<Renderable*> visibles, DirectionalLight* light) 
 {
-    cascade_data_[0].render_target->ClearDepthStencil();
+    cascade_data_[0].render_target->ClearDepthStencil(cmd_buffer);
 
     int receiver_num= 0;
     AABB receiver_bounds;
@@ -127,11 +128,11 @@ void CascadedShadowManager::Render(const Camera* camera,
         auto& casters = data.casters;
         if (casters.empty()) continue;
 
-        gfx_->BindCamera(shadow_position_, shadow_view_, data.projection);
-        RenderTargetBindingGuard guard(gfx_, data.render_target.get());
+        cmd_buffer->BindCamera(shadow_position_, shadow_view_, data.projection);
+        RenderTargetGuard guard(cmd_buffer, data.render_target.get());
 
         for (auto o : casters) {
-            o->Render(gfx_, material_.get());
+            o->Render(cmd_buffer, material_.get());
         }
     }
 }
@@ -158,7 +159,7 @@ void CascadedShadowManager::UpdateShadowData(const Camera* camera, DirectionalLi
     //float farz = shadow_bounds.max.z;
 
     //Fix self shadow artifacts when there is just one caster(due to float-point error)
-    nearz -= 20.0f;
+    nearz -= 40.0f;
 
     AABB shadow_receiver_bounds = AABB::Transform(receiver_bounds, shadow_view_);
     float receive_farz = shadow_receiver_bounds.max.z;
@@ -373,8 +374,9 @@ void CascadedShadowManager::CaptureShadowMap() {
     auto& shadow_tex = shadow_map_;
     uint32_t width = shadow_map_->width();
     uint32_t height = shadow_map_->height();
+    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
 
-    shadow_map_->ReadBackImage(0, 0, shadow_map_->width(), shadow_map_->height(), 0, 0,
+    shadow_map_->ReadBackImage(cmd_buffer, 0, 0, shadow_map_->width(), shadow_map_->height(), 0, 0,
         [width, height, this](const uint8_t* data, size_t raw_pitch) {
             Image image(width, height, false);
 

@@ -21,6 +21,8 @@ struct QueryResult
     bool is_valid = false;
 };
 
+class CommandBuffer;
+
 class Query : public Resource {
 public:
     Query(QueryType type, int capacity) : 
@@ -28,10 +30,9 @@ public:
         capacity_(capacity)
     {}
 
-    virtual void Begin() = 0;
-    virtual void End() = 0;
-    virtual bool QueryResultAvailable() = 0;
-    virtual QueryResult GetQueryResult() = 0;
+    virtual void Begin(CommandBuffer* cmd_buffer) = 0;
+    virtual void End(CommandBuffer* cmd_buffer) = 0;
+    virtual QueryResult GetQueryResult(CommandBuffer* cmd_buffer) = 0;
 
 protected:
     QueryType type_;

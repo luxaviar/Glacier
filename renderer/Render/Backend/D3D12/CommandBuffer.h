@@ -1,35 +1,40 @@
 #pragma once
 
 #include <vector>
-#include <d3d12.h>  // For ID3D12CommandQueue, ID3D12Device2, and ID3D12Fence
-#include <atomic>              // For std::atomic_bool
-#include <condition_variable>  // For std::condition_variable.
-#include <cstdint>             // For uint64_t
+#include <d3d12.h> 
+#include <atomic>
+#include <condition_variable>
+#include <cstdint>
 #include "ResourceStateTracker.h"
 #include "DynamicDescriptorHeap.h"
+#include "Render/Base/CommandBuffer.h"
 
 namespace glacier {
 namespace render {
 
 class D3D12CommandQueue;
-class D3D12Resource;
 struct D3D12DescriptorRange;
-class D3D12ConstantBuffer;
 class D3D12Program;
 
-class D3D12CommandList {
+class D3D12CommandBuffer : public CommandBuffer {
 public:
-    D3D12CommandList(ID3D12Device* device, D3D12_COMMAND_LIST_TYPE type);
-    virtual ~D3D12CommandList();
+    D3D12CommandBuffer(GfxDriver* driver, CommandBufferType type);
+    virtual ~D3D12CommandBuffer();
 
-    HRESULT SetName(const TCHAR* Name);
+    void SetName(const char* Name) override;
+
+    std::shared_ptr<Texture> CreateTextureFromFile(const TCHAR* file, bool srgb, 
+        bool gen_mips, TextureType type = TextureType::kTexture2D) override;
+
+    std::shared_ptr<Texture> CreateTextureFromColor(const Color& color, bool srgb) override;
+
+    void GenerateMipMaps(Texture* texture) override;
 
     void Reset();
-    void ResetAllocator();
 
     bool IsClosed() const { return closed_; }
     void Close();
-    bool Close(D3D12CommandList* pending_cmd_list);
+    bool Close(CommandBuffer* pending_cmd_list) override;
 
     void SetPipelineState(ID3D12PipelineState* pso);
     void SetComputeRootSignature(ID3D12RootSignature* root_signature, D3D12Program* program);
@@ -49,29 +54,29 @@ public:
         SetCompute32BitConstants(root_param_index, sizeof(T) / sizeof(uint32_t), &data);
     }
 
-    void SetConstantBufferView(uint32_t root_param_index, const D3D12Resource* res);
-    void SetShaderResourceView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address);
-    void SetUnorderedAccessView(uint32_t root_param_index, D3D12_GPU_VIRTUAL_ADDRESS address);
+    void SetConstantBufferView(uint32_t root_param_index, const Resource* resource) override;
+    void SetShaderResourceView(uint32_t root_param_index, const Resource* resource) override;
+    void SetUnorderedAccessView(uint32_t root_param_index, const Resource* resource) override;
 
-    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res);
-    void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12Resource* res);
+    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) override;
+    void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) override;
 
     void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
     void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
 
     void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
 
-    void TransitionBarrier(D3D12Resource* res, D3D12_RESOURCE_STATES after_state,
-        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
-    void TransitionBarrier(const std::shared_ptr<D3D12Resource>& res, D3D12_RESOURCE_STATES after_state,
-        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES);
+    void AliasResource(Resource* before, Resource* after) override;
+    void UavResource(Resource* res) override;
+
+    void TransitionBarrier(Resource* res, ResourceAccessBit after_state,
+        uint32_t subresource = BARRIER_ALL_SUBRESOURCES);
 
     void AliasResource(ID3D12Resource* before, ID3D12Resource* after);
     void UavResource(ID3D12Resource* res);
 
     void CopyBufferRegion(ID3D12Resource* dst, UINT64 DstOffset, ID3D12Resource* src, UINT64 SrcOffset, UINT64 NumBytes);
-
-    void CopyResource(D3D12Resource* src, D3D12Resource* dst);
+    void CopyResource(Resource* src, Resource* dst) override;
 
     void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* pDst, UINT DstX, UINT DstY, UINT DstZ, 
         const D3D12_TEXTURE_COPY_LOCATION* pSrc, const D3D12_BOX* pSrcBox);
@@ -90,9 +95,11 @@ public:
     void IASetVertexBuffers(UINT StartSlot, UINT NumViews, const D3D12_VERTEX_BUFFER_VIEW* pViews);
     void IASetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW* pView);
 
-    void DrawIndexedInstanced(UINT IndexCountPerInstance, UINT InstanceCount, UINT StartIndexLocation,
-        INT BaseVertexLocation, UINT StartInstanceLocation);
-    void DrawInstanced(UINT VertexCountPerInstance, UINT InstanceCount, UINT StartVertexLocation, UINT StartInstanceLocation);
+    void DrawIndexedInstanced(UINT IndexCountPerInstance, UINT InstanceCount,
+        UINT StartIndexLocation, INT BaseVertexLocation, UINT StartInstanceLocation) override;
+
+    void DrawInstanced(UINT VertexCountPerInstance, UINT InstanceCount,
+        UINT StartVertexLocation, UINT StartInstanceLocation) override;
 
     void Dispatch(uint32_t thread_group_x, uint32_t thread_group_y, uint32_t thread_group_z);
 
@@ -105,21 +112,22 @@ public:
         ID3D12Resource* pSrcResource, UINT SrcSubresource, DXGI_FORMAT Format);
 
     ID3D12CommandAllocator* GetCommandAllocator() { return command_allocator_.Get(); }
-    ID3D12GraphicsCommandList* GetUnderlyingCommandList() { return command_list_.Get(); }
+    ID3D12GraphicsCommandList* GetNativeCommandList() { return command_list_.Get(); }
 
     void FlushBarriers();
 
     void SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, ID3D12DescriptorHeap* heap);
     void BindDescriptorHeaps();
+
+    CommandBuffer* GetGenerateMipsCommandList() const { return compute_cmd_buffer_; }
+
+    void AddInflightResource(ResourceLocation&& res);
+    void AddInflightResource(D3D12DescriptorRange&& slot);
+    void AddInflightResource(std::shared_ptr<Resource>&& res);
+
 private:
-
-    bool closed_ = true;
-
-    D3D12_COMMAND_LIST_TYPE type_;
+    D3D12_COMMAND_LIST_TYPE native_type_;
     ID3D12Device* device_;
-
-    ID3D12PipelineState* pso_ = nullptr;
-    ID3D12RootSignature* root_signature_ = nullptr;
 
     ComPtr<ID3D12CommandAllocator> command_allocator_ = nullptr;
     ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
@@ -128,6 +136,8 @@ private:
 
     std::unique_ptr<DynamicDescriptorHeap> dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
     ID3D12DescriptorHeap* descriptor_heaps_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
+
+    std::vector<InflightResource> inflight_resources_;
 };
 
 }

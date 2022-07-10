@@ -9,6 +9,7 @@ Texture2D _ShadowTexture;
 Texture2D _BrdfLutTexture;
 
 Texture2D<float4> _PostSourceTexture;
+Texture2D _OcclusionTexture;
 
 Texture2D<float> _DepthBuffer;
 

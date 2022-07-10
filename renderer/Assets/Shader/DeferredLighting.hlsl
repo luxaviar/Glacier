@@ -1,34 +1,18 @@
 #include "Common/Lighting.hlsli"
 #include "PostProcessCommon.hlsl"
+#include "Common/Utils.hlsli"
 
 Texture2D AlbedoTexture;
 Texture2D<float2> NormalTexture;
 Texture2D AoMetalroughnessTexture;
 Texture2D EmissiveTexture;
 
-float3 DecodeNormalOct(float2 f)
+float3 MultiBounce(float ao, float3 albedo)
 {
-    f = f * 2.0 - 1.0;
-    // https://twitter.com/Stubbesaurus/status/937994790553227264
-    float3 n = float3(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
-    float t = saturate(-n.z);
-    n.xy += n.xy >= 0.0 ? -t : t;
-    return normalize(n);
-}
-
-float3 ComputeViewPosition(float2 texcoord, float depth)
-{
-    //#ifdef GLACIER_REVERSE_Z
-        //depth = 1 - depth;
-    //#endif
-
-    float4 ndc_position;
-    ndc_position.xy = texcoord * 2.0f - 1.0f;
-    ndc_position.y *= -1; //[0,0] is top left in directx
-    ndc_position.z = depth;
-    ndc_position.w = 1.0f;
-    float4 view_position = mul(ndc_position, _InverseProjection);
-    return view_position.xyz / view_position.w;
+    float3 a = 2.0404  * albedo - 0.3324;
+    float3 b = -4.7951 * albedo + 0.6417;
+    float3 c = 2.7552 * albedo + 0.6903;
+    return max(ao, ((ao * a + b) * ao + c) * ao);
 }
 
 float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
@@ -37,13 +21,13 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
     float3 normal = DecodeNormalOct(NormalTexture.Sample(linear_sampler, uv).xy);
     float3 emissive = EmissiveTexture.Sample(linear_sampler, uv).rgb;
     float3 ao_metalroughness = AoMetalroughnessTexture.Sample(linear_sampler, uv).rgb;
+    float2 screen_ao = _OcclusionTexture.Sample(linear_sampler, uv).rg;
 
     float depth = _DepthBuffer.Sample(linear_sampler, uv).r;
-    float3 view_position = ComputeViewPosition(uv, depth);
+    float3 view_position = ComputeViewPosition(uv, depth, _InverseProjection);
     float3 world_position = (float3)mul(float4(view_position, 1.0f), _InverseView);
 
-    //normal = normalize(normal);
-    float ao = ao_metalroughness.r;
+    float self_ao = ao_metalroughness.r;
     float roughness = ao_metalroughness.g;
     float metallic = ao_metalroughness.b;
     float3 f0 = lerp(float3(0.04f, 0.04f, 0.04f), albedo.rgb, metallic);
@@ -83,11 +67,15 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         }
     }
     
-    float3 ambient = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
-        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
-    ambient *= ao;
+    float3 ao = MultiBounce(self_ao < 1.0f ? self_ao : screen_ao.r, albedo.rgb);
+    float ro = screen_ao.g;
 
-    final_color += ambient;
+    float3 ambient_color = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
+        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod, ao, ro);
+
+    //ambient_color *= MultiBounce(ao, albedo.rgb);
+
+    final_color += ambient_color;
 
     return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
 }

@@ -1,15 +1,16 @@
 #include "ResourceStateTracker.h"
 #include "Exception/Exception.h"
 #include "GfxDriver.h"
+#include "CommandBuffer.h"
+#include "Common/Log.h"
+#include "Buffer.h"
 
 namespace glacier {
 namespace render {
 
-void ResourceStateTracker::TransitionResource(D3D12Resource* resource,
-    D3D12_RESOURCE_STATES state_after, UINT subresource)
+void ResourceStateTracker::TransitionResource(Resource* resource, D3D12_RESOURCE_STATES state_after, UINT subresource)
 {
-    auto pResource = resource->GetUnderlyingResource().Get();
-
+    auto native_res = static_cast<ID3D12Resource*>(resource->GetNativeResource());
     // Create pending_barrier descriptor
     D3D12_RESOURCE_BARRIER barrier;
     ZeroMemory(&barrier, sizeof(D3D12_RESOURCE_BARRIER));
@@ -17,7 +18,7 @@ void ResourceStateTracker::TransitionResource(D3D12Resource* resource,
     // Describe pending_barrier
     barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
     barrier.Flags = D3D12_RESOURCE_BARRIER_FLAG_NONE;
-    barrier.Transition.pResource = pResource;
+    barrier.Transition.pResource = native_res;
     barrier.Transition.Subresource = subresource;
     barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_COMMON;
     barrier.Transition.StateAfter = state_after;
@@ -29,31 +30,31 @@ void ResourceStateTracker::TransitionResource(D3D12Resource* resource,
             for (UINT i = 0; i < cur_state.subresource_states.size(); ++i)
             {
                 auto subresource_state = cur_state.subresource_states[i];
-                if (subresource_state != state_after)
+                if (subresource_state != (ResourceAccessBit)state_after)
                 {
                     D3D12_RESOURCE_BARRIER newBarrier = barrier;
                     newBarrier.Transition.Subresource = i;
-                    newBarrier.Transition.StateBefore = subresource_state;
+                    newBarrier.Transition.StateBefore = (D3D12_RESOURCE_STATES)subresource_state;
                     resource_barriers_.push_back(newBarrier);
                 }
             }
         }
         else {
             auto subresourc_state = cur_state.GetState(subresource);
-            if (subresourc_state != state_after) {
+            if (subresourc_state != (ResourceAccessBit)state_after) {
                 D3D12_RESOURCE_BARRIER newBarrier = barrier;
-                newBarrier.Transition.StateBefore = subresourc_state;
+                newBarrier.Transition.StateBefore = (D3D12_RESOURCE_STATES)subresourc_state;
                 resource_barriers_.push_back(newBarrier);
             }
         }
 
-        cur_state.SetState(state_after, subresource);
+        cur_state.SetState((ResourceAccessBit)state_after, subresource);
 
     } else {
         pending_barriers_.emplace_back(resource, barrier);
 
-        it = final_states_.emplace_hint(it, resource, resource->CalculateNumSubresources());
-        it->second.SetState(state_after, subresource);
+        it = final_states_.emplace_hint(it, resource, resource->GetSubresourceNum());
+        it->second.SetState((ResourceAccessBit)state_after, subresource);
     }
 }
 
@@ -71,7 +72,7 @@ void ResourceStateTracker::AliasBarrier(ID3D12Resource* resource_before, ID3D12R
     resource_barriers_.push_back(barrier);
 }
 
-uint32_t ResourceStateTracker::FlushPendingResourceBarriers(D3D12CommandList* commandList) {
+uint32_t ResourceStateTracker::FlushPendingResourceBarriers(D3D12CommandBuffer* commandList) {
     if (pending_barriers_.empty()) {
         return 0;
     }
@@ -90,27 +91,26 @@ uint32_t ResourceStateTracker::FlushPendingResourceBarriers(D3D12CommandList* co
             for (UINT i = 0; i < resource->GetSubresourceNum(); ++i)
             {
                 auto subresource_state = resource->GetResourceState(i);// current_state.subresource_states[i];
-                if (subresource_state != pending_transition.StateAfter)
+                if (subresource_state != (ResourceAccessBit)pending_transition.StateAfter)
                 {
                     D3D12_RESOURCE_BARRIER newBarrier = pending_barrier;
                     newBarrier.Transition.Subresource = i;
-                    newBarrier.Transition.StateBefore = subresource_state;
+                    newBarrier.Transition.StateBefore = (D3D12_RESOURCE_STATES)subresource_state;
                     barriers.push_back(newBarrier);
                 }
             }
         }
         else {
             auto subresource_state = resource->GetResourceState(pending_transition.Subresource);
-            if (subresource_state != pending_transition.StateAfter) {
-                pending_transition.StateBefore = subresource_state;
+            if (subresource_state != (ResourceAccessBit)pending_transition.StateAfter) {
+                pending_transition.StateBefore = (D3D12_RESOURCE_STATES)subresource_state;
                 barriers.push_back(pending_barrier);
             }
         }
     }
 
     UINT numBarriers = static_cast<UINT>(barriers.size());
-    if (numBarriers > 0)
-    {
+    if (numBarriers > 0) {
         commandList->ResourceBarrier(numBarriers, barriers.data());
     }
 
@@ -119,7 +119,7 @@ uint32_t ResourceStateTracker::FlushPendingResourceBarriers(D3D12CommandList* co
     return numBarriers;
 }
 
-void ResourceStateTracker::FlushResourceBarriers(D3D12CommandList* commandList) {
+void ResourceStateTracker::FlushResourceBarriers(D3D12CommandBuffer* commandList) {
     UINT numBarriers = static_cast<UINT>(resource_barriers_.size());
     if (numBarriers > 0) {
         commandList->ResourceBarrier(numBarriers, resource_barriers_.data());

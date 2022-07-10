@@ -1,5 +1,6 @@
 #include "Query.h"
 #include "Render/Backend/D3D12/GfxDriver.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -42,12 +43,13 @@ D3D12Query::D3D12Query(D3D12GfxDriver* gfx, QueryType type, int capacity) :
     }
 
     gfx->GetDevice()->CreateQueryHeap(&heap_desc, IID_PPV_ARGS(&heap_));
-    buffer_ = std::make_shared<D3D12ReadbackBuffer>(readback_entry_size_ * capacity);
+    auto readback_allocator = gfx->GetReadbackBufferAllocator();
+    buffer_location_ = readback_allocator->CreateResource(readback_entry_size_ * capacity);
 }
 
-void D3D12Query::Begin() {
+void D3D12Query::Begin(CommandBuffer* cmd_buffer) {
     auto idx = (uint32_t)(++frame_ % capacity_);
-    auto cmd_list = D3D12GfxDriver::Instance()->GetCommandList();
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
     if (query_type_ == D3D12_QUERY_TYPE_TIMESTAMP) {
         cmd_list->EndQuery(heap_.Get(), query_type_, idx * 2);
@@ -55,28 +57,24 @@ void D3D12Query::Begin() {
     else {
         cmd_list->BeginQuery(heap_.Get(), query_type_, idx);
     }
-}   
+}
 
-void D3D12Query::End() {
+void D3D12Query::End(CommandBuffer* cmd_buffer) {
     auto idx = (uint32_t)(frame_ % capacity_);
-    auto cmd_list = D3D12GfxDriver::Instance()->GetCommandList();
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
     if (query_type_ == D3D12_QUERY_TYPE_TIMESTAMP) {
         auto begin_idx = idx * 2;
         cmd_list->EndQuery(heap_.Get(), query_type_, begin_idx + 1);
-        cmd_list->ResolveQueryData(heap_.Get(), query_type_, begin_idx, 2, buffer_->GetUnderlyingResource().Get(), idx * readback_entry_size_);
+        cmd_list->ResolveQueryData(heap_.Get(), query_type_, begin_idx, 2, buffer_location_.GetResource().Get(), idx * readback_entry_size_);
     }
     else {
         cmd_list->EndQuery(heap_.Get(), query_type_, idx);
-        cmd_list->ResolveQueryData(heap_.Get(), query_type_, idx, 1, buffer_->GetUnderlyingResource().Get(), idx * readback_entry_size_);
+        cmd_list->ResolveQueryData(heap_.Get(), query_type_, idx, 1, buffer_location_.GetResource().Get(), idx * readback_entry_size_);
     }
 }
 
-bool D3D12Query::QueryResultAvailable() {
-    return true;
-}
-
-QueryResult D3D12Query::GetQueryResult() {
+QueryResult D3D12Query::GetQueryResult(CommandBuffer* cmd_buffer) {
     auto cnt = frame_ - capacity_ + 1; //always get the last available
     if (cnt < 0) {
         return {};
@@ -86,8 +84,8 @@ QueryResult D3D12Query::GetQueryResult() {
     result.is_valid = true;
 
     auto idx = (uint32_t)(cnt % capacity_);
-    auto cmd_list = D3D12GfxDriver::Instance()->GetCommandList();
-    auto cmd_queue = D3D12GfxDriver::Instance()->GetCommandQueue()->GetUnderlyingCommandQueue();
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
+    auto cmd_queue = D3D12GfxDriver::Instance()->GetCommandQueue()->GetNativeCommandQueue();
 
     switch (type_)
     {
@@ -96,55 +94,55 @@ QueryResult D3D12Query::GetQueryResult() {
         uint64_t freq;
         GfxThrowIfFailed(cmd_queue->GetTimestampFrequency(&freq));
 
-        const uint64_t* query_data = buffer_->Map<uint64_t>();
+        const uint64_t* query_data = buffer_location_.Map<uint64_t>();
         uint32_t begin_idx = idx * 2;
         uint32_t end_idx = begin_idx + 1;
 
         uint64_t begin_time = query_data[begin_idx];
         uint64_t end_time = query_data[end_idx];
 
-        buffer_->Unmap();
+        buffer_location_.Unmap();
 
         uint64_t delta = end_time - begin_time;
         result.elapsed_time = delta / (double)freq;
     }
-        break;
+    break;
     case QueryType::kOcclusion:
     {
-        const auto query_data = buffer_->Map<uint64_t>();
+        const auto query_data = buffer_location_.Map<uint64_t>();
         result.num_samples = query_data[idx];
-        buffer_->Unmap();
+        buffer_location_.Unmap();
     }
-        break;
+    break;
     case QueryType::kBinaryOcclusion:
     {
-        const auto query_data = buffer_->Map<uint64_t>();
+        const auto query_data = buffer_location_.Map<uint64_t>();
         result.any_samples = query_data[idx] == 1;
-        buffer_->Unmap();
+        buffer_location_.Unmap();
     }
-        break;
+    break;
     case QueryType::kPipelineStatistics:
     {
-        const auto query_data = buffer_->Map<D3D12_QUERY_DATA_PIPELINE_STATISTICS>();
+        const auto query_data = buffer_location_.Map<D3D12_QUERY_DATA_PIPELINE_STATISTICS>();
         auto& info = query_data[idx];
         result.primitives_rendered = info.IAPrimitives;
         result.vertices_rendered = info.IAVertices;
-        buffer_->Unmap();
+        buffer_location_.Unmap();
     }
-        break;
+    break;
     case QueryType::kStreamOutputStaticstics:
     {
-        const auto query_data = buffer_->Map<D3D12_QUERY_DATA_SO_STATISTICS>();
+        const auto query_data = buffer_location_.Map<D3D12_QUERY_DATA_SO_STATISTICS>();
         auto& info = query_data[idx];
         result.transform_feedback_primitives = info.NumPrimitivesWritten;
-        buffer_->Unmap();
+        buffer_location_.Unmap();
     }
-        break;
+    break;
     default:
         result.is_valid = false;
         break;
     }
-    
+
     return result;
 }
 

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <vector>
 #include "Common/Uncopyable.h"
 #include "Enums.h"
 
@@ -8,6 +9,7 @@ namespace render {
 
 class RenderTarget;
 class GfxDriver;
+class CommandBuffer;
 
 class SwapChain : private Uncopyable {
 public:
@@ -29,7 +31,7 @@ public:
     virtual void OnResize(uint32_t width, uint32_t height) = 0;
 
     virtual void Wait() = 0;
-    virtual void Present() = 0;
+    virtual void Present(std::vector<CommandBuffer*>& cmd_buffers) = 0;
 
 protected:
     uint32_t width_;

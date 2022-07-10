@@ -4,24 +4,25 @@
 #include <atomic>              // For std::atomic_bool
 #include <condition_variable>  // For std::condition_variable.
 #include <cstdint>             // For uint64_t
-//#include "Concurrent/ThreadSafeQueue.h"
-#include "CommandList.h"
+#include "Concurrent/ThreadSafeQueue.h"
+#include "Render/Base/CommandQueue.h"
 
 namespace glacier {
 namespace render {
 
 class D3D12GfxDriver;
+class CommandBuffer;
+class D3D12CommandBuffer;
 
-class D3D12CommandQueue {
+class D3D12CommandQueue : public CommandQueue {
 public:
-    D3D12CommandQueue(D3D12GfxDriver* driver, D3D12_COMMAND_LIST_TYPE type);
+    D3D12CommandQueue(D3D12GfxDriver* driver, CommandBufferType type);
     virtual ~D3D12CommandQueue();
 
-    D3D12CommandList* GetCommandList() { return command_list_.get(); }
-    ID3D12CommandQueue* GetUnderlyingCommandQueue() const { return command_queue_.Get(); }
-    HRESULT SetName(const TCHAR* Name);
+    ID3D12CommandQueue* GetNativeCommandQueue() const { return command_queue_.Get(); }
+    void SetName(const TCHAR* Name) override;
 
-    D3D12_COMMAND_LIST_TYPE GetType() const { return type_; }
+    D3D12_COMMAND_LIST_TYPE GetNativeType() const { return native_type_; }
     ID3D12Device* GetDevice() const { return device_; }
 
     uint64_t Signal();
@@ -30,20 +31,25 @@ public:
     bool IsFenceComplete(uint64_t fenceValue );
     void WaitForFenceValue(uint64_t fenceValue);
 
-    void ResetCommandList();
-    void ExecuteCommandList();
     void Flush();
 
+    uint64_t ExecuteCommandBuffer(std::vector<CommandBuffer*>& cmd_buffers) override;
+    uint64_t ExecuteCommandBuffer(CommandBuffer* cmd_buffer) override;
+
+    void Wait(const D3D12CommandQueue& other);
+
+    void ProccessInFlightCommandLists();
+
+    D3D12CommandBuffer* GetNativeCommandBuffer();
+
 private:
+    std::unique_ptr<CommandBuffer> CreateCommandBuffer() override;
+
     ID3D12Device* device_ = nullptr;
-    D3D12_COMMAND_LIST_TYPE type_;
+    D3D12_COMMAND_LIST_TYPE native_type_;
 
     ComPtr<ID3D12CommandQueue> command_queue_ = nullptr;
-    std::unique_ptr<D3D12CommandList> command_list_;
-    std::unique_ptr<D3D12CommandList> pending_command_list_;
-
     ComPtr<ID3D12Fence> fence_ = nullptr;
-    UINT64 current_fence_value = 0;
 };
 
 }

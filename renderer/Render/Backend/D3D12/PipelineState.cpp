@@ -5,12 +5,13 @@
 #include "Program.h"
 #include "RenderTarget.h"
 #include "Common/Log.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
 
-D3D12PipelineState::D3D12PipelineState(const RasterStateDesc& rs, const InputLayoutDesc& layout) :
-    PipelineState(rs, layout),
+D3D12PipelineState::D3D12PipelineState(Program* program, const RasterStateDesc& rs, const InputLayoutDesc& layout) :
+    PipelineState(program, rs, layout),
     layout_desc_(layout),
     compute_desc_{},
     desc_{}
@@ -21,11 +22,19 @@ D3D12PipelineState::D3D12PipelineState(const RasterStateDesc& rs, const InputLay
     desc_.BlendState = CD3DX12_BLEND_DESC(D3D12_DEFAULT);
 }
 
-void D3D12PipelineState::Create() {
-    dirty_ = false;
+void D3D12PipelineState::SetName(const TCHAR* name) {
+    name_ = name;
+    if (pso_) {
+        pso_->SetName(name);
+    }
+}
+
+void D3D12PipelineState::Create(CommandBuffer* cmd_buffer) {
+    CreatePsoDesc(cmd_buffer);
+
     auto device = D3D12GfxDriver::Instance()->GetDevice();
 
-    if (is_compute_) {
+    if (program_->IsCompute()) {
         device->CreateComputePipelineState(&compute_desc_, IID_PPV_ARGS(&pso_));
         return;
     }
@@ -83,29 +92,38 @@ void D3D12PipelineState::Create() {
     desc_.InputLayout.NumElements = (uint32_t)layout_desc.size();
 
     GfxThrowIfFailed(device->CreateGraphicsPipelineState(&desc_, IID_PPV_ARGS(&pso_)));
+
+    if (!name_.empty()) {
+        pso_->SetName(name_.c_str());
+    }
 }
 
 void D3D12PipelineState::SetInputLayout(const InputLayoutDesc& layout) {
     layout_desc_ = layout;
-    dirty_ = true;
 }
 
 void D3D12PipelineState::SetRasterState(const RasterStateDesc& rs) {
     state_ = rs;
-    dirty_ = true;
 }
 
-void D3D12PipelineState::CreatePSO(D3D12Program* program) {
-    program_ = program;
+void D3D12PipelineState::CreatePsoDesc(CommandBuffer* cmd_buffer) {
+    auto program = static_cast<D3D12Program*>(program_);
 
-    if (is_compute_) {
+    if (program->IsCompute()) {
         auto cs = program->GetShader(ShaderType::kCompute);
         assert(cs);
         compute_desc_.pRootSignature = program->GetRootSignature();
         compute_desc_.CS = { cs->GetBytecode()->GetBufferPointer(), cs->GetBytecodeSize() };
-        dirty_ = true;
-
         return;
+    }
+
+    if (!render_target_) {
+        assert(cmd_buffer);
+        //auto driver = D3D12GfxDriver::Instance();
+        render_target_ = std::dynamic_pointer_cast<D3D12RenderTarget>(cmd_buffer->GetCurrentRenderTarget());
+        render_target_->signal().Connect([this, program]() {
+            Create(nullptr);
+        });
     }
 
     auto rt_fmts = render_target_->GetRenderTargetFormats();
@@ -145,43 +163,27 @@ void D3D12PipelineState::CreatePSO(D3D12Program* program) {
     }
 
     desc_.pRootSignature = program->GetRootSignature();
-
-    dirty_ = true;
 }
 
-
-void D3D12PipelineState::Check(GfxDriver* gfx, D3D12Program* program) {
+void D3D12PipelineState::Bind(CommandBuffer* cmd_buffer) {
     if (!pso_) {
-        is_compute_ = program->IsCompute();
-
-        auto driver = static_cast<D3D12GfxDriver*>(gfx);
-        if (!is_compute_) {
-            render_target_ = driver->GetCurrentRenderTarget();
-            render_target_->signal().Connect([this, gfx, program]() {
-                CreatePSO(program);
-                });
-        }
-        CreatePSO(program);
-    }
-}
-
-void D3D12PipelineState::Bind(GfxDriver* gfx) {
-    if (dirty_ || !pso_) {
-        Create();
+        Create(cmd_buffer);
     }
 
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto cmd_list = driver->GetCommandList();
+    assert(pso_);
 
-    cmd_list->SetPipelineState(pso_.Get());
+    auto program = static_cast<D3D12Program*>(program_);
+    auto d3d12_cmd_buffer = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
-    if (is_compute_) {
-        cmd_list->SetComputeRootSignature(compute_desc_.pRootSignature, program_);
+    d3d12_cmd_buffer->SetPipelineState(pso_.Get());
+
+    if (program->IsCompute()) {
+        d3d12_cmd_buffer->SetComputeRootSignature(compute_desc_.pRootSignature, program);
     }
     else {
-        cmd_list->SetGraphicsRootSignature(desc_.pRootSignature, program_);
+        d3d12_cmd_buffer->SetGraphicsRootSignature(desc_.pRootSignature, program);
 
-        auto d3d12_cmd_list = cmd_list->GetUnderlyingCommandList();
+        auto d3d12_cmd_list = d3d12_cmd_buffer->GetNativeCommandList();
         d3d12_cmd_list->IASetPrimitiveTopology(GetUnderlyingTopology(state_.topology));
         if (state_.HasBlending()) {
             FLOAT BlendFactor[4] = { 1.0f,1.0f, 1.0f, 1.0f };

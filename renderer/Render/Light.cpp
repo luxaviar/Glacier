@@ -76,8 +76,8 @@ DirectionalLight::DirectionalLight(const Color& color, float intensity) :
 {
 }
 
-void DirectionalLight::Update(GfxDriver* gfx) noexcept {
-    auto& view_mat = gfx->view();
+void DirectionalLight::Update(CommandBuffer* cmd_buffer) noexcept {
+    auto& view_mat = cmd_buffer->view();
     auto lookat = transform().forward();
     data_.position = lookat;
     data_.view_position = view_mat.MultiplyVector(lookat);
@@ -89,10 +89,10 @@ PointLight::PointLight(float range, const Color& color, float intensity) :
     data_.range = range;
 }
 
-void PointLight::Update(GfxDriver* gfx) noexcept {
+void PointLight::Update(CommandBuffer* cmd_buffer) noexcept {
     data_.position = transform().position();
 
-    auto& view_mat = gfx->view();
+    auto& view_mat = cmd_buffer->view();
     Vec3f pos{ data_.position.x, data_.position.y, data_.position.z };
     auto pos_vs = view_mat.MultiplyPoint3X4(pos);
 
@@ -113,13 +113,11 @@ OldPointLight::OldPointLight( GfxDriver& gfx, Vec3f pos,float radius ) {
     };
 }
 
-void OldPointLight::Bind(const Matrix4x4& view) const noexcept
-{
+void OldPointLight::Bind(const Matrix4x4& view) const noexcept {
     auto dataCopy = light_data_;
     dataCopy.pos = view.MultiplyPoint3X4(light_data_.pos);
 
     light_cbuffer_->Update(&dataCopy );
-    //light_cbuffer_->Bind(ShaderType::kPixel, 0);
 }
 
 }

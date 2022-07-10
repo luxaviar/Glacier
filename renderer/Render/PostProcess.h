@@ -9,6 +9,7 @@ namespace glacier {
 namespace render {
 
 class GfxDriver;
+class CommandBuffer;
 
 struct PostProcessDescription {
     PostProcessDescription() {
@@ -37,10 +38,9 @@ public:
 
     PostProcess(const PostProcessDescription& desc, GfxDriver* gfx);
 
-    void Render(GfxDriver* gfx);
+    void Render(CommandBuffer* cmd_buffer);
 
 private:
-    //std::shared_ptr<Texture> screen_tex_;
     std::shared_ptr<Texture> depth_tex_;
 
     std::shared_ptr<RenderTarget> render_target_;
@@ -54,7 +54,7 @@ public:
     const SamplerState& GetSampler() const { return linear_sampler_; }
 
     void Push(PostProcessDescription& desc);
-    void Render();
+    void Render(CommandBuffer* cmd_buffer);
 
 private:
     GfxDriver* gfx_;

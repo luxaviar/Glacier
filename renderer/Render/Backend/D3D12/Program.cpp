@@ -12,6 +12,7 @@
 #include "Sampler.h"
 #include "Inspect/Profiler.h"
 #include "Common/Log.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -42,30 +43,6 @@ uint32_t D3D12Program::GetDescriptorTableBitMask(D3D12_DESCRIPTOR_HEAP_TYPE heap
 
 uint32_t D3D12Program::GetNumDescriptors(uint32_t root_index) const {
     return num_descriptor_per_table_[root_index];
-}
-
-void D3D12Program::RefreshTranstientBuffer(GfxDriver* gfx) {
-    if (transtient_buffers_.empty()) return;
-
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto cmd_list = driver->GetCommandList();
-
-    for (auto i : transtient_buffers_) {
-        const auto& param = cbv_table_[i];
-        assert(param.resource);
-        //auto constant_buffer = dynamic_cast<D3D12ConstantBuffer*>(param.resource);
-        //assert(constant_buffer->IsDynamic());
-
-        cmd_list->SetConstantBufferView(cbv_table_.root_index + i, param.resource);
-    }
-}
-
-void D3D12Program::BindPSO(GfxDriver* gfx) {
-    if (pso_) {
-        auto d3d12pso = static_cast<D3D12PipelineState*>(pso_.get());
-        d3d12pso->Check(gfx, this);
-        d3d12pso->Bind(gfx);
-    }
 }
 
 void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
@@ -173,106 +150,133 @@ void D3D12Program::SetStaticSampler(const char* name, D3D12_STATIC_SAMPLER_DESC 
     }
 }
 
-void D3D12Program::SetParameter(const std::string& name, D3D12ConstantBuffer* cbuffer) {
+void D3D12Program::BindPSO(CommandBuffer* cmd_buffer) {
+    if (pso_) {
+        auto d3d12pso = static_cast<D3D12PipelineState*>(pso_.get());
+        d3d12pso->Bind(cmd_buffer);
+    }
+}
+
+void D3D12Program::RefreshTranstientBuffer(CommandBuffer* cmd_buffer) {
+    if (transtient_buffers_.empty()) return;
+
+    for (auto i : transtient_buffers_) {
+        auto& param = cbv_table_[i];
+        assert(param.resource);
+        cmd_buffer->SetConstantBufferView(cbv_table_.root_index + i, param.resource);
+    }
+}
+
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* cbuffer) {
     auto& params = cbv_table_.params;
     for (uint32_t i = 0; i < params.size(); ++i) {
         auto& param = params[i];
         if (param.name == name) {
-            param.resource = cbuffer;
-            if (cbuffer->IsDynamic()) {
+            if (param.resource != cbuffer) {
+                param.resource = cbuffer;
                 auto it = std::find(transtient_buffers_.begin(), transtient_buffers_.end(), i);
-                if (it == transtient_buffers_.end()) {
-                    transtient_buffers_.push_back(i);
+                if (cbuffer->IsDynamic()) {
+                    if (it == transtient_buffers_.end()) {
+                        transtient_buffers_.push_back(i);
+                    }
+                }
+                else {
+                    if (it != transtient_buffers_.end()) {
+                        transtient_buffers_.erase(it);
+                    }
                 }
             }
+
+            cmd_buffer->SetConstantBufferView(cbv_table_.root_index + i, cbuffer);
+            return;
         }
     }
 }
 
-void D3D12Program::SetParameter(const std::string& name, D3D12StructuredBuffer* sbuffer) {
-    for (auto& param : srv_table_.params) {
+//void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12StructuredBuffer* sbuffer) {
+//    auto& params = srv_table_.params;
+//    for (uint32_t i = 0; i < params.size(); ++i) {
+//        auto& param = params[i];
+//        if (param.name == name) {
+//            cmd_buffer->SetDescriptorTable(srv_table_.root_index, i, sbuffer);
+//            return;
+//        }
+//    }
+//}
+
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex) {
+    auto& params = srv_table_.params;
+    for (uint32_t i = 0; i < params.size(); ++i) {
+        auto& param = params[i];
         if (param.name == name) {
-            param.resource = sbuffer;
+            if (is_compute_) {
+                cmd_buffer->TransitionBarrier(tex, ResourceAccessBit::kNonPixelShaderRead);
+            }
+            else {
+                cmd_buffer->TransitionBarrier(tex, ResourceAccessBit::kPixelShaderRead);
+            }
+            cmd_buffer->SetDescriptorTable(srv_table_.root_index, i, tex);
+            return;
         }
     }
 }
 
-void D3D12Program::SetParameter(const std::string& name, D3D12Texture* tex) {
-    for (auto& param : srv_table_.params) {
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Sampler* sampler) {
+    auto& params = sampler_table_.params;
+    for (uint32_t i = 0; i < params.size(); ++i) {
+        auto& param = params[i];
         if (param.name == name) {
-            param.resource = tex;
+            cmd_buffer->SetSamplerTable(sampler_table_.root_index, i, sampler);
+            return;
         }
     }
 }
 
-void D3D12Program::SetParameter(const std::string& name, D3D12Sampler* sampler) {
-    for (auto& param : sampler_table_.params) {
-        if (param.name == name) {
-            param.resource = sampler;
-        }
+void D3D12Program::Bind(CommandBuffer* cmd_buffer, Material* mat) {
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
+
+    auto& properties = mat->GetProperties();
+    for (auto& [_, prop] : properties) {
+        BindProperty(cmd_list, prop);
     }
 }
 
-void D3D12Program::Bind(GfxDriver* gfx, Material* mat) {
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto cmd_list = driver->GetCommandList();
-
-    if (mat) {
-        auto& properties = mat->GetProperties();
-        for (auto& [_, prop] : properties) {
-            BindProperty(gfx, cmd_list, prop);
-        }
-    }
-
-    Bind(cmd_list);
-}
-
-void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop) {
+void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialProperty& prop) {
     auto& name = prop.shader_param->name;
     switch (prop.prop_type)
     {
     case MaterialPropertyType::kTexture:
     {
         if ((prop.use_default && prop.dirty) || !prop.resource) {
-            auto desc = Texture::Description()
-                .SetColor(prop.color)
-                .SetFormat(TextureFormat::kR8G8B8A8_UNORM)
-                .SetDimension(8, 8);
-            prop.resource = gfx->CreateTexture(desc);
-            prop.resource->SetName(TEXT("color texture"));
+            prop.resource = cmd_buffer->CreateTextureFromColor(prop.color, false);
+            prop.resource->SetName(name.c_str());
         }
 
-        auto tex = static_cast<D3D12Texture*>(prop.resource.get());
-        if (is_compute_) {
-            cmd_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-        }
-        else {
-            cmd_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-        }
-
-        SetParameter(name, tex);
+        auto tex = dynamic_cast<D3D12Texture*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, tex);
     }
     break;
     case MaterialPropertyType::kSampler:
     {
         if (!prop.resource || prop.dirty) {
+            auto gfx = cmd_buffer->GetDriver();
             prop.resource = D3D12Sampler::Create(gfx, prop.sampler_state);
         }
 
         auto sampler = dynamic_cast<D3D12Sampler*>(prop.resource.get());
-        SetParameter(name, sampler);
+        BindParameter(cmd_buffer, name, sampler);
     }
     break;
     case MaterialPropertyType::kConstantBuffer:
     {
-        auto buf = dynamic_cast<D3D12ConstantBuffer*>(prop.resource.get());
-        SetParameter(name, buf);
+        auto buf = dynamic_cast<D3D12Buffer*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, buf);
     }
     break;
     case MaterialPropertyType::kStructuredBuffer:
     {
-        auto buf = dynamic_cast<D3D12StructuredBuffer*>(prop.resource.get());
-        SetParameter(name, buf);
+        auto buf = dynamic_cast<D3D12Buffer*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, buf);
     }
     break;
     case MaterialPropertyType::kColor:
@@ -280,6 +284,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
     case MaterialPropertyType::kMatrix:
     {
         if (!prop.resource) {
+            auto gfx = cmd_buffer->GetDriver();
             if (prop.prop_type == MaterialPropertyType::kColor) {
                 prop.resource = gfx->CreateConstantBuffer<Color>(prop.color, UsageType::kDefault);
             }
@@ -294,8 +299,8 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
             dynamic_cast<Buffer*>(prop.resource.get())->Update(&prop.matrix); //compatible with color & float4
         }
 
-        auto cbuffer = dynamic_cast<D3D12ConstantBuffer*>(prop.resource.get());
-        SetParameter(name, cbuffer);
+        auto cbuffer = dynamic_cast<D3D12Buffer*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, cbuffer);
     }
     break;
     default:
@@ -305,7 +310,7 @@ void D3D12Program::BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, cons
     prop.dirty = false;
 }
 
-void D3D12Program::Bind(D3D12CommandList* cmd_list) {
+void D3D12Program::Bind(D3D12CommandBuffer* cmd_list) {
     for (uint32_t i = 0; i < cbv_table_.size(); ++i) {
         const auto& param = cbv_table_[i];
         assert(param.resource);

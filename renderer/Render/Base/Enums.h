@@ -3,6 +3,13 @@
 namespace glacier {
 namespace render {
 
+enum class CommandBufferType : int8_t {
+    kDirect,
+    kCompute,
+    kCopy,
+    kBundle,
+};
+
 enum class AttachmentPoint : uint8_t
 {
     kColor0 = 0,         // Must be a uncompressed color format.
@@ -123,18 +130,16 @@ enum class WarpMode : uint8_t {
 
 enum class UsageType : uint8_t {
     kDefault,
-    kImmutable,
     kDynamic,
-    kStage,
 };
 
 enum class BufferType : uint8_t {
-    kConstantBuffer,
+    kNone,
     kVertexBuffer,
     kIndexBuffer,
+    kConstantBuffer,
     kStructuredBuffer,
     kRWStructuredBuffer,
-    kReadBackBuffer,
 };
 
 enum class TextureFormat : uint8_t {
@@ -152,6 +157,8 @@ enum class TextureFormat : uint8_t {
     kR16G16B16A16_FLOAT,
     kR16G16B16A16_TYPELESS,
     kR16G16_FLOAT,
+    kR16G16_UNORM,
+    kR16_UNORM,
 };
 
 enum class CubeFace : uint8_t {
@@ -168,7 +175,7 @@ enum class TextureType : uint8_t {
     kTexture1D,
     kTexture2D,
     kTexture3D,
-    kTextureCube, //for D3D11
+    kTextureCube,
 };
 
 enum class ShaderType : uint8_t {
@@ -225,6 +232,44 @@ enum class CreateFlags : uint32_t {
     kDepthStencil = 1 << 2,
     kUav = 1 << 3,
 };
+
+enum class ResourceAccessBit : uint64_t {
+    kCommon = 0,
+    kVertexAndConstantBuffer = 0x1,
+    kIndexBuffer = 0x2,
+    kRenderTarget = 0x4,
+    kShaderWrite = 0x8,
+    kDepthWrite = 0x10,
+    kDepthRead = 0x20,
+    kNonPixelShaderRead = 0x40,
+    kPixelShaderRead = 0x80,
+    kStreamOut = 0x100,
+    kIndirectArgument = 0x200,
+    kCopyDest = 0x400,
+    kCopySource = 0x800,
+    kResolveDest = 0x1000,
+    kResolveSource = 0x2000,
+    kRaytracingAccelerationStructure = 0x400000,
+    kShadingRateSource = 0x1000000,
+    kGenericRead = (((((0x1 | 0x2) | 0x40) | 0x80) | 0x200) | 0x800),
+    kAllShaderResource = (0x40 | 0x80),
+    kPresent = 0,
+    kPredication = 0x200,
+    kVideoDecodeRead = 0x10000,
+    kVideoDecodeWrite = 0x20000,
+    kVideoDecodeProcessRead = 0x40000,
+    kVideoDecodeProcessWrite = 0x80000,
+    kVideoEncodeRead = 0x200000,
+    kVideoEncodeWrite = 0x800000
+};
+
+enum class BarrierType : uint8_t {
+    kBuffer,
+    kTexture,
+    kMemory,
+};
+
+#define	 BARRIER_ALL_SUBRESOURCES	(0xffffffff)
 
 }
 }

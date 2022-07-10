@@ -93,9 +93,6 @@
     <Filter Include="Source\Render\Mesh">
       <UniqueIdentifier>{bf57ee79-361d-4b0f-a8a6-ffc54a1b42f6}</UniqueIdentifier>
     </Filter>
-    <Filter Include="Source\Render\Backend\D3D11">
-      <UniqueIdentifier>{f79d0ffd-4f1e-4bca-b5c6-db6a14488989}</UniqueIdentifier>
-    </Filter>
     <Filter Include="Shader">
       <UniqueIdentifier>{93995380-89BD-4b04-88EB-625FBE52EBFB}</UniqueIdentifier>
       <Extensions>h;hh;hpp;hxx;h++;hm;inl;inc;ipp;xsd</Extensions>
@@ -191,6 +188,9 @@
       <Filter>Shader\Common</Filter>
     </None>
     <None Include="Assets\Shader\Common\Utils.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
+    <None Include="Assets\Shader\Common\Macros.hlsli">
       <Filter>Shader\Common</Filter>
     </None>
   </ItemGroup>
@@ -480,9 +480,6 @@
     <ClCompile Include="Render\Backend\D3D12\Buffer.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClCompile>
-    <ClCompile Include="Render\Backend\D3D12\CommandList.cpp">
-      <Filter>Source\Render\Backend\D3D12</Filter>
-    </ClCompile>
     <ClCompile Include="Render\Backend\D3D12\CommandQueue.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClCompile>
@@ -530,39 +527,6 @@
     </ClCompile>
     <ClCompile Include="Render\Backend\D3D12\Texture.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Buffer.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\GfxDriver.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Program.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Query.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\RenderTarget.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Sampler.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Shader.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Backend\D3D11\Texture.cpp">
-      <Filter>Source\Render\Backend\D3D11</Filter>
     </ClCompile>
     <ClCompile Include="Render\Base\Shader.cpp">
       <Filter>Source\Render\Base</Filter>
@@ -617,6 +581,21 @@
     </ClCompile>
     <ClCompile Include="Render\Backend\D3D12\DynamicDescriptorHeap.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\CommandBuffer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\CommandBuffer.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\CommandQueue.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\Resource.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Concurrent\ThreadJobSystem.cpp">
+      <Filter>Source\Concurrent</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1277,9 +1256,6 @@
     <ClInclude Include="Render\Backend\D3D12\Buffer.h">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
-    <ClInclude Include="Render\Backend\D3D12\CommandList.h">
-      <Filter>Source\Render\Backend\D3D12</Filter>
-    </ClInclude>
     <ClInclude Include="Render\Backend\D3D12\CommandQueue.h">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
@@ -1336,42 +1312,6 @@
     </ClInclude>
     <ClInclude Include="Render\Base\Buffer.h">
       <Filter>Source\Render\Base</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Buffer.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\GfxDriver.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\InputLayout.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\PipelineState.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Program.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Query.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\RenderTarget.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Sampler.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Shader.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\SwapChain.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Texture.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
-    </ClInclude>
-    <ClInclude Include="Render\Backend\D3D11\Util.h">
-      <Filter>Source\Render\Backend\D3D11</Filter>
     </ClInclude>
     <ClInclude Include="Render\Base\RasterStateDesc.h">
       <Filter>Source\Render\Base</Filter>
@@ -1481,6 +1421,27 @@
     <ClInclude Include="Render\Backend\D3D12\DynamicDescriptorHeap.h">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClInclude>
+    <ClInclude Include="Render\Backend\D3D12\CommandBuffer.h">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\Barrier.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\CommandBuffer.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\CommandQueue.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Base\Fence.h">
+      <Filter>Source\Render\Base</Filter>
+    </ClInclude>
+    <ClInclude Include="Concurrent\ThreadJobSystem.h">
+      <Filter>Source\Concurrent</Filter>
+    </ClInclude>
+    <ClInclude Include="Concurrent\ThreadSafeQueue.h">
+      <Filter>Source\Concurrent</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="assets\shader\BlinnPhong.hlsl">
@@ -1535,6 +1496,12 @@
       <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="Assets\Shader\TAA.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GTAO.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GTAOFilter.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>

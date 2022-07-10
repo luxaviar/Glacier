@@ -2,12 +2,12 @@
 
 #include <d3d12.h>
 #include <vector>
+#include "d3dx12.h"
 #include "Algorithm/BuddyAllocator.h"
 #include "Common/Uncopyable.h"
 #include "Common/BitUtil.h"
 #include "Common/Util.h"
 #include "Exception/Exception.h"
-#include "../D3D12/d3dx12.h"
 #include "Resource.h"
 
 namespace glacier {

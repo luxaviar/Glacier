@@ -30,7 +30,8 @@ public:
 
     RenderGraph(const RenderGraph&) = delete;
 
-    void Execute(Renderer* renderer);
+    //void Execute(Renderer* renderer);
+    void Execute(CommandBuffer* cmd_buffer);
     void Reset() noexcept;
 
     PassNode& GetPass(const char* passName);

@@ -9,9 +9,13 @@
 namespace glacier {
 namespace render {
 
-std::shared_ptr<ConstantBuffer> Renderable::tx_buf_;
+std::shared_ptr<Buffer> Renderable::per_object_data_;
 
 int32_t Renderable::id_counter_ = 0;
+
+void Renderable::Setup() {
+    per_object_data_ = GfxDriver::Get()->CreateConstantBuffer<PerObjectData>();
+}
 
 Renderable::Renderable() :
     mask_(toUType(RenderableMask::kCastShadow) | toUType(RenderableMask::kReciveShadow))
@@ -25,22 +29,20 @@ void Renderable::SetMaterial(const std::shared_ptr<Material>& mat) {
     material_ = mat;
 }
 
-void Renderable::UpdateTransform(GfxDriver* gfx) const {
+void Renderable::UpdatePerObjectData(CommandBuffer* cmd_buffer) const {
     const auto& m = transform().LocalToWorldMatrix();
-    const auto& mv = gfx->view() * m;
-    const auto& mvp = gfx->projection() * mv;
+    const auto& mv = cmd_buffer->view() * m;
+    const auto& mvp = cmd_buffer->projection() * mv;
 
-    RenderableTransform tx_data = {
+    PerObjectData data = {
         m,
         mv,
         mvp,
         prev_model_,
         material_ ? material_->GetTexTilingOffset() : Vec4f{1.0f, 1.0f, 0.0f, 0.0f}
     };
-    
-    auto& tx_cbuf = GetTransformCBuffer(gfx);
-    tx_cbuf->Update(&tx_data);
 
+    per_object_data_->Update(&data);
     prev_model_ = m;
 }
 
@@ -83,12 +85,8 @@ void Renderable::SetPickable(bool on) {
     }
 }
 
-std::shared_ptr<ConstantBuffer>& Renderable::GetTransformCBuffer(GfxDriver* gfx) {
-    if (!tx_buf_) {
-        tx_buf_ = gfx->CreateConstantBuffer<RenderableTransform>();
-    }
-
-    return tx_buf_;
+std::shared_ptr<Buffer>& Renderable::GetPerObjectData() {
+    return per_object_data_;
 }
 
 void Renderable::DrawInspectorBasic() {

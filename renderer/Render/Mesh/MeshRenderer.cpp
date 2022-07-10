@@ -46,19 +46,18 @@ void MeshRenderer::OnDisable() {
     RenderableManager::Instance()->RemoveBvhNode(this);
 }
 
+void MeshRenderer::Render(CommandBuffer* cmd_buffer, Material* mat) const {
+    UpdatePerObjectData(cmd_buffer);
 
-void MeshRenderer::Render(GfxDriver* gfx, Material* mat) const {
-    UpdateTransform(gfx);
-
-    MaterialGuard guard(gfx, mat ? mat : material_.get());
+    cmd_buffer->BindMaterial(mat ? mat : material_.get());
     for (auto& mesh : meshes_) {
-        mesh->Draw(gfx);
+        mesh->Draw(cmd_buffer);
     }
 }
 
-void MeshRenderer::Draw(GfxDriver* gfx) const {
+void MeshRenderer::Draw(CommandBuffer* cmd_buffer) const {
     for (auto& mesh : meshes_) {
-        mesh->Draw(gfx);
+        mesh->Draw(cmd_buffer);
     }
 }
 

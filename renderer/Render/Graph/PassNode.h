@@ -14,6 +14,7 @@ namespace glacier {
 namespace render {
 
 class Material;
+class CommandBuffer;
 
 class PassNode : public Identifiable<PassNode> {
 public:
@@ -23,10 +24,14 @@ public:
     PassNode(PassNode&& other) noexcept = default;
     virtual ~PassNode() = default;
 
-    virtual void Execute(Renderer* renderer);
+    //virtual void Execute(Renderer* renderer);
+    virtual void Execute(CommandBuffer* cmd_buffer);
 
-    void Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
-    void Render(Renderer* renderer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
+    //void Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
+    //void Render(Renderer* renderer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
+
+    void Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
+    void Render(CommandBuffer* cmd_buffer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
 
     //void PreRender(Renderer* renderer) const;
     //void PostRender(Renderer* renderer) const;

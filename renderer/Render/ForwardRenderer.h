@@ -19,7 +19,7 @@ public:
     virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return msaa_render_target_; }
     bool OnResize(uint32_t width, uint32_t height) override;
 
-    void PreRender() override;
+    void PreRender(CommandBuffer* cmd_buffer) override;
 
 protected:
     void DrawOptionWindow() override;
@@ -27,7 +27,7 @@ protected:
     void OnChangeMSAA();
 
     void InitRenderTarget() override;
-    void ResolveMSAA() override;
+    void ResolveMSAA(CommandBuffer* cmd_buffer) override;
 
     void AddLightingPass();
     

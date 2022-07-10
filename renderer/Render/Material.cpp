@@ -33,7 +33,7 @@ void Material::SetupBuiltinProperty() {
     renderer->SetupBuiltinProperty(this);
 }
 
-void Material::Bind(GfxDriver* gfx) {
+void Material::Bind(CommandBuffer* cmd_buffer) {
     PerfSample("Material Binding");
 
     if (!setup_builtin_props_) {
@@ -44,11 +44,7 @@ void Material::Bind(GfxDriver* gfx) {
         program_->SetupMaterial(this);
     }
 
-    program_->Bind(gfx, this);
-}
-
-void Material::UnBind(GfxDriver* gfx) {
-    program_->UnBind(gfx, this);
+    program_->Bind(cmd_buffer, this);
 }
 
 void Material::AddPass(const char* pass_name) {

@@ -41,20 +41,17 @@ LinearAllocPage::LinearAllocPage(size_t size, LinearAllocatorType type) :
         DefaultUsage = D3D12_RESOURCE_STATE_GENERIC_READ;
     }
 
-    ComPtr<ID3D12Resource> buffer;
     auto gfx = D3D12GfxDriver::Instance();
     gfx->GetDevice()->CreateCommittedResource(&HeapProps, D3D12_HEAP_FLAG_NONE,
-        &ResourceDesc, DefaultUsage, nullptr, IID_PPV_ARGS(&buffer));
+        &ResourceDesc, DefaultUsage, nullptr, IID_PPV_ARGS(&resource_));
 
-    buffer->SetName(L"LinearAllocator Page");
-
-    resource_ = D3D12Resource{ buffer, DefaultUsage };
-
-    resource_.Map();
+    resource_->SetName(TEXT("LinearAllocator Page"));
+    resource_->Map(0, nullptr, &mapped_address_);
+    gpu_address_ = resource_->GetGPUVirtualAddress();
 }
 
 LinearAllocPage::~LinearAllocPage() {
-    resource_.Unmap();
+    resource_->Unmap(0, nullptr);
 }
 
 LinearAllocator::LinearAllocator(size_t page_size, LinearAllocatorType type) :
@@ -130,7 +127,7 @@ LinearAllocBlock LinearAllocator::Allocate(size_t size, size_t alignment) {
     size_t aligned_size = AlignUp(size, alignment);
     if (aligned_size > page_size_) {
         auto page = std::make_unique<LinearAllocPage>(aligned_size, type_);
-        LinearAllocBlock block{ 0, aligned_size, page->GetUnderlyingResource() };
+        LinearAllocBlock block{ 0, aligned_size, page.get() };
 
         large_pages_.emplace_back(std::move(page));
         return block;
@@ -139,7 +136,7 @@ LinearAllocBlock LinearAllocator::Allocate(size_t size, size_t alignment) {
     if (page_) {
         auto result = page_->Allocate(aligned_size, alignment);
         if (result) {
-            return LinearAllocBlock{ result.value(), aligned_size, page_->GetUnderlyingResource() };
+            return LinearAllocBlock{ result.value(), aligned_size, page_ };
         }
         inflight_pages_.push_back(page_);
         page_ = nullptr;
@@ -152,7 +149,7 @@ LinearAllocBlock LinearAllocator::Allocate(size_t size, size_t alignment) {
     auto result = page_->Allocate(aligned_size, alignment);
     assert(result);
 
-    return { result.value(), aligned_size, page_->GetUnderlyingResource() };
+    return { result.value(), aligned_size, page_ };
 }
 
 }

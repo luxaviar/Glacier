@@ -6,6 +6,8 @@
 #include "Common/Util.h"
 #include "Render/Base/buffer.h"
 #include "Render/Base/Inputlayout.h"
+#include "Render/Base/CommandBuffer.h"
+#include "Render/Base/CommandQueue.h"
 
 namespace glacier {
 namespace render {
@@ -63,7 +65,7 @@ Mesh::Mesh(const aiMesh& mesh) {
     Setup();
 }
 
-Mesh::Mesh(const std::shared_ptr<VertexBuffer>& vertex_buffer, const std::shared_ptr<IndexBuffer>& index_buffer) :
+Mesh::Mesh(const std::shared_ptr<Buffer>& vertex_buffer, const std::shared_ptr<Buffer>& index_buffer) :
     vertex_buffer_(vertex_buffer),
     index_buffer_(index_buffer)
 {
@@ -87,11 +89,20 @@ void Mesh::Setup() {
 
     auto driver = GfxDriver::Get();
 
-    vertex_buffer_ = driver->CreateVertexBuffer(data);
-    vertex_buffer_->SetName(TEXT("vertex buffer"));
+    vertex_buffer_ = driver->CreateVertexBuffer(data.data_size(), data.stride());
+    vertex_buffer_->SetName("vertex buffer");
 
-    index_buffer_ = driver->CreateIndexBuffer(indices_);
-    index_buffer_->SetName(TEXT("index buffer"));
+    index_buffer_ = driver->CreateIndexBuffer(indices_.size() * sizeof(uint32_t), IndexFormat::kUInt32);
+    index_buffer_->SetName("index buffer");
+
+    auto cmd_queue = driver->GetCommandQueue(CommandBufferType::kDirect);
+    auto cmd_buffer = cmd_queue->GetCommandBuffer();
+
+    vertex_buffer_->Upload(cmd_buffer, data.data(), data.data_size());
+    index_buffer_->Upload(cmd_buffer, indices_.data(), indices_.size() * sizeof(uint32_t));
+
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 void Mesh::RecalculateNormals() {
@@ -119,14 +130,14 @@ void Mesh::RecalculateNormals() {
     }
 }
 
-void Mesh::Bind(GfxDriver* gfx) const {
-    vertex_buffer_->Bind();
-    index_buffer_->Bind();
+void Mesh::Bind(CommandBuffer* cmd_buffer) const {
+    vertex_buffer_->Bind(cmd_buffer);
+    index_buffer_->Bind(cmd_buffer);
 }
 
-void Mesh::Draw(GfxDriver* gfx) const {
-    Bind(gfx);
-    gfx->DrawIndexed((uint32_t)index_buffer_->count());
+void Mesh::Draw(CommandBuffer* cmd_buffer) const {
+    Bind(cmd_buffer);
+    cmd_buffer->DrawIndexedInstanced((uint32_t)index_buffer_->count(), 1, 0, 0, 0);
 }
 
 }

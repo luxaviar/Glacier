@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|x64">
@@ -139,6 +139,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </None>
+    <None Include="Assets\Shader\Common\Macros.hlsli">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </None>
     <None Include="assets\shader\common\Shadow.hlsli">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
@@ -179,6 +183,7 @@
     </ClCompile>
     <ClCompile Include="Common\Util.cpp" />
     <ClCompile Include="Component\MeshDrawer.cpp" />
+    <ClCompile Include="Concurrent\ThreadJobSystem.cpp" />
     <ClCompile Include="Concurrent\ThreadPool.cpp" />
     <ClCompile Include="Core\Behaviour.cpp" />
     <ClCompile Include="Core\Component.cpp" />
@@ -232,19 +237,8 @@
     <ClCompile Include="Physics\Dynamic\Rigidbody.cpp" />
     <ClCompile Include="Physics\LayerCollisionFilter.cpp" />
     <ClCompile Include="Physics\World.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Buffer.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\GfxDriver.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\InputLayout.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\PipelineState.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Program.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Query.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\RenderTarget.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Sampler.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Shader.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\SwapChain.cpp" />
-    <ClCompile Include="Render\Backend\D3D11\Texture.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Buffer.cpp" />
-    <ClCompile Include="Render\Backend\D3D12\CommandList.cpp" />
+    <ClCompile Include="Render\Backend\D3D12\CommandBuffer.cpp" />
     <ClCompile Include="Render\Backend\D3D12\CommandQueue.cpp" />
     <ClCompile Include="Render\Backend\D3D12\DescriptorHeapAllocator.cpp" />
     <ClCompile Include="Render\Backend\D3D12\DescriptorTableHeap.cpp" />
@@ -264,10 +258,13 @@
     <ClCompile Include="Render\Backend\D3D12\SwapChain.cpp" />
     <ClCompile Include="Render\Backend\D3D12\Texture.cpp" />
     <ClCompile Include="Render\Base\BufferLayout.cpp" />
+    <ClCompile Include="Render\Base\CommandBuffer.cpp" />
+    <ClCompile Include="Render\Base\CommandQueue.cpp" />
     <ClCompile Include="Render\Base\GfxDriver.cpp" />
     <ClCompile Include="Render\Base\Program.cpp" />
     <ClCompile Include="Render\Base\Renderable.cpp" />
     <ClCompile Include="Render\Base\RenderTexturePool.cpp" />
+    <ClCompile Include="Render\Base\Resource.cpp" />
     <ClCompile Include="Render\Base\Shader.cpp" />
     <ClCompile Include="Render\Base\Util.cpp" />
     <ClCompile Include="Render\Base\VertexLayout.cpp" />
@@ -434,7 +431,9 @@
     <ClInclude Include="Concurrent\FixedBuffer.h" />
     <ClInclude Include="Concurrent\RingBuffer.h" />
     <ClInclude Include="Concurrent\SpinLock.h" />
+    <ClInclude Include="Concurrent\ThreadJobSystem.h" />
     <ClInclude Include="Concurrent\ThreadPool.h" />
+    <ClInclude Include="Concurrent\ThreadSafeQueue.h" />
     <ClInclude Include="Core\Behaviour.h" />
     <ClInclude Include="Core\Component.h" />
     <ClInclude Include="Core\GameObject.h" />
@@ -505,20 +504,8 @@
     <ClInclude Include="Physics\LayerCollisionFilter.h" />
     <ClInclude Include="Physics\Types.h" />
     <ClInclude Include="Physics\World.h" />
-    <ClInclude Include="Render\Backend\D3D11\Buffer.h" />
-    <ClInclude Include="Render\Backend\D3D11\GfxDriver.h" />
-    <ClInclude Include="Render\Backend\D3D11\InputLayout.h" />
-    <ClInclude Include="Render\Backend\D3D11\PipelineState.h" />
-    <ClInclude Include="Render\Backend\D3D11\Program.h" />
-    <ClInclude Include="Render\Backend\D3D11\Query.h" />
-    <ClInclude Include="Render\Backend\D3D11\RenderTarget.h" />
-    <ClInclude Include="Render\Backend\D3D11\Sampler.h" />
-    <ClInclude Include="Render\Backend\D3D11\Shader.h" />
-    <ClInclude Include="Render\Backend\D3D11\SwapChain.h" />
-    <ClInclude Include="Render\Backend\D3D11\Texture.h" />
-    <ClInclude Include="Render\Backend\D3D11\Util.h" />
     <ClInclude Include="Render\Backend\D3D12\Buffer.h" />
-    <ClInclude Include="Render\Backend\D3D12\CommandList.h" />
+    <ClInclude Include="Render\Backend\D3D12\CommandBuffer.h" />
     <ClInclude Include="Render\Backend\D3D12\CommandQueue.h" />
     <ClInclude Include="Render\Backend\D3D12\d3dx12.h" />
     <ClInclude Include="Render\Backend\D3D12\DescriptorHeapAllocator.h" />
@@ -539,9 +526,13 @@
     <ClInclude Include="Render\Backend\D3D12\SwapChain.h" />
     <ClInclude Include="Render\Backend\D3D12\Texture.h" />
     <ClInclude Include="Render\Backend\D3D12\Util.h" />
+    <ClInclude Include="Render\Base\Barrier.h" />
     <ClInclude Include="Render\Base\Buffer.h" />
     <ClInclude Include="Render\Base\BufferLayout.h" />
+    <ClInclude Include="Render\Base\CommandBuffer.h" />
+    <ClInclude Include="Render\Base\CommandQueue.h" />
     <ClInclude Include="Render\Base\Enums.h" />
+    <ClInclude Include="Render\Base\Fence.h" />
     <ClInclude Include="Render\Base\GfxDriver.h" />
     <ClInclude Include="Render\Base\InputLayout.h" />
     <ClInclude Include="Render\Base\PipelineState.h" />
@@ -641,6 +632,14 @@
       <ObjectFileOutput Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(ProjectDir)\assets\ShaderBins\%(Filename).cso</ObjectFileOutput>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Pixel</ShaderType>
       <ShaderType Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Pixel</ShaderType>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GTAO.hlsl">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GTAOFilter.hlsl">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">true</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='Release|x64'">true</ExcludedFromBuild>
     </FxCompile>

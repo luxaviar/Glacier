@@ -6,95 +6,115 @@
 #include "render/image.h"
 #include "math/Vec2.h"
 #include "Common/ScopedBuffer.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
 
-D3D12Texture::D3D12Texture(const TextureDescription& desc, const D3D12_CLEAR_VALUE* clear_value) :
-    Texture(desc)
+D3D12Texture::D3D12Texture(const TextureDescription& desc, const D3D12_CLEAR_VALUE* clear_value)
 {
     if (clear_value) {
         clear_value_ = *clear_value;
         clear_value_set_ = true;
     }
 
-    if (!desc.file.empty()) {
-        CreateFromFile();
-    }
-    else if (desc.use_color) {
-        CreateFromColor();
+    force_srv_ = (desc.create_flags & (uint32_t)CreateFlags::kShaderResource) != 0;
+    cube_map_ = desc.type == TextureType::kTextureCube;
+
+    Create(desc, clear_value);
+
+    CheckFeatureSupport();
+    CreateViews();
+}
+
+D3D12Texture::D3D12Texture(const ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state) :
+    resource_(res),
+    desc_(res->GetDesc()),
+    plant_count_(CalculatePlantCount())
+{
+    state_ = { CalculateNumSubresources(), (ResourceAccessBit)state };
+
+    CheckFeatureSupport();
+    CreateViews();
+}
+
+D3D12Texture::D3D12Texture(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips, TextureType type)
+{
+    file_image_ = true;
+
+    if (type == TextureType::kTextureCube) {
+        CreateCubeMapFromImage(cmd_buffer, image, gen_mips);
     }
     else {
-        Create(clear_value);
+        CreateTextureFromImage(cmd_buffer, image, gen_mips);
     }
 
     CheckFeatureSupport();
     CreateViews();
 }
 
-D3D12Texture::D3D12Texture(ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state) :
-    D3D12Resource(res, state),
-    Texture({})
-{
-    detail_.width = (uint32_t)desc_.Width;
-    detail_.height = (uint32_t)desc_.Height;
-    /// FIXME: format setting
-    //detail_.format = desc.Format;
-
-    CheckFeatureSupport();
-    CreateViews();
+void D3D12Texture::Initialize(const ComPtr<ID3D12Resource>& resource, D3D12_RESOURCE_STATES state) {
+    resource_ = resource;
+    desc_ = resource->GetDesc();
+    plant_count_ = CalculatePlantCount();
+    state_ = { CalculateNumSubresources(), (ResourceAccessBit)state };
 }
 
-D3D12Texture::D3D12Texture(const Image& image, D3D12_RESOURCE_STATES state, bool gen_mips) :
-    Texture({})
-{
-    CreateTextureFromImage(image, state, gen_mips);
+void D3D12Texture::Initialize(const ResourceLocation& resource_location) {
+    Initialize(resource_location.GetResource(), resource_location.GetState());
 
-    detail_.gen_mips = gen_mips;
-    detail_.width = (uint32_t)desc_.Width;
-    detail_.height = desc_.Height;
-
-    CheckFeatureSupport();
-    CreateViews();
-}
-
-D3D12Texture::D3D12Texture(SwapChain* swapchain) :
-    D3D12Resource(static_cast<D3D12SwapChain*>(swapchain)->GetBackBuffer()),
-    Texture({}) 
-{
-    detail_.type = TextureType::kTexture2D;
-    detail_.width = (uint32_t)desc_.Width;
-    detail_.height = desc_.Height;
-}
-
-void D3D12Texture::SetName(const TCHAR* name) {
-    SetDebugName(name);
-}
-
-const TCHAR* D3D12Texture::GetName(const TCHAR* name) const {
-    return GetDebugName().c_str();
+    gpu_address_ = resource_location.GetGpuAddress();
 }
 
 void D3D12Texture::Reset(ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state) {
+    location_ = {};
     Initialize(res, state);
-
-    detail_.width = (uint32_t)desc_.Width;
-    detail_.height = desc_.Height;
 }
 
-void D3D12Texture::CreateFromFile() {
-    const Image image(detail_.file.c_str(), detail_.srgb);
-    if (detail_.type == TextureType::kTexture2D) {
-        CreateTextureFromImage(image, D3D12_RESOURCE_STATE_COMMON, detail_.gen_mips);
-    }
-    else {
-        CreateCubeMapFromImage(image);
-    }
-
-    SetDebugName(detail_.file.c_str());
+void D3D12Texture::SetName(const char* name) {
+    Texture::SetName(name);
+    resource_->SetName(ToWide(name).c_str());
 }
 
-void D3D12Texture::CreateTextureFromImage(const Image& image, D3D12_RESOURCE_STATES state, bool gen_mips) {
+bool D3D12Texture::CheckFormatSupport(D3D12_FORMAT_SUPPORT1 formatSupport) const
+{
+    return (format_support_.Support1 & formatSupport) != 0;
+}
+
+bool D3D12Texture::CheckFormatSupport(D3D12_FORMAT_SUPPORT2 formatSupport) const
+{
+    return (format_support_.Support2 & formatSupport) != 0;
+}
+
+bool D3D12Texture::CheckUAVSupport() const
+{
+    return CheckFormatSupport(D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW) &&
+        CheckFormatSupport(D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD) &&
+        CheckFormatSupport(D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE);
+}
+
+void D3D12Texture::CheckFeatureSupport() {
+    auto device = D3D12GfxDriver::Instance()->GetDevice();
+
+    format_support_.Format = desc_.Format;
+    GfxThrowIfFailed(device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT,
+        &format_support_, sizeof(D3D12_FEATURE_DATA_FORMAT_SUPPORT)));
+}
+
+uint8_t D3D12Texture::CalculatePlantCount() const {
+    auto device = D3D12GfxDriver::Instance()->GetDevice();
+    return D3D12GetFormatPlaneCount(device, desc_.Format);
+}
+
+UINT D3D12Texture::CalculateNumSubresources() const {
+    if (desc_.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER) {
+        return desc_.MipLevels * desc_.DepthOrArraySize * plant_count_;
+    }
+    // Buffer only contains 1 subresource
+    return 1;
+}
+
+void D3D12Texture::CreateTextureFromImage(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips) {
     auto format = image.format();
     uint32_t mip_level = gen_mips ? CalcNumberOfMipLevels(image.width(), image.height()) : 1;
 
@@ -107,14 +127,11 @@ void D3D12Texture::CreateTextureFromImage(const Image& image, D3D12_RESOURCE_STA
     );
 
     auto& scratchImage = image.GetScratchImage();
-    if ((detail_.create_flags & (uint32_t)CreateFlags::kUav) > 0) {
-        desc.Flags |= D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS;
-    }
 
     auto driver = D3D12GfxDriver::Instance();
 
     auto allocator = D3D12GfxDriver::Instance()->GetTextureResourceAllocator();
-    location_ = allocator->CreateResource(desc, state, nullptr);
+    location_ = allocator->CreateResource(desc, D3D12_RESOURCE_STATE_COMMON, nullptr);
 
     Initialize(location_);
 
@@ -127,20 +144,19 @@ void D3D12Texture::CreateTextureFromImage(const Image& image, D3D12_RESOURCE_STA
         subresource.pData = pImages[i].pixels;
     }
 
-    auto cmd_list = driver->GetCommandList();
-
-    UploadTexture(state, subresources);
+    UploadTexture(cmd_buffer, subresources);
 
     if (gen_mips && subresources.size() < desc_.MipLevels) {
-        driver->GenerateMips(this);
+        cmd_buffer->GenerateMipMaps(this);
     }
 }
 
-void D3D12Texture::CreateCubeMapFromImage(const Image& image) {
+void D3D12Texture::CreateCubeMapFromImage(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips) {
+    cube_map_ = true;
+
     auto driver = D3D12GfxDriver::Instance();
     auto device = driver->GetDevice();
-    auto cmd_list = driver->GetCommandList();
-    bool gen_mips = detail_.gen_mips;
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
     auto cube_width = image.width() / 4;
     auto cube_height = image.height() / 3;
@@ -152,13 +168,14 @@ void D3D12Texture::CreateCubeMapFromImage(const Image& image) {
         return;
     }
 
-    auto temp_texture = std::make_shared<D3D12Texture>(image, D3D12_RESOURCE_STATE_COMMON, gen_mips);
-    temp_texture->SetDebugName(TEXT("Temp Texture for Cube map"));
+    auto temp_texture = std::make_shared<D3D12Texture>(cmd_buffer, image, gen_mips);
+    temp_texture->SetName("Temp Texture for Cube map");
 
     auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
     auto temp_srv = descriptor_allocator->Allocate();
-    device->CreateShaderResourceView(temp_texture->GetUnderlyingResource().Get(), nullptr, temp_srv.GetDescriptorHandle());
-    cmd_list->TransitionBarrier(temp_texture, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    
+    device->CreateShaderResourceView(temp_texture->resource_.Get(), nullptr, temp_srv.GetDescriptorHandle());
+    cmd_list->TransitionBarrier(temp_texture.get(), ResourceAccessBit::kCopySource);
     
     D3D12_RESOURCE_DESC cubemap_desc = {};
     cubemap_desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
@@ -177,14 +194,14 @@ void D3D12Texture::CreateCubeMapFromImage(const Image& image) {
 
     Initialize(location_);
 
-    cmd_list->TransitionBarrier(this, D3D12_RESOURCE_STATE_COPY_DEST);
+    cmd_list->TransitionBarrier(this, ResourceAccessBit::kCopyDest);
 
     D3D12_BOX box;
     box.front = 0;
     box.back = 1;
 
     D3D12_TEXTURE_COPY_LOCATION copy_src_location;
-    copy_src_location.pResource = temp_texture->GetUnderlyingResource().Get();
+    copy_src_location.pResource = temp_texture->resource_.Get();
     copy_src_location.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 
     D3D12_TEXTURE_COPY_LOCATION copy_dst_location;
@@ -251,12 +268,10 @@ void D3D12Texture::CreateCubeMapFromImage(const Image& image) {
         cube_width /= 2;
     }
 
-    cmd_list->TransitionBarrier(this, D3D12_RESOURCE_STATE_COMMON);
-
-    driver->AddInflightResource(temp_texture);
+    cmd_list->AddInflightResource(temp_texture);
 }
 
-void D3D12Texture::UploadTexture(D3D12_RESOURCE_STATES state, const std::vector<D3D12_SUBRESOURCE_DATA>& subresources) {
+void D3D12Texture::UploadTexture(CommandBuffer* cmd_buffer, const std::vector<D3D12_SUBRESOURCE_DATA>& subresources) {
 
     //GetCopyableFootprints
     const UINT num_subresources = (UINT)subresources.size();
@@ -289,10 +304,9 @@ void D3D12Texture::UploadTexture(D3D12_RESOURCE_STATES state, const std::vector<
             static_cast<SIZE_T>(raw_size_in_bytes[i]), num_rows[i], layouts[i].Footprint.Depth);
     }
 
-    auto cmd_queue = driver->GetCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
-    auto cmd_list = cmd_queue->GetCommandList();
+    auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     //Copy data from upload resource to default resource
-    cmd_list->TransitionBarrier(this, D3D12_RESOURCE_STATE_COPY_DEST);
+    cmd_list->TransitionBarrier(this, ResourceAccessBit::kCopyDest);
 
     for (UINT i = 0; i < num_subresources; ++i) {
         //layouts[i].Offset += upload_buffer_location.block.align_offset;
@@ -310,46 +324,42 @@ void D3D12Texture::UploadTexture(D3D12_RESOURCE_STATES state, const std::vector<
         cmd_list->CopyTextureRegion(&dest, 0, 0, 0, &src, nullptr);
     }
 
-    cmd_list->TransitionBarrier(this, state);
-    driver->AddInflightResource(std::move(upload_buffer_location));
+    cmd_list->AddInflightResource(std::move(upload_buffer_location));
 }
 
-void D3D12Texture::CreateFromColor() {
-    auto dxgi_format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    ColorRGBA32 col = detail_.color;
-    Image image(detail_.width, detail_.height, false);
-    image.Clear(col);
-
-    CreateTextureFromImage(image, D3D12_RESOURCE_STATE_COMMON, detail_.gen_mips);
-}
-
-void D3D12Texture::Create(const D3D12_CLEAR_VALUE* clear_value) {
-    D3D12_RESOURCE_FLAGS create_flags = GetCreateFlags(detail_.create_flags);
+void D3D12Texture::Create(const TextureDescription& detail, const D3D12_CLEAR_VALUE* clear_value) {
+    D3D12_RESOURCE_FLAGS create_flags = GetCreateFlags(detail.create_flags);
 
     //Create default resource
-    D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
-    auto dxgi_format = GetUnderlyingFormat(detail_.format);
+    auto dxgi_format = GetUnderlyingFormat(detail.format);
 
     D3D12_RESOURCE_DESC desc;
     ZeroMemory(&desc, sizeof(D3D12_RESOURCE_DESC));
     desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
     desc.Alignment = 0;
-    desc.Width = detail_.width;
-    desc.Height = detail_.height;
-    desc.DepthOrArraySize = detail_.depth_or_array_size;
-    desc.MipLevels = detail_.gen_mips ? 0 : 1;
+    desc.Width = detail.width;
+    desc.Height = detail.height;
+    desc.DepthOrArraySize = detail.depth_or_array_size;
+    desc.MipLevels = detail.gen_mips ? 0 : 1;
     desc.Format = dxgi_format;
-    desc.SampleDesc.Count = detail_.sample_count;
-    desc.SampleDesc.Quality = detail_.sample_quality;
+    desc.SampleDesc.Count = detail.sample_count;
+    desc.SampleDesc.Quality = detail.sample_quality;
     desc.Layout = D3D12_TEXTURE_LAYOUT_UNKNOWN;
     desc.Flags = create_flags;
 
-    if (detail_.type == TextureType::kTexture1D) {
+    if (detail.type == TextureType::kTexture1D) {
         desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE1D;
     }
-    else if (detail_.type == TextureType::kTexture3D) {
+    else if (detail.type == TextureType::kTexture3D) {
         desc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
     }
+
+    Create(desc, clear_value);
+}
+
+void D3D12Texture::Create(const D3D12_RESOURCE_DESC& desc, const D3D12_CLEAR_VALUE* clear_value) {
+    auto create_flags = desc.Flags;
+    D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON;
 
     if ((create_flags & D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET) > 0 ||
         (create_flags & D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL) > 0 ||
@@ -369,9 +379,11 @@ void D3D12Texture::Create(const D3D12_CLEAR_VALUE* clear_value) {
     else {
         auto TextureResourceAllocator = D3D12GfxDriver::Instance()->GetTextureResourceAllocator();
         location_ = TextureResourceAllocator->CreateResource(desc, state, clear_value);
-        
+
         Initialize(location_);
     }
+
+    desc_ = resource_->GetDesc();
 }
 
 void D3D12Texture::CreateViews() {
@@ -380,13 +392,13 @@ void D3D12Texture::CreateViews() {
 
     if (((desc_.Flags & D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE) == 0 && 
         CheckFormatSupport(D3D12_FORMAT_SUPPORT1_SHADER_SAMPLE)) ||
-        (detail_.create_flags & (uint32_t)CreateFlags::kShaderResource) > 0)
+        force_srv_)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
         srv_desc.Format = GetSRVFormat(desc_.Format);
         srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
 
-        if (detail_.type == TextureType::kTextureCube) {
+        if (cube_map_) {
             assert(desc_.DepthOrArraySize == 6);
 
             srv_desc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURECUBE;
@@ -417,65 +429,38 @@ void D3D12Texture::CreateViews() {
             device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, descriptor_slot_.GetDescriptorHandle(i));
         }
     }
-
-    if (detail_.format == TextureFormat::kUnkown) {
-        detail_.format = GetTextureFormat(desc_.Format);
-    }
 }
 
 bool D3D12Texture::Resize(uint32_t width, uint32_t height) {
     assert(width > 0 && height > 0);
-    assert(!detail_.is_backbuffer);
-    assert(detail_.file.empty());
 
-    if (detail_.is_backbuffer || !detail_.file.empty()) {
+    if (desc_.Width == width && desc_.Height == height) {
         return false;
     }
 
-    if (detail_.width == width && detail_.height == height) {
-        return false;
-    }
+    desc_.Width = width;
+    desc_.Height = height;
 
-    detail_.width = width;
-    detail_.height = height;
-
-    if (detail_.use_color) {
-        CreateFromColor();
-    }
-    else {
-        Create(clear_value_set_ ? &clear_value_ : nullptr);
-    }
+    Create(desc_, clear_value_set_ ? &clear_value_ : nullptr);
     CreateViews();
 
     return true;
 }
 
-uint32_t D3D12Texture::GetMipLevels() const {
-    return desc_.MipLevels;
-}
-
-void D3D12Texture::GenerateMipMaps() {
-    auto driver = D3D12GfxDriver::Instance();
-    driver->GenerateMips(this);
-}
-
-void D3D12Texture::ReleaseUnderlyingResource() {
+void D3D12Texture::ReleaseNativeResource() {
     resource_.Reset();
     location_ = {};
     descriptor_slot_ = {};
 }
 
-void D3D12Texture::ReadBackImage(int left, int top,
+void D3D12Texture::ReadBackImage(CommandBuffer* cmd_buffer, int left, int top,
     int width, int height, int destX, int destY, ReadbackDelegate&& callback)
 {
     auto gfx = D3D12GfxDriver::Instance();
     auto device = gfx->GetDevice();
+    auto commandList = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
-    auto commandList = gfx->GetCommandList();
-
-    CD3DX12_HEAP_PROPERTIES defaultHeapProperties(D3D12_HEAP_TYPE_DEFAULT);
     CD3DX12_HEAP_PROPERTIES readBackHeapProperties(D3D12_HEAP_TYPE_READBACK);
-
     constexpr size_t memAlloc = sizeof(D3D12_PLACED_SUBRESOURCE_FOOTPRINT) + sizeof(UINT) + sizeof(UINT64);
     uint8_t layoutBuff[memAlloc];
     auto pLayout = reinterpret_cast<D3D12_PLACED_SUBRESOURCE_FOOTPRINT*>(layoutBuff);
@@ -486,40 +471,16 @@ void D3D12Texture::ReadBackImage(int left, int top,
     device->GetCopyableFootprints(&desc_, 0, 1, 0,
         pLayout, pNumRows, pRowSizesInBytes, &totalResourceSize);
 
-    // Readback resources must be buffers
-    D3D12_RESOURCE_DESC bufferDesc = {};
-    bufferDesc.Alignment = desc_.Alignment;
-    bufferDesc.DepthOrArraySize = 1;
-    bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
-    bufferDesc.Flags = D3D12_RESOURCE_FLAG_NONE;
-    bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
-    bufferDesc.Height = 1;
-    bufferDesc.Width = totalResourceSize;
-    bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
-    bufferDesc.MipLevels = 1;
-    bufferDesc.SampleDesc.Count = 1;
-    bufferDesc.SampleDesc.Quality = 0;
-
-    ComPtr<ID3D12Resource> pStaging;
-    ComPtr<ID3D12Resource> copySource(resource_);
-    
-    // Create a staging texture
-    GfxThrowIfFailed(device->CreateCommittedResource(
-        &readBackHeapProperties,
-        D3D12_HEAP_FLAG_NONE,
-        &bufferDesc,
-        D3D12_RESOURCE_STATE_COPY_DEST,
-        nullptr,
-        IID_GRAPHICS_PPV_ARGS(pStaging.GetAddressOf())));
-
-    assert(pStaging);
+    auto readback_allocator = gfx->GetReadbackBufferAllocator();
+    auto stage_location = readback_allocator->CreateResource(totalResourceSize, desc_.Alignment);
 
     // Transition the resource if necessary
-    commandList->TransitionBarrier(this, D3D12_RESOURCE_STATE_COPY_SOURCE);
+    commandList->TransitionBarrier(this, ResourceAccessBit::kCopySource);
 
     // Get the copy target location
-    CD3DX12_TEXTURE_COPY_LOCATION copyDest(pStaging.Get(), *pLayout);
-    CD3DX12_TEXTURE_COPY_LOCATION copySrc(copySource.Get(), 0);
+    auto stage_res = stage_location.GetResource();
+    CD3DX12_TEXTURE_COPY_LOCATION copyDest(stage_res.Get(), *pLayout);
+    CD3DX12_TEXTURE_COPY_LOCATION copySrc(resource_.Get(), 0);
     D3D12_BOX src_box;
     src_box.left = left;
     src_box.right = left + width;
@@ -529,16 +490,14 @@ void D3D12Texture::ReadBackImage(int left, int top,
     src_box.back = 1;
     commandList->CopyTextureRegion(&copyDest, 0, 0, 0, &copySrc, &src_box);
 
-    // Transition the resource to the next state
-    commandList->TransitionBarrier(this, D3D12_RESOURCE_STATE_COMMON);
-
     size_t rowPitch = *pRowSizesInBytes;
-    ReadbackTask task{ rowPitch, pStaging, std::move(callback)};
+    ReadbackTask task{ rowPitch, std::move(stage_location), std::move(callback)};
     gfx->EnqueueReadback(std::move(task));
 }
 
 void D3D12Texture::ReadbackTask::Process() {
     uint8_t* data;
+    auto staging = stage_location.GetResource();
     GfxThrowIfFailed(staging->Map(0, nullptr, reinterpret_cast<void**>(&data)));
 
     callback(data, raw_pitch);

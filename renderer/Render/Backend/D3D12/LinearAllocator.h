@@ -4,21 +4,12 @@
 #include <queue>
 #include <optional>
 #include <memory>
+#include <d3d12.h>
 #include "Common/Alignment.h"
 #include "Common/Uncopyable.h"
-#include "Resource.h"
 
 namespace glacier {
 namespace render {
-
-struct LinearAllocBlock {
-    size_t offset;
-    size_t size;
-    D3D12Resource* res = nullptr;
-
-    void* GetMappedAddress() const { return (uint8_t*)res->GetMappedAddress() + offset; }
-    D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return res->GetGpuAddress() + offset; }
-};
 
 enum class LinearAllocatorType : uint8_t {
     kDefault,
@@ -32,7 +23,9 @@ public:
 
     size_t size() const { return size_; }
     size_t offset() const { return offset_; }
-    D3D12Resource* GetUnderlyingResource() { return &resource_; }
+
+    void* GetMappedAddress() const { return mapped_address_; }
+    D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return gpu_address_; }
 
     void Reset() { offset_ = 0; }
 
@@ -47,10 +40,22 @@ public:
     }
 
 private:
-    D3D12Resource resource_;
+    ComPtr<ID3D12Resource> resource_;
+    void* mapped_address_;
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address_;
+
     LinearAllocatorType type_;
     size_t size_;
     size_t offset_;
+};
+
+struct LinearAllocBlock {
+    size_t offset;
+    size_t size;
+    LinearAllocPage* page;
+
+    void* GetMappedAddress() const { return (uint8_t*)page->GetMappedAddress() + offset; }
+    D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return page->GetGpuAddress() + offset; }
 };
 
 class LinearAllocator : private Uncopyable {

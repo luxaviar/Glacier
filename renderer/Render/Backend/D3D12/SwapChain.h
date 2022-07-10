@@ -2,9 +2,10 @@
 
 #include <d3d12.h>
 #include <dxgi1_6.h>
+#include <memory>
 #include "Common/Uncopyable.h"
 #include "Render/Base/SwapChain.h"
-#include <memory>
+#include "Util.h"
 
 namespace glacier {
 namespace render {
@@ -26,12 +27,13 @@ public:
     ID3D12Resource* GetBackBuffer() { return back_buffer_.Get(); }
 
     std::shared_ptr<RenderTarget>& GetRenderTarget() override;
+    DXGI_FORMAT GetNativeFormat() const { return GetUnderlyingFormat(format_); }
 
     GfxDriver* GetDriver() const override { return nullptr; }
     void OnResize(uint32_t width, uint32_t height) override;
 
     void Wait() override;
-    void Present() override;
+    void Present(std::vector<CommandBuffer*>& cmd_buffers) override;
 
 private:
     bool CheckTearingSupport();

@@ -11,6 +11,7 @@ class Texture;
 class RenderTarget;
 class Material;
 class Renderable;
+class CommandBuffer;
 
 class CascadedShadowManager : public Uncopyable {
 public:
@@ -19,7 +20,7 @@ public:
 
     CascadedShadowManager(GfxDriver* gfx, uint32_t size, std::vector<float> cascade_partions);
 
-    void Render(const Camera* camera, const std::vector<Renderable*> visibles,
+    void Render(CommandBuffer* cmd_buffer, const Camera* camera, const std::vector<Renderable*> visibles,
         DirectionalLight* light);
 
     void SetupMaterial(Material* mat);

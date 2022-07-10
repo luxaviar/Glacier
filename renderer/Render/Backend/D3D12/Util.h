@@ -284,6 +284,27 @@ inline D3D12_SHADER_VISIBILITY GetShaderVisibility(ShaderType type)
     return visibility;
 }
 
+inline D3D12_COMMAND_LIST_TYPE GetNativeCommandBufferType(CommandBufferType type) {
+    D3D12_COMMAND_LIST_TYPE native_type;
+    switch (type)
+    {
+    case CommandBufferType::kDirect:
+        native_type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+        break;
+    case CommandBufferType::kCompute:
+        native_type = D3D12_COMMAND_LIST_TYPE_COMPUTE;
+        break;
+    case CommandBufferType::kCopy:
+        native_type = D3D12_COMMAND_LIST_TYPE_COPY;
+        break;
+    case CommandBufferType::kBundle:
+    default:
+        native_type = D3D12_COMMAND_LIST_TYPE_DIRECT;
+        break;
+    }
+
+    return native_type;
+}
 
 }
 }

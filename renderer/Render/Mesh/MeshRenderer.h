@@ -6,6 +6,7 @@
 #include "mesh.h"
 
 struct aiMesh;
+class CommandBuffer;
 
 namespace glacier {
 namespace render {
@@ -19,8 +20,8 @@ public:
     void OnEnable() override;
     void OnDisable() override;
 
-    void Render(GfxDriver* gfx, Material* mat = nullptr) const override;
-    void Draw(GfxDriver* gfx) const override;
+    void Render(CommandBuffer* cmd_buffer, Material* mat = nullptr) const override;
+    void Draw(CommandBuffer* cmd_buffer) const override;
 
     void AddMesh(const std::shared_ptr<Mesh>& mesh);
 
@@ -30,7 +31,6 @@ public:
     const std::vector<std::shared_ptr<Mesh>>& meshes() const { return meshes_; }
 
 private:
-    //TODO: support specfied materials
     std::vector<std::shared_ptr<Mesh>> meshes_;
 };
 

@@ -9,6 +9,7 @@ namespace glacier {
 namespace render {
 
 class LightManager;
+class CommandBuffer;
 
 enum class LightType : uint32_t {
     kDirectinal = 0,
@@ -43,7 +44,7 @@ public:
     void OnEnable() override;
     void OnDisable() override;
 
-    virtual void Update(GfxDriver* gfx) noexcept = 0;
+    virtual void Update(CommandBuffer* cmd_buffer) noexcept = 0;
 
     bool HasShadow() const { return data_.shadow_enable; }
     void EnableShadow() { data_.shadow_enable = true; }
@@ -69,14 +70,14 @@ class DirectionalLight : public Light {
 public:
     DirectionalLight(const Color& color, float intensity);
 
-    void Update(GfxDriver* gfx) noexcept override;
+    void Update(CommandBuffer* cmd_buffer) noexcept override;
 };
 
 class PointLight : public Light {
 public:
     PointLight(float range, const Color& color, float intensity);
     
-    void Update(GfxDriver* gfx) noexcept override;
+    void Update(CommandBuffer* cmd_buffer) noexcept override;
 };
 
 class OldPointLight
@@ -101,7 +102,7 @@ private:
     };
 private:
     PointLightCBuf light_data_;
-    std::shared_ptr<ConstantBuffer> light_cbuffer_;
+    std::shared_ptr<Buffer> light_cbuffer_;
 };
 
 }

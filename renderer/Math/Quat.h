@@ -19,7 +19,7 @@ struct Quat {
         };
     };
 
-    constexpr Quat() : x(0), y(0), z(0), w(0) {}
+    constexpr Quat() : x(0), y(0), z(0), w(1) {}
 
     constexpr Quat(T x_, T y_, T z_, T w_) : x(x_), y(y_), z(z_), w(w_) {
     }

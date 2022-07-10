@@ -3,20 +3,74 @@
 
 #include "Common/BasicBuffer.hlsli"
 
-#define USE_OPTIMIZATIONS 1
 #define FLT_EPS 5.960464478e-8 //2^-24
 
+float2 OctWrap(float2 v)
+{
+    return (1.0 - abs(v.yx)) * (v.xy >= 0.0 ? 1.0 : -1.0);
+}
+
+float2 EncodeNormalOct(float3 n)
+{
+    n /= (abs(n.x) + abs(n.y) + abs(n.z));
+    n.xy = n.z >= 0.0 ? n.xy : OctWrap(n.xy);
+    n.xy = n.xy * 0.5 + 0.5;
+    return n.xy;
+}
+
+float3 DecodeNormalOct(float2 f)
+{
+    f = f * 2.0 - 1.0;
+    // https://twitter.com/Stubbesaurus/status/937994790553227264
+    float3 n = float3(f.x, f.y, 1.0 - abs(f.x) - abs(f.y));
+    float t = saturate(-n.z);
+    n.xy += n.xy >= 0.0 ? -t : t;
+    return normalize(n);
+}
+
+float3 ComputeViewPosition(float2 uv, float depth, float4x4 inv_proj)
+{
+    //#ifdef GLACIER_REVERSE_Z
+        //depth = 1 - depth;
+    //#endif
+
+    float4 ndc_position;
+    ndc_position.xy = uv * 2.0f - 1.0f;
+    ndc_position.y *= -1; //[0,0] is top left in directx
+    ndc_position.z = depth;
+    ndc_position.w = 1.0f;
+    float4 view_position = mul(ndc_position, inv_proj);//_InverseProjection);
+    return view_position.xyz / view_position.w;
+}
+
+// Jimenez's "Interleaved Gradient Noise"
+float InterleavedGradientNoise(float2 pos) {
+    return frac(52.9829189f * frac((pos.x * 0.06711056) + (pos.y * 0.00583715)));
+}
+
+// http://h14s.p5r.org/2012/09/0x5f3759df.html, [Drobot2014a] Low Level Optimizations for GCN, https://blog.selfshadow.com/publications/s2016-shading-course/activision/s2016_pbs_activision_occlusion.pdf slide 63
+float FastSqrt(float x)
+{
+    return (float)(asfloat(0x1fbd1df5 + (asint(x) >> 1)));
+}
+
+// input [-1, 1] and output [0, PI], from https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
+float FastACos(float inX)
+{
+    const float PI = 3.141593;
+    const float HALF_PI = 1.570796;
+    float x = abs(inX);
+    float res = -0.156583 * x + HALF_PI;
+    res *= FastSqrt(1.0 - x);
+    return (inX >= 0) ? res : PI - res;
+}
+
 float LinearDepth(float z) {
-#ifdef GLACIER_REVERSE_Z
-    z = 1.0f - z;
-#endif
     return 1.0 / (_ZBufferParams.z * z + _ZBufferParams.w);
+    //return _CameraParams.x * _CameraParams.y / (z * (_CameraParams.x - _CameraParams.y) + _CameraParams.y);
 }
 
 float Linear01Depth(float z) {
-#ifdef GLACIER_REVERSE_Z
-    z = 1.0f - z;
-#endif
     return 1.0 / (_ZBufferParams.x * z + _ZBufferParams.y);
 }
 
@@ -38,7 +92,6 @@ float FilterCubic(in float x, in float B, in float C) {
     return y / 6.0f;
 }
 
-
 float Mitchell(in float x, in bool rescale) {
     x = rescale ? x * 2.0f : x;
     return FilterCubic(x, 1 / 3.0f, 1 / 3.0f);
@@ -48,6 +101,8 @@ float CatmullRom(in float x, in bool rescale) {
     x = rescale ? x * 2.0f : x;
     return FilterCubic(x, 0.0f, 0.5f);
 }
+
+#define USE_OPTIMIZATIONS 1
 
 float3 ClipAABB(float3 aabb_min, float3 aabb_max, float3 col, float3 avg)
 {

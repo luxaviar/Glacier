@@ -16,19 +16,19 @@
 #include "Render/Renderer.h"
 #include "Render/Light.h"
 #include "Render/Mesh/Primitive.h"
+#include "Render/Base/CommandQueue.h"
 
 namespace glacier {
 namespace render {
 
-static void DrawHelmet() {
-    auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
-    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
+static void DrawHelmet(CommandBuffer* cmd_buffer) {
+    auto& helmet = Model::GenerateGameObject(cmd_buffer, "assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
     //helmet.transform().position(Vector3{ 6.0f,4.0f,10.0f });
     helmet.transform().position(Vector3{ 99, 25, 4 });
 }
 
-static void DrawSponza() {
-    auto& sponza = Model::GenerateGameObject("assets\\model\\sponza\\sponza.gltf", true, 10.0f);
+static void DrawSponza(CommandBuffer* cmd_buffer) {
+    auto& sponza = Model::GenerateGameObject(cmd_buffer, "assets\\model\\sponza\\sponza.gltf", true, 10.0f);
     //sponza.transform().position({ 6.0f,4.0f,10.0f });
 }
 
@@ -51,8 +51,14 @@ void PbrScene::OnLoad(Renderer* renderer) {
     auto main_light = light_go.AddComponent<DirectionalLight>(Color::kWhite, 1.0f);
     main_light->EnableShadow();
 
-    DrawHelmet();
-    //DrawSponza();
+    auto cmd_queue = gfx->GetCommandQueue(CommandBufferType::kDirect);
+    auto cmd_buffer = cmd_queue->GetCommandBuffer();
+
+    //DrawHelmet(cmd_buffer);
+    DrawSponza(cmd_buffer);
+
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 }

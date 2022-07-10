@@ -11,11 +11,18 @@
 #include "Render/LightManager.h"
 #include "Render/Editor/Gizmos.h"
 #include "Sampler.h"
+#include "CommandBuffer.h"
+#include "MipsGenerator.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
 
 D3D12GfxDriver* D3D12GfxDriver::self_ = nullptr;
+
+D3D12GfxDriver::D3D12GfxDriver() {
+
+}
 
 void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format) {
     self_ = this;
@@ -34,13 +41,13 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
     device_ = CreateDevice(adapter);
     GfxThrowIfFailed(device_->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &D3D12_options_, sizeof(D3D12_options_)));
 
-    direct_command_queue_ = std::make_unique<D3D12CommandQueue>(this, D3D12_COMMAND_LIST_TYPE_DIRECT);
+    direct_command_queue_ = std::make_unique<D3D12CommandQueue>(this, CommandBufferType::kDirect);
     direct_command_queue_->SetName(TEXT("D3D12GfxDriver direct command queue"));
 
-    copy_command_queue_ = std::make_unique<D3D12CommandQueue>(this, D3D12_COMMAND_LIST_TYPE_COPY);
+    copy_command_queue_ = std::make_unique<D3D12CommandQueue>(this, CommandBufferType::kCopy);
     copy_command_queue_->SetName(TEXT("D3D12GfxDriver copy command queue"));
 
-    compute_command_queue_ = std::make_unique<D3D12CommandQueue>(this, D3D12_COMMAND_LIST_TYPE_COMPUTE);
+    compute_command_queue_ = std::make_unique<D3D12CommandQueue>(this, CommandBufferType::kCompute);
     compute_command_queue_->SetName(TEXT("D3D12GfxDriver compute command queue"));
 
     for (int i = 0; i < D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES; ++i) {
@@ -51,6 +58,7 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
     upload_allocator_ = std::make_unique<D3D12UploadBufferAllocator>(device_.Get());
     default_allocator_ = std::make_unique<D3D12DefaultBufferAllocator>(device_.Get());
     texture_allocator_ = std::make_unique<D3D12TextureResourceAllocator>(device_.Get());
+    readback_allocator_ = std::make_unique<D3D12ReadbackBufferAllocator>(device_.Get());
 
     linear_allocator_ = std::make_unique<LinearAllocator>(LinearAllocator::kUploadPageSize);
 
@@ -58,11 +66,6 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
     swap_chain_->CreateRenderTarget();
 
     mips_generator_ = std::make_unique<MipsGenerator>(device_.Get());
-
-    inflight_fence_value_ = 0;
-    GfxThrowIfFailed(device_->CreateFence(inflight_fence_value_, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&inflight_fence_)));
-    ++inflight_fence_value_;
-
 
     D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc;
     SrvHeapDesc.NumDescriptors = 1;
@@ -182,13 +185,20 @@ D3D12GfxDriver::~D3D12GfxDriver() {
 
     dxgi_debug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_IGNORE_INTERNAL);
 #endif
-    
-    while (!inflight_resources_.empty()) {
-        inflight_resources_.pop();
-    }
 
     driver_ = nullptr;
     self_ = nullptr;
+}
+
+CommandQueue* D3D12GfxDriver::GetCommandQueue(CommandBufferType type) {
+    auto native_type = GetNativeCommandBufferType(type);
+    return GetCommandQueue(native_type);
+}
+
+CommandBuffer* D3D12GfxDriver::GetCommandBuffer(CommandBufferType type) {
+    auto native_type = GetNativeCommandBufferType(type);
+    auto queue = GetCommandQueue(native_type);
+    return queue->GetCommandBuffer();
 }
 
 D3D12DescriptorHeapAllocator* D3D12GfxDriver::GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE HeapType) const {
@@ -196,7 +206,6 @@ D3D12DescriptorHeapAllocator* D3D12GfxDriver::GetDescriptorAllocator(D3D12_DESCR
 }
 
 D3D12CommandQueue* D3D12GfxDriver::GetCommandQueue(D3D12_COMMAND_LIST_TYPE type) const {
-    return direct_command_queue_.get();
     if (type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
         return direct_command_queue_.get();
     }
@@ -208,32 +217,14 @@ D3D12CommandQueue* D3D12GfxDriver::GetCommandQueue(D3D12_COMMAND_LIST_TYPE type)
     }
 }
 
-D3D12CommandList* D3D12GfxDriver::GetCommandList(D3D12_COMMAND_LIST_TYPE type) const {
-    if (type == D3D12_COMMAND_LIST_TYPE_DIRECT) {
-        return direct_command_queue_->GetCommandList();
-    }
-    else if (type == D3D12_COMMAND_LIST_TYPE_COPY) {
-        return copy_command_queue_->GetCommandList();
-    }
-    else {
-        return compute_command_queue_->GetCommandList();
-    }
+D3D12CommandBuffer* D3D12GfxDriver::GetCommandList(D3D12_COMMAND_LIST_TYPE type) const {
+    auto queue = GetCommandQueue(type);
+    auto cmd_buffer = queue->GetCommandBuffer();
+    return static_cast<D3D12CommandBuffer*>(cmd_buffer);
 }
 
 void D3D12GfxDriver::EnqueueReadback(D3D12Texture::ReadbackTask&& task) {
     readback_queue_.emplace(std::make_pair(direct_command_queue_->GetCompletedFenceValue() + 1, std::move(task)));
-}
-
-void D3D12GfxDriver::AddInflightResource(ResourceLocation&& res) {
-    inflight_resources_.emplace(std::move(res), inflight_fence_value_);
-}
-
-void D3D12GfxDriver::AddInflightResource(D3D12DescriptorRange&& slot) {
-    inflight_resources_.emplace(std::move(slot), inflight_fence_value_);
-}
-
-void D3D12GfxDriver::AddInflightResource(std::shared_ptr<D3D12Resource>&& res) {
-    inflight_resources_.emplace(std::move(res), inflight_fence_value_);
 }
 
 DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format, UINT numSamples,
@@ -264,20 +255,14 @@ DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format,
     return sampleDesc;
 }
 
-void D3D12GfxDriver::GenerateMips(D3D12Resource* texture) {
-    mips_generator_->Generate(GetCommandList(), texture);
-}
-
-void D3D12GfxDriver::ResetCommandQueue(D3D12_COMMAND_LIST_TYPE type) {
-    auto command_queue = GetCommandQueue(type);
-    auto command_list = command_queue->GetCommandList();
-    command_queue->ResetCommandList();
+void D3D12GfxDriver::GenerateMipMaps(D3D12CommandBuffer* cmd_buffer, D3D12Texture* texture) {
+    mips_generator_->Generate(cmd_buffer, texture);
 }
 
 void D3D12GfxDriver::BeginFrame() {
-    swap_chain_->Wait();
+    PerfGuard gurad("begin frame");
 
-    ResetCommandQueue();
+    swap_chain_->Wait();
 
     if (imgui_enable_) {
         ImGui_ImplDX12_NewFrame();
@@ -287,35 +272,40 @@ void D3D12GfxDriver::BeginFrame() {
     }
 }
 
-void D3D12GfxDriver::Present() {
+void D3D12GfxDriver::Present(CommandBuffer* cmd_buffer) {
+    PerfGuard gurad("present");
+
+    std::vector<CommandBuffer*> cmd_buffers;
+    cmd_buffers.reserve(3);
+
+    cmd_buffers.push_back(cmd_buffer);
+
     if (imgui_enable_) {
-        GetCommandList()->FlushBarriers();
-        auto cmd_list = GetCommandList()->GetUnderlyingCommandList();
-        //cmd_list->flushb
+        auto cmd_buffer = GetCommandBuffer(CommandBufferType::kDirect);
+        swap_chain_->GetRenderTarget()->Bind(cmd_buffer);
+
+        auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer)->GetNativeCommandList();
         cmd_list->SetDescriptorHeaps(1, imgui_srv_heap_.GetAddressOf());
         ImGui::Render();
         ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), cmd_list);
+
+        cmd_buffers.push_back(cmd_buffer);
     }
 
-    swap_chain_->Present();
+    swap_chain_->Present(cmd_buffers);
 }
 
 void D3D12GfxDriver::EndFrame() {
+    PerfGuard gurad("end frame");
+
     direct_command_queue_->Flush();
 
     ProcessReadback();
-    ReleaseInflight();
-}
-
-void D3D12GfxDriver::Flush() {
-    GetCommandQueue()->ExecuteCommandList();
-    GetCommandQueue()->Flush();
-    ResetCommandQueue();
+    linear_allocator_->Cleanup(direct_command_queue_->GetCompletedFenceValue());
 }
 
 void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_count, uint32_t& quality_level) {
-    //uint32_t target_sample_count = (uint32_t)msaa;
-    auto backbuffer_format = GetUnderlyingFormat(swap_chain_->GetFormat());
+    auto backbuffer_format = swap_chain_->GetNativeFormat();
     for (smaple_count = target_sample_count; smaple_count > 1; smaple_count--)
     {
         D3D12_FEATURE_DATA_MULTISAMPLE_QUALITY_LEVELS ms_level;
@@ -340,22 +330,6 @@ void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_co
     }
 }
 
-void D3D12GfxDriver::ReleaseInflight() {
-    auto complete_value = inflight_fence_->GetCompletedValue();
-    while (!inflight_resources_.empty())
-    {
-        if (inflight_resources_.front().fence_value > complete_value)
-            break;
-
-        inflight_resources_.pop();
-    }
-
-    linear_allocator_->Cleanup(complete_value);
-
-    GfxThrowIfFailed(GetCommandQueue()->GetUnderlyingCommandQueue()->Signal(inflight_fence_.Get(), inflight_fence_value_));
-    ++inflight_fence_value_;
-}
-
 void D3D12GfxDriver::ProcessReadback() {
     auto complete_value = direct_command_queue_->GetCompletedFenceValue();
     while (!readback_queue_.empty()) {
@@ -368,39 +342,20 @@ void D3D12GfxDriver::ProcessReadback() {
     }
 }
 
-void D3D12GfxDriver::CopyResource(const std::shared_ptr<Resource>& src, const std::shared_ptr<Resource>& dst) {
-    const auto& src_res = std::dynamic_pointer_cast<D3D12Resource>(src);
-    const auto& dst_res = std::dynamic_pointer_cast<D3D12Resource>(dst);
-
-    GetCommandList()->CopyResource(src_res.get(), dst_res.get());
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateIndexBuffer(size_t size, IndexFormat type) {
+    return std::make_shared<D3D12Buffer>(size, type);
 }
 
-std::shared_ptr<IndexBuffer> D3D12GfxDriver::CreateIndexBuffer(const std::vector<uint32_t>& indices) {
-    return std::make_shared<D3D12IndexBuffer>(indices);
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateVertexBuffer(size_t size, size_t stride) {
+    return std::make_shared<D3D12Buffer>(size, stride);
 }
 
-std::shared_ptr<IndexBuffer> D3D12GfxDriver::CreateIndexBuffer(const void* data, size_t size, IndexFormat type, UsageType usage) {
-    return std::make_shared<D3D12IndexBuffer>(data, size, type);
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
+    return std::make_shared<D3D12Buffer>(data, size, usage);
 }
 
-std::shared_ptr<VertexBuffer> D3D12GfxDriver::CreateVertexBuffer(const VertexData& vertices) {
-    return std::make_shared<D3D12VertexBuffer>(vertices);
-}
-
-std::shared_ptr<VertexBuffer> D3D12GfxDriver::CreateVertexBuffer(const void* data, size_t size, size_t stride, UsageType usage) {
-    return std::make_shared<D3D12VertexBuffer>(data, size, stride);
-}
-
-std::shared_ptr<ConstantBuffer> D3D12GfxDriver::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
-    return std::make_shared<D3D12ConstantBuffer>(data, size, usage);
-}
-
-std::shared_ptr<ConstantBuffer> D3D12GfxDriver::CreateConstantBuffer(std::shared_ptr<BufferData>& data, UsageType usage) {
-    return std::make_shared<D3D12ConstantBuffer>(data, usage);
-}
-
-std::shared_ptr<PipelineState> D3D12GfxDriver::CreatePipelineState(RasterStateDesc rs, const InputLayoutDesc& layout) {
-    return std::make_shared<D3D12PipelineState>(rs, layout);
+std::shared_ptr<PipelineState> D3D12GfxDriver::CreatePipelineState(Program* program, RasterStateDesc rs, const InputLayoutDesc& layout) {
+    return std::make_shared<D3D12PipelineState>(program, rs, layout);
 }
 
 std::shared_ptr<Shader> D3D12GfxDriver::CreateShader(ShaderType type, const TCHAR* file_name, const char* entry_point,
@@ -450,29 +405,16 @@ std::shared_ptr<Texture> D3D12GfxDriver::CreateTexture(const TextureDescription&
 }
 
 std::shared_ptr<Texture> D3D12GfxDriver::CreateTexture(SwapChain* swapchain) {
-    return std::make_shared<D3D12Texture>(swapchain);
+    auto res = static_cast<D3D12SwapChain*>(swapchain)->GetBackBuffer();
+    return std::make_shared<D3D12Texture>(res);
 }
 
 std::shared_ptr<RenderTarget> D3D12GfxDriver::CreateRenderTarget(uint32_t width, uint32_t height) {
-    return D3D12RenderTarget::Create(width, height);
+    return std::make_shared<D3D12RenderTarget>(width, height);
 }
 
 std::shared_ptr<Query> D3D12GfxDriver::CreateQuery(QueryType type, int capacity) {
     return std::make_shared<D3D12Query>(this, type, capacity);
-}
-
-void D3D12GfxDriver::SetCurrentRenderTarget(std::shared_ptr<D3D12RenderTarget> rt) {
-    current_render_target_ = std::move(rt);
-}
-
-void D3D12GfxDriver::DrawIndexed(uint32_t count) {
-    auto cmd_list = GetCommandList();
-    cmd_list->DrawIndexedInstanced(count, 1, 0, 0, 0);
-}
-
-void D3D12GfxDriver::Draw(uint32_t count, uint32_t offset) {
-    auto cmd_list = GetCommandList();
-    cmd_list->DrawInstanced(count, 1, 0, 0);
 }
 
 }

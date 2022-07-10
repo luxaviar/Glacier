@@ -15,11 +15,12 @@
 #include "Render/Base/Buffer.h"
 #include "Render/Base/RenderTexturePool.h"
 #include "Render/Base/Program.h"
+#include "Render/Base/CommandQueue.h"
 
 namespace glacier {
 namespace render {
 
-void LightManager::Setup(GfxDriver* gfx, Renderer* renderer) {
+void LightManager::Setup(GfxDriver* gfx) {
     gfx_ = gfx;
 
     light_cbuffer_ = gfx->CreateConstantBuffer<LightList>();
@@ -28,7 +29,7 @@ void LightManager::Setup(GfxDriver* gfx, Renderer* renderer) {
     GenerateSkybox();
     GenerateIrradiance();
     GenerateRadiance();
-    GenerateBrdfLut(renderer);
+    GenerateBrdfLut();
 }
 
 void LightManager::Clear() {
@@ -91,11 +92,11 @@ void LightManager::SetupMaterial(Material* mat) {
     }
 }
 
-void LightManager::Update() {
+void LightManager::Update(CommandBuffer* cmd_buffer) {
     size_t i = 0;
     for (; i < lights_.size() && i < kMaxLightNum; ++i) {
         auto light = lights_[i];
-        light->Update(gfx_);
+        light->Update(cmd_buffer);
         auto sz = sizeof(light->data_);
         memcpy(&light_data_.lights[i], &light->data_, sz);
     }
@@ -111,26 +112,23 @@ void LightManager::AddSkyboxPass(Renderer* renderer) {
     renderer->render_graph().AddPass("skybox",
         [&](PassNode& pass) {
         },
-        [=](Renderer* renderer, const PassNode& pass) {
+        [=](CommandBuffer* cmd_buffer, const PassNode& pass) {
             auto main_camera_ = renderer->GetMainCamera();
             if (main_camera_->type() != CameraType::kPersp) return;
 
-            auto gfx = renderer->driver();
-            gfx->BindCamera(main_camera_);
+            renderer->BindLightingTarget(cmd_buffer);
 
-            auto trans = gfx->projection() * gfx->view();
+            auto trans = cmd_buffer->projection() * cmd_buffer->view();
             skybox_matrix_->Update(&trans);
 
-            pass.Render(renderer, skybox_cube_, skybox_material_.get());
+            pass.Render(cmd_buffer, skybox_cube_, skybox_material_.get());
         });
 }
 
 void LightManager::GenerateSkybox() {
-    auto desc = Texture::Description()
-        .SetFile(TEXT("assets\\images\\valley_skybox.dds"))
-        .SetType(TextureType::kTextureCube);
-    skybox_texture_ = gfx_->CreateTexture(desc);
+    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
 
+    skybox_texture_ = cmd_buffer->CreateTextureFromFile(TEXT("assets\\images\\valley_skybox.dds"), false, false, TextureType::kTextureCube);
     skybox_material_ = std::make_unique<Material>("skybox", TEXT("Skybox"), TEXT("Skybox"));
 
     RasterStateDesc rs;
@@ -155,9 +153,15 @@ void LightManager::GenerateSkybox() {
     skybox_cube_ = skybox_go.AddComponent<MeshRenderer>(box_mesh);
     skybox_cube_->SetCastShadow(false);
     skybox_cube_->SetReciveShadow(false);
+
+    auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kDirect);
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
-void LightManager::GenerateBrdfLut(Renderer* renderer) {
+void LightManager::GenerateBrdfLut() {
+    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
+
     RasterStateDesc rs;
     rs.depthWrite = false;
     rs.depthEnable = false;
@@ -168,18 +172,22 @@ void LightManager::GenerateBrdfLut(Renderer* renderer) {
 
     constexpr int kSize = 512;
     brdf_lut_ = RenderTexturePool::Get(kSize, kSize, TextureFormat::kR16G16B16A16_FLOAT);
-    brdf_lut_->SetName(TEXT("BRDF LUT texture"));
+    brdf_lut_->SetName("BRDF LUT texture");
 
     auto lut_target = gfx_->CreateRenderTarget(kSize, kSize);
 
     lut_target->AttachColor(AttachmentPoint::kColor0, brdf_lut_);
 
-    Renderer::PostProcess(lut_target, integrate_material_.get());
+    Renderer::PostProcess(cmd_buffer, lut_target, integrate_material_.get());
 
-    gfx_->Flush();
+    auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kDirect);
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 void LightManager::GenerateIrradiance() {
+    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
+
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
 
@@ -219,7 +227,7 @@ void LightManager::GenerateIrradiance() {
         .EnableMips();
 
     irradiance_ = gfx_->CreateTexture(desc);
-    irradiance_->SetName(TEXT("Irradiance texture"));
+    irradiance_->SetName("Irradiance texture");
 
     auto irrandiance_target = gfx_->CreateRenderTarget(kSize, kSize);
 
@@ -228,21 +236,20 @@ void LightManager::GenerateIrradiance() {
         convolve_matrix_->Update(&vp);
         irrandiance_target->AttachColor(AttachmentPoint::kColor0, irradiance_, i);
 
-        RenderTargetBindingGuard rt_guard(gfx_, irrandiance_target.get());
-        skybox_cube_->Render(gfx_, convolve_material_.get());
+        RenderTargetGuard rt_guard(cmd_buffer, irrandiance_target.get());
+        skybox_cube_->Render(cmd_buffer, convolve_material_.get());
     }
 
-    irradiance_->GenerateMipMaps();
+    cmd_buffer->GenerateMipMaps(irradiance_.get());
 
-    gfx_->Flush();
-}
-
-
-void LightManager::TestGenerateIrradiance() {
-    irradiance_->GenerateMipMaps();
+    auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kDirect);
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 void LightManager::GenerateRadiance() {
+    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
+
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kClamp;
 
@@ -284,7 +291,7 @@ void LightManager::GenerateRadiance() {
         .SetCreateFlag(CreateFlags::kRenderTarget)
         .EnableMips();
     radiance_ = gfx_->CreateTexture(desc);
-    radiance_->SetName(TEXT("Radiance texture"));
+    radiance_->SetName("Radiance texture");
 
     uint32_t mip_levels = radiance_->GetMipLevels();
 
@@ -302,13 +309,14 @@ void LightManager::GenerateRadiance() {
             roughness->Update(&roughness_for_mip);
             randiance_target->AttachColor(AttachmentPoint::kColor0, radiance_, i , j);
 
-            RenderTargetBindingGuard rt_guard(gfx_, randiance_target.get());
-
-            skybox_cube_->Render(gfx_, prefilter_material.get());
+            RenderTargetGuard rt_guard(cmd_buffer, randiance_target.get());
+            skybox_cube_->Render(cmd_buffer, prefilter_material.get());
         }
     }
 
-    gfx_->Flush();
+    auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kDirect);
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 }

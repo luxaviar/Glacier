@@ -18,7 +18,7 @@ class D3D12Texture;
 struct MaterialProperty;
 class D3D12RenderTarget;
 class D3D12Sampler;
-class D3D12CommandList;
+class D3D12CommandBuffer;
 
 class D3D12Program : public Program {
 public:
@@ -44,23 +44,23 @@ public:
     };
 
     D3D12Program(const char* name);
+
     ID3D12RootSignature* GetRootSignature();
 
     void SetRootConstants(const char* name, uint32_t num_32bit);
     void SetStaticSampler(const char* name, D3D12_STATIC_SAMPLER_DESC desc);
 
-    void SetParameter(const std::string& name, D3D12ConstantBuffer* cbuffer);
-    void SetParameter(const std::string& name, D3D12StructuredBuffer* sbuffer);
-    void SetParameter(const std::string& name, D3D12Texture* tex);
-    void SetParameter(const std::string& name, D3D12Sampler* tex);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* cbuffer);
+    //void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12StructuredBuffer* sbuffer);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Sampler* tex);
 
-    void BindPSO(GfxDriver* gfx) override;
-    void Bind(GfxDriver* gfx, Material* mat) override;
+    void BindPSO(CommandBuffer* cmd_buffer) override;
+    void Bind(CommandBuffer* cmd_buffer, Material* mat) override;
 
-    void RefreshTranstientBuffer(GfxDriver* gfx) override;
+    void RefreshTranstientBuffer(CommandBuffer* cmd_buffer) override;
 
     const ComPtr<ID3D12RootSignature>& GetRootSignature() const { return root_signature_; }
-    bool IsCompute() const { return is_compute_; }
 
     uint32_t GetDescriptorTableBitMask(D3D12_DESCRIPTOR_HEAP_TYPE heap_type) const;
     uint32_t GetNumDescriptors(uint32_t root_index) const;
@@ -68,14 +68,13 @@ public:
     
 protected:
     void CreateRootSignature();
-    void Bind(D3D12CommandList* cmd_list);
+    void Bind(D3D12CommandBuffer* cmd_list);
 
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
     void AddParameter(DescriptorTableParam& list, const D3D12ShaderParameter& param);
 
-    void BindProperty(GfxDriver* gfx, D3D12CommandList* cmd_list, const MaterialProperty& prop);
+    void BindProperty(D3D12CommandBuffer* cmd_list, const MaterialProperty& prop);
 
-    bool is_compute_ = false;
     ComPtr<ID3D12RootSignature> root_signature_;
 
     DescriptorTableParam cbv_table_;

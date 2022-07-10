@@ -12,7 +12,6 @@ namespace glacier {
 namespace render {
 
 class Device;
-class CommandList;
 class RootSignature;
 
 class DynamicDescriptorHeap : private Uncopyable {
@@ -28,10 +27,10 @@ public:
     void StageInlineSRV(uint32_t root_index, D3D12_GPU_VIRTUAL_ADDRESS address);
     void StageInlineUAV(uint32_t root_index, D3D12_GPU_VIRTUAL_ADDRESS address);
 
-    void CommitStagedDescriptorsForDraw(D3D12CommandList& commandList );
-    void CommitStagedDescriptorsForDispatch(D3D12CommandList& commandList );
+    void CommitStagedDescriptorsForDraw(D3D12CommandBuffer& commandList );
+    void CommitStagedDescriptorsForDispatch(D3D12CommandBuffer& commandList );
 
-    D3D12_GPU_DESCRIPTOR_HANDLE CopyDescriptor(D3D12CommandList& comandList, D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptor );
+    D3D12_GPU_DESCRIPTOR_HANDLE CopyDescriptor(D3D12CommandBuffer& comandList, D3D12_CPU_DESCRIPTOR_HANDLE cpuDescriptor );
 
     void ParseRootSignature(D3D12Program* program);
 
@@ -43,9 +42,9 @@ private:
 
     uint32_t ComputeStaleDescriptorCount() const;
 
-    void CommitDescriptorTables(D3D12CommandList& D3D12CommandList,
+    void CommitDescriptorTables(D3D12CommandBuffer& D3D12CommandBuffer,
         std::function<void( ID3D12GraphicsCommandList*, UINT, D3D12_GPU_DESCRIPTOR_HANDLE )> setFunc );
-    void CommitInlineDescriptors(D3D12CommandList& commandList, const D3D12_GPU_VIRTUAL_ADDRESS* bufferLocations, uint32_t& bit_mask,
+    void CommitInlineDescriptors(D3D12CommandBuffer& commandList, const D3D12_GPU_VIRTUAL_ADDRESS* bufferLocations, uint32_t& bit_mask,
         std::function<void( ID3D12GraphicsCommandList*, UINT, D3D12_GPU_VIRTUAL_ADDRESS )> setFunc );
 
     struct DescriptorTableCache {

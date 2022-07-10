@@ -2,6 +2,7 @@
 
 #include <unordered_map>
 #include "Render/Base/GfxDriver.h"
+#include "Render/Base/CommandBuffer.h"
 #include "MaterialProperty.h"
 
 namespace glacier {
@@ -9,6 +10,7 @@ namespace render {
 
 class PassNode;
 class Program;
+class CommandBuffer;
 
 struct PbrParam {
     Vec3f f0 = Vec3f(0.04f);
@@ -32,8 +34,7 @@ public:
     const std::shared_ptr<Program>& GetProgram() const { return program_; }
     const std::unordered_map<std::string, MaterialProperty>& GetProperties() const { return properties_; }
 
-    void Bind(GfxDriver* gfx);
-    void UnBind(GfxDriver* gfx);
+    void Bind(CommandBuffer* cmd_buffer);
 
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;
@@ -69,20 +70,6 @@ protected:
 class PostProcessMaterial : public Material {
 public:
     PostProcessMaterial(const char* name, const TCHAR* ps);
-};
-
-class MaterialGuard : public Uncopyable {
-public:
-    MaterialGuard(GfxDriver* gfx, Material* mat) : gfx_(gfx), mat_(mat) {
-        if (mat) gfx_->BindMaterial(mat);
-    }
-    ~MaterialGuard() {
-        if (mat_) gfx_->UnBindMaterial();
-    }
-
-private:
-    GfxDriver* gfx_;
-    Material* mat_;
 };
 
 class MaterialManager : public Singleton<MaterialManager> {

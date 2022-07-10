@@ -24,6 +24,7 @@
 #include "Render/Base/RenderTexturePool.h"
 #include "Render/Base/Program.h"
 #include "Common/Log.h"
+#include "Render/Base/CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -34,15 +35,13 @@ DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
 {
     assert(aa != AntiAliasingType::kMSAA);
     fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam, UsageType::kDefault>(0.0833f, 0.166f, 0.75f, 0.0f);
-    //fxaa_param_ = {  };
-
     taa_param_ = gfx_->CreateConstantParameter<TAAParam, UsageType::kDefault>(0.95f, 0.85f, 6000.0f, 0.0f);
-    //taa_param_ = { 0.95f, 0.85f, 6000.0f, 0.0f };
+    gtao_param_ = gfx_->CreateConstantParameter<GtaoParam, UsageType::kDefault>();
+    gtao_filter_x_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(1.0f, 0.0f, 0.0f, 0.0f);
+    gtao_filter_y_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(0.0f, 1.0f, 0.0f, 0.0f);
 }
 
 void DeferredRenderer::Setup() {
-    if (init_) return;
-
     gpass_program_ = gfx_->CreateProgram("GPass", TEXT("GBufferPass"), TEXT("GBufferPass"));
     gpass_program_->SetInputLayout(Mesh::kDefaultLayout);
 
@@ -77,30 +76,46 @@ void DeferredRenderer::Setup() {
     taa_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
     taa_mat_->SetProperty("PrevColorTexture", prev_hdr_texture_);
     taa_mat_->SetProperty("VelocityTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
+
+    gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
+    gtao_mat_->SetProperty("gtao_param", gtao_param_);
+    gtao_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_mat_->SetProperty("NormalTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
+    gtao_mat_->SetProperty("AoMetalroughnessTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
+
+    gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
+    gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
+    gtao_filter_x_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+
+    gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
+    gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
+    gtao_filter_y_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_tmp_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
 std::shared_ptr<Material> DeferredRenderer::CreateLightingMaterial(const char* name) {
     return std::make_shared<Material>(name, gpass_program_);
 }
 
-void DeferredRenderer::DoTAA() {
+void DeferredRenderer::DoTAA(CommandBuffer* cmd_buffer) {
     if (anti_aliasing_ != AntiAliasingType::kTAA) return;
 
     if (frame_count_ > 0) {
-        gfx_->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0), temp_hdr_texture_);
-        PostProcess(hdr_color_target_, taa_mat_.get());
+        cmd_buffer->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(), temp_hdr_texture_.get());
+        PostProcess(cmd_buffer, hdr_render_target_, taa_mat_.get());
     }
 
-    gfx_->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0), prev_hdr_texture_);
+    cmd_buffer->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(), prev_hdr_texture_.get());
 }
 
-void DeferredRenderer::DoFXAA() {
+void DeferredRenderer::DoFXAA(CommandBuffer* cmd_buffer) {
     if (anti_aliasing_ != AntiAliasingType::kFXAA) {
-        Renderer::DoFXAA();
+        Renderer::DoFXAA(cmd_buffer);
         return;
     }
 
-    PostProcess(present_render_target_, fxaa_mat_.get());
+    PostProcess(cmd_buffer, present_render_target_, fxaa_mat_.get());
 }
 
 void DeferredRenderer::InitRenderTarget() {
@@ -109,29 +124,39 @@ void DeferredRenderer::InitRenderTarget() {
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
 
+    auto ao_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_UNORM);
+    ao_render_target_ = gfx_->CreateRenderTarget(width, height);
+    ao_render_target_->AttachColor(AttachmentPoint::kColor0, ao_texture);
+    ao_texture->SetName("ao texture");
+
+    auto ao_tmp_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_UNORM);
+    ao_tmp_render_target_ = gfx_->CreateRenderTarget(width, height);
+    ao_tmp_render_target_->AttachColor(AttachmentPoint::kColor0, ao_tmp_texture);
+    ao_tmp_texture->SetName("ao temp texture");
+
     temp_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
     prev_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
 
     auto albedo_texture = RenderTexturePool::Get(width, height);
-    albedo_texture->SetName(TEXT("GBuffer Albedo"));
+    albedo_texture->SetName("GBuffer Albedo");
 
     gbuffer_render_target_ = gfx_->CreateRenderTarget(width, height);
     gbuffer_render_target_->AttachColor(AttachmentPoint::kColor0, albedo_texture);
 
     auto normal_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_FLOAT);
-    normal_texture->SetName(TEXT("GBuffer Normal"));
+    normal_texture->SetName("GBuffer Normal");
     gbuffer_render_target_->AttachColor(AttachmentPoint::kColor1, normal_texture);
 
     auto ao_metal_roughness_texture = RenderTexturePool::Get(width, height);
-    ao_metal_roughness_texture->SetName(TEXT("GBuffer ao_metal_roughness"));
+    ao_metal_roughness_texture->SetName("GBuffer ao_metal_roughness");
     gbuffer_render_target_->AttachColor(AttachmentPoint::kColor2, ao_metal_roughness_texture);
 
     auto emissive_texture = RenderTexturePool::Get(width, height);
-    emissive_texture->SetName(TEXT("GBuffer Emissive"));
+    emissive_texture->SetName("GBuffer Emissive");
     gbuffer_render_target_->AttachColor(AttachmentPoint::kColor3, emissive_texture);
 
     auto velocity_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_FLOAT);
-    velocity_texture->SetName(TEXT("GBuffer Velocity"));
+    velocity_texture->SetName("GBuffer Velocity");
     gbuffer_render_target_->AttachColor(AttachmentPoint::kColor4, velocity_texture);
 
     gbuffer_render_target_->AttachDepthStencil(hdr_render_target_->GetDepthStencil());
@@ -142,6 +167,7 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
         return false;
     }
 
+    ao_render_target_->Resize(width, height);
     gbuffer_render_target_->Resize(width, height);
 
     temp_hdr_texture_->Resize(width, height);
@@ -150,27 +176,64 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
     return true;
 }
 
-void DeferredRenderer::PreRender() {
+void DeferredRenderer::SetupBuiltinProperty(Material* mat) {
+    Renderer::SetupBuiltinProperty(mat);
+
+    if (mat->HasParameter("_OcclusionTexture")) {
+        mat->SetProperty("_OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    }
+}
+
+void DeferredRenderer::PreRender(CommandBuffer* cmd_buffer) {
     if (option_aa_ != anti_aliasing_) {
         anti_aliasing_ = option_aa_;
     }
 
-    gbuffer_render_target_->Clear();
+    gbuffer_render_target_->Clear(cmd_buffer);
 
-    Renderer::PreRender();
+    Renderer::PreRender(cmd_buffer);
 }
 
 void DeferredRenderer::AddGPass() {
     render_graph_.AddPass("GPass",
         [&](PassNode& pass) {
         },
-        [this](Renderer* renderer, const PassNode& pass) {
-            auto gfx = renderer->driver();
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
             PerfSample("GPass Pass");
 
-            RenderTargetBindingGuard rt_gurad(gfx, gbuffer_render_target_.get());
+            RenderTargetGuard rt_gurad(cmd_buffer, gbuffer_render_target_.get());
+            pass.Render(cmd_buffer, visibles_);
+        });
+}
 
-            pass.Render(renderer, visibles_);
+void DeferredRenderer::AddGtaoPass() {
+    render_graph_.AddPass("GTAO",
+        [&](PassNode& pass) {
+        },
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+            PerfSample("GTAO Pass");
+
+            //constexpr float Rots[6] = { 60.0f, 300.0f, 180.0f, 240.0f, 120.0f, 0.0f };
+            //constexpr float Offsets[4] = { 0.1f, 0.6f, 0.35f, 0.85f };
+            //float TemporalAngle = Rots[frame_count_ % 6] * (math::k2PI / 360.0f);
+            //float SinAngle, CosAngle;
+            //math::FastSinCos(&SinAngle, &CosAngle, TemporalAngle);
+            // GtaoParam Params = { CosAngle, SinAngle, Offsets[(frame_count_ / 6) % 4] * 0.25, Offsets[frame_count_ % 4] };
+
+            float thickness = 1.0f;
+            float inv_thickness = 1.0f - thickness;
+
+            auto camera = GetMainCamera();
+            GtaoParam Params;
+            Params.thickness = math::Clamp((1.0f - inv_thickness * inv_thickness), 0.0f, 0.99f);
+            Params.fov_scale = hdr_render_target_->height() / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
+
+            gtao_param_.param() = Params;
+            gtao_param_.Update();
+
+            PostProcess(cmd_buffer, ao_render_target_, gtao_mat_.get());
+            PostProcess(cmd_buffer, ao_tmp_render_target_, gtao_filter_x_mat_.get());
+            PostProcess(cmd_buffer, ao_render_target_, gtao_filter_y_mat_.get());
         });
 }
 
@@ -178,24 +241,20 @@ void DeferredRenderer::AddLightingPass() {
     render_graph_.AddPass("DeferredLighting",
         [&](PassNode& pass) {
         },
-        [this](Renderer* renderer, const PassNode& pass) {
-            auto gfx = renderer->driver();
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
             PerfSample("DeferredLighting Pass");
 
-            LightManager::Instance()->Update();
+            LightManager::Instance()->Update(cmd_buffer);
             csm_manager_->Update();
 
-            GetLightingRenderTarget()->UnBind(gfx_);
-
-            PostProcess(hdr_color_target_, lighting_mat_.get());
-
-            BindLightingTarget();
+            PostProcess(cmd_buffer, hdr_render_target_, lighting_mat_.get(), true);
         });
 }
 
 void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
     AddShadowPass();
     AddGPass();
+    AddGtaoPass();
     AddLightingPass();
 
     LightManager::Instance()->AddSkyboxPass(this);

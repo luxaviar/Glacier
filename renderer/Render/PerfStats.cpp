@@ -18,20 +18,20 @@ void PerfStats::Reset() {
     cpu_stats_.Reset();
 }
 
-void PerfStats::PreRender() {
-    frame_query_->Begin();
-    primitiv_query_->Begin();
+void PerfStats::PreRender(CommandBuffer* cmd_buffer) {
+    frame_query_->Begin(cmd_buffer);
+    primitiv_query_->Begin(cmd_buffer);
 }
 
-void PerfStats::PostRender(bool show_stats) {
-    frame_query_->End();
-    primitiv_query_->End();
+void PerfStats::PostRender(CommandBuffer* cmd_buffer, bool show_stats) {
+    frame_query_->End(cmd_buffer);
+    primitiv_query_->End(cmd_buffer);
     auto elapsed_time = timer_.DeltaTime();
     timer_.Mark();
 
     cpu_stats_.Sample(elapsed_time);
 
-    auto result = frame_query_->GetQueryResult();
+    auto result = frame_query_->GetQueryResult(cmd_buffer);
     if (result.is_valid) {
         gpu_stats_.Sample(result.elapsed_time);
     }
@@ -44,11 +44,11 @@ void PerfStats::PostRender(bool show_stats) {
     }
 
     if (show_stats) {
-        DrawStatsPanel();
+        DrawStatsPanel(cmd_buffer);
     }
 }
 
-void PerfStats::DrawStatsPanel() {
+void PerfStats::DrawStatsPanel(CommandBuffer* cmd_buffer) {
     auto gfx = GfxDriver::Get();
     auto width_ = gfx->GetSwapChain()->GetWidth();
     auto height_ = gfx->GetSwapChain()->GetHeight();
@@ -86,7 +86,7 @@ void PerfStats::DrawStatsPanel() {
 
     elapsed_time = gpu_time_;
     if (elapsed_time == 0.0) {
-        auto result = frame_query_->GetQueryResult();
+        auto result = frame_query_->GetQueryResult(cmd_buffer);
         if (result.is_valid) {
             elapsed_time = result.elapsed_time;
         }
@@ -95,7 +95,7 @@ void PerfStats::DrawStatsPanel() {
     ImGui::Text("GPU Frame Time:"); ImGui::SameLine(kLabelWidth);
     ImGui::Text("%.4fms", elapsed_time * 1000.0f);
 
-    auto result = primitiv_query_->GetQueryResult();
+    auto result = primitiv_query_->GetQueryResult(cmd_buffer);
 
     ImGui::Text("Render Vertices:"); ImGui::SameLine(kLabelWidth);
     ImGui::Text("%llu", result.is_valid ? result.vertices_rendered : 0);

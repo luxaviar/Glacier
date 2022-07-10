@@ -108,40 +108,45 @@ static WarpMode GetWrapMode(aiTextureMapMode mode) {
     }
 }
 
-TextureDescription Model::GetTextureDesc(const std::filesystem::path& base_path, aiMaterial* mtl,
-    aiTextureType type, aiTextureType opt_type,
-    const char* color_key, const Color& default_color, bool srgb, bool mips) const {
+std::shared_ptr<Texture> Model::LoadTexture(CommandBuffer* cmd_buffer, const std::filesystem::path& base_path, aiMaterial* mtl,
+    aiTextureType type, aiTextureType opt_type, const char* color_key, const Color& default_color,
+    bool srgb, bool mips, TextureWarpMode& mode) const
+{
     aiString name;
     aiTextureMapMode map_mode[3];
-    auto desc = Texture::Description();
-
-    if (srgb) {
-        desc.EnableSRGB();
-    }
 
     if (GetTexture(mtl, type, 0, name, map_mode) || 
         (opt_type != aiTextureType_NONE && GetTexture(mtl, opt_type, 0, name, map_mode))) {
         auto texture_path = base_path / name.C_Str();
-        desc.SetFile(texture_path.wstring().c_str());
-        desc.warp = { GetWrapMode(map_mode[0]), GetWrapMode(map_mode[1]), GetWrapMode(map_mode[2]) };
+        mode = { GetWrapMode(map_mode[0]), GetWrapMode(map_mode[1]), GetWrapMode(map_mode[2]) };
 
-        if (mips) {
-            desc.EnableMips();
-        }
+        return cmd_buffer->CreateTextureFromFile(texture_path.c_str(), srgb, mips);
     }
-    else if (color_key) {
-        if (aiColor3D color; mtl->Get(color_key, 0, 0, color) == aiReturn_SUCCESS) {
-            desc.SetColor({ color.r, color.g, color.b, 1.0f });
+    else
+    {
+        Color color;
+        if (type == aiTextureType_UNKNOWN) {
+            color = Color{ 0.0f, 0.5f, 0.0f, 1.0f };
+            if (float factor; mtl->Get(AI_MATKEY_METALLIC_FACTOR, factor) == aiReturn_SUCCESS) {
+                color.g = factor;
+            }
+            if (float factor; mtl->Get(AI_MATKEY_ROUGHNESS_FACTOR, factor) == aiReturn_SUCCESS) {
+                color.r = factor;
+            }
         }
-        else {
-            desc.SetColor(default_color);
+        else if (color_key) {
+            if (aiColor3D ai_color; mtl->Get(color_key, 0, 0, ai_color) == aiReturn_SUCCESS) {
+                color = Color{ ai_color.r, ai_color.g, ai_color.b, 1.0f };
+            }
+            else {
+                color = default_color;
+            }
         }
+        return cmd_buffer->CreateTextureFromColor(color, false);
     }
-
-    return desc;
 }
 
-Model::Model(const char* file, bool flip_uv) {
+Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
     std::filesystem::path path(file);
     auto base_path = path.parent_path();
 
@@ -184,71 +189,54 @@ Model::Model(const char* file, bool flip_uv) {
         PbrParam param;
         auto ai_mat = scene_->mMaterials[i];
 
-        auto albedo_desc = GetTextureDesc(base_path, ai_mat, aiTextureType_BASE_COLOR, aiTextureType_DIFFUSE,
-            AI_MATKEY_DIFFUSE_STR, Color::kWhite, true);
+        TextureWarpMode albedo_warp;
+        auto albedo_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_BASE_COLOR, aiTextureType_DIFFUSE,
+            AI_MATKEY_DIFFUSE_STR, Color::kWhite, true, true, albedo_warp);
 
-        auto normal_desc = GetTextureDesc(base_path, ai_mat, aiTextureType_NORMALS, aiTextureType_NONE,
-            nullptr, Color::kWhite, false, false);
+        TextureWarpMode normal_warp;
+        auto normal_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_NORMALS, aiTextureType_NONE,
+            nullptr, Color::kWhite, false, true, normal_warp);
 
-        auto emissive_desc = GetTextureDesc(base_path, ai_mat, aiTextureType_EMISSIVE, aiTextureType_NONE,
-            AI_MATKEY_EMISSIVE_STR, Color::kBlack, true);
+        TextureWarpMode emissive_warp;
+        auto emissive_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_EMISSIVE, aiTextureType_NONE,
+            AI_MATKEY_EMISSIVE_STR, Color::kBlack, true, true, emissive_warp);
 
-        auto ao_desc = GetTextureDesc(base_path, ai_mat, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP,
-            AI_MATKEY_AMBIENT_STR, Color::kWhite, false);
+        TextureWarpMode ao_warp;
+        auto ao_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_AMBIENT_OCCLUSION, aiTextureType_LIGHTMAP,
+            AI_MATKEY_AMBIENT_STR, Color::kWhite, false, true, ao_warp);
 
-        auto metal_roughness_desc = GetTextureDesc(base_path, ai_mat, aiTextureType_UNKNOWN, aiTextureType_NONE,
-            nullptr, Color::kWhite, false);
-
-        if (metal_roughness_desc.file.empty()) {
-            metal_roughness_desc.SetColor({ 0.0f, 0.5f, 0.0f, 1.0f });
-            if (float factor; ai_mat->Get(AI_MATKEY_METALLIC_FACTOR, factor) == aiReturn_SUCCESS) {
-                metal_roughness_desc.color.g = factor;
-            }
-            if (float factor; ai_mat->Get(AI_MATKEY_ROUGHNESS_FACTOR, factor) == aiReturn_SUCCESS) {
-                metal_roughness_desc.color.r = factor;
-            }
-        }
+        TextureWarpMode metal_roughness_warp;
+        auto metal_roughness_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_UNKNOWN, aiTextureType_NONE,
+            nullptr, Color::kWhite, false, true, metal_roughness_warp);
 
         auto mat = renderer->CreateLightingMaterial(ai_mat->GetName().C_Str());
         LOG_LOG("material {}:", ai_mat->GetName().C_Str());
 
-        mat->SetProperty("AlbedoTexture", 
-            albedo_desc.file.empty() ? nullptr : gfx->CreateTexture(albedo_desc),
-            albedo_desc.color);
+        mat->SetProperty("AlbedoTexture", albedo_tex);
+        mat->SetProperty("EmissiveTexture", emissive_tex);
+        mat->SetProperty("AoTexture", ao_tex);
+        mat->SetProperty("MetalRoughnessTexture", metal_roughness_tex);
+        mat->SetProperty("NormalTexture", normal_tex);
 
-        mat->SetProperty("EmissiveTexture", 
-            emissive_desc.file.empty() ? nullptr : gfx->CreateTexture(emissive_desc),
-            emissive_desc.color);
-
-        mat->SetProperty("AoTexture", 
-            ao_desc.file.empty() ? nullptr : gfx->CreateTexture(ao_desc),
-            ao_desc.color);
-
-        mat->SetProperty("MetalRoughnessTexture", 
-            metal_roughness_desc.file.empty() ? nullptr : gfx->CreateTexture(metal_roughness_desc),
-            metal_roughness_desc.color);
-
-        if (!normal_desc.file.empty()) {
+        if (normal_tex->IsFileImage()) {
             param.use_normal_map = 1;
-            auto normal_tex = gfx->CreateTexture(normal_desc);
-            mat->SetProperty("NormalTexture", normal_tex);
         }
 
         auto mat_cbuf = gfx->CreateConstantParameter<PbrParam, UsageType::kDefault>(param);
         mat->SetProperty("object_material", mat_cbuf);
 
-        if (albedo_desc.warp != emissive_desc.warp || 
-            emissive_desc.warp != ao_desc.warp || 
-            ao_desc.warp != metal_roughness_desc.warp ||
-            (!normal_desc.file.empty() && ao_desc.warp != normal_desc.warp))
+        if (albedo_warp != emissive_warp || 
+            emissive_warp != ao_warp || 
+            ao_warp != metal_roughness_warp ||
+            (normal_tex->IsFileImage() && ao_warp != normal_warp))
         {
             LOG_WARN("Texture Warp Mode inconsist for {}", mat->name());
         }
 
         SamplerState ss;
-        ss.warpU = albedo_desc.warp[0];
-        ss.warpV = albedo_desc.warp[1];
-        ss.warpW = albedo_desc.warp[2];
+        ss.warpU = albedo_warp[0];
+        ss.warpV = albedo_warp[1];
+        ss.warpW = albedo_warp[2];
         mat->SetProperty("linear_sampler", ss);
 
         materials_.push_back(mat);
@@ -277,8 +265,8 @@ GameObject& Model::GenerateGameObject(float scale) {
     return root_.GenerateGameObject(nullptr, scale);
 }
 
-GameObject& Model::GenerateGameObject(const char* file, bool flip_uv, float scale) {
-    Model model(file, flip_uv);
+GameObject& Model::GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv, float scale) {
+    Model model(cmd_buffer, file, flip_uv);
     return model.GenerateGameObject(scale);
 }
 

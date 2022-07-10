@@ -15,6 +15,7 @@ class Camera;
 class Renderer;
 class Renderable;
 class Material;
+class CommandBuffer;
 
 class LightManager : public Singleton<LightManager> {
 public:
@@ -23,7 +24,7 @@ public:
     void Add(Light* light);
     void Remove(Light* light);
 
-    void Setup(GfxDriver* gfx, Renderer* renderer);
+    void Setup(GfxDriver* gfx);
     void AddSkyboxPass(Renderer* renderer);
 
     void SortLight(const Vec3f& pos);
@@ -31,15 +32,13 @@ public:
     DirectionalLight* GetMainLight();
 
     void SetupMaterial(Material* mat);
-    void Update();
+    void Update(CommandBuffer* cmd_buffer);
 
     void Clear();
 
-    void TestGenerateIrradiance();
-
 private:
     void GenerateSkybox();
-    void GenerateBrdfLut(Renderer* renderer);
+    void GenerateBrdfLut();
     void GenerateIrradiance();
     void GenerateRadiance();
 
@@ -52,16 +51,15 @@ private:
 
     GfxDriver* gfx_;
     LightList light_data_;
-    std::shared_ptr<ConstantBuffer> light_cbuffer_;
+    std::shared_ptr<Buffer> light_cbuffer_;
 
     std::unique_ptr<Material> skybox_material_;
-    std::shared_ptr<ConstantBuffer> skybox_matrix_;
+    std::shared_ptr<Buffer> skybox_matrix_;
     Renderable* skybox_cube_ = nullptr;
 
     std::shared_ptr<Texture> skybox_texture_;
     std::shared_ptr<Texture> radiance_;
     std::shared_ptr<Texture> irradiance_;
-    std::shared_ptr<Texture> test_irradiance_;
     std::shared_ptr<Texture> brdf_lut_;
 };
 

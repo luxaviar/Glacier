@@ -24,8 +24,10 @@ float D_GGX(float NoH, float roughness)
 
 float3 F_Schlick(float VoH, float3 f0)
 {
-    float3 f90 = 1.0f;
-    return f0 + (f90 - f0) * pow(max(1.0f - VoH, 0.0f), 5.0f);
+    //float3 f90 = 1.0f;
+    //return f0 + (f90 - f0) * pow(max(1.0f - VoH, 0.0f), 5.0f);
+
+    return f0 + (1 - f0) * exp2((-5.55473 * VoH - 6.98316) * VoH);
 }
 
 float GeometrySchlickGGX(float NoV, float k)
@@ -47,9 +49,6 @@ float GeometrySmith(float NoL, float NoV, float roughness)
 
 float3 DoPbrLighting(Light light, float3 P, float3 V, float3 N, float3 albedo, float3 f0, float roughness, float metallic)
 {
-    float4 diffuse_color = 0;
-    float4 specular_color = 0;
-
     float3 light_color = light.color.rgb * light.intensity;
     float3 L = normalize(-light.view_direction);
     float3 color = 0.0f;
@@ -115,7 +114,8 @@ float3 FresnelSchlickRoughness(float cosTheta, float3 F0, float roughness)
 }
 
 float3 EvaluateIBL(in TextureCube radiance_tex, in TextureCube irradiance_tex, in Texture2D brdf_lut_tex, in sampler linear_sampler,
-    float3 V, float3 N, float3 f0, float3 albedo, float metallic, float roughness, float radianc_max_lod)
+    float3 V, float3 N, float3 f0, float3 albedo, float metallic, float roughness,
+    float radianc_max_lod, float3 diffuse_ao, float speculer_ao)
 {
     //const float MAX_REFLECTION_LOD = 4.0;
     float3 inverseV = normalize(reflect(-V, N));
@@ -137,7 +137,7 @@ float3 EvaluateIBL(in TextureCube radiance_tex, in TextureCube irradiance_tex, i
     float3 kd = 1.0f - ks;
     kd *= (1.0f - metallic);
 
-    float3 ambient = indirect_diffuse * kd + indirect_specular;
+    float3 ambient = indirect_diffuse * kd * diffuse_ao + indirect_specular * speculer_ao;
     return ambient;
 
 }

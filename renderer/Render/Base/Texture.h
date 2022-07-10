@@ -12,14 +12,13 @@ namespace render {
 
 class Image;
 class Texture;
+class CommandBuffer;
 
 struct TextureDescription {
     TextureDescription& EnableSRGB(bool v = true) { srgb = v; return *this; }
     TextureDescription& EnableMips(bool v = true) { gen_mips = v; return *this; }
     TextureDescription& SetFormat(TextureFormat fmt) { format = fmt; return *this; }
-    TextureDescription& SetFile(const TCHAR* file_) { file = file_; return *this; }
     TextureDescription& SetDimension(uint32_t w, uint32_t h) { width = w; height = h; return *this; }
-    TextureDescription& SetColor(const Color& color_) { color = color_; use_color = true; return *this; }
     TextureDescription& SetSampleDesc(uint32_t count, uint32_t qulity) { sample_count = count; sample_quality = qulity; return *this; }
     TextureDescription& SetType(TextureType type_) {
         type = type_;
@@ -32,27 +31,17 @@ struct TextureDescription {
     TextureDescription& SetCreateFlag(CreateFlags flags) { create_flags |= (uint32_t)flags; return *this; }
     TextureDescription& SetCreateFlag(uint32_t flags) { create_flags = flags; return *this; }
 
-    operator bool() const { return !file.empty() || use_color || is_backbuffer; }
-
     bool srgb = false;
     bool gen_mips = false;
     TextureFormat format = TextureFormat::kUnkown;
     uint32_t create_flags = 0;
     TextureType type = TextureType::kTexture2D;
 
-    //int backbuffer_index = -1;
-    bool is_backbuffer = false;
-    bool use_color = false;
-    Color color;
-    EngineString file;
-
-    uint32_t width = 32;
-    uint32_t height = 32;
+    uint32_t width = 8;
+    uint32_t height = 8;
     uint32_t sample_count = 1;
     uint32_t sample_quality = 0;
     uint32_t depth_or_array_size = 1;
-
-    std::array<WarpMode, 3> warp = {WarpMode::kRepeat};
 };
 
 class Texture : public Resource {
@@ -70,33 +59,27 @@ public:
         return mip_slice + array_slice * mip_levels;
     }
 
-    Texture(const TextureDescription& desc) : 
-        detail_(desc)
-    {}
-
-    uint32_t width() const { return detail_.width; }
-    uint32_t height() const { return detail_.height; }
+    virtual uint32_t width() const = 0;
+    virtual uint32_t height() const = 0;
     
     virtual uint32_t GetMipLevels() const = 0;
-    TextureFormat GetFormat() const { return detail_.format; }
-    uint32_t GetFlags() const { return detail_.create_flags; }
+    virtual TextureFormat GetFormat() const = 0;
+    virtual uint32_t GetFlags() const = 0;
 
-    uint32_t GetSampleCount() const { return detail_.sample_count; }
-    uint32_t GetSampleQuality() const { return detail_.sample_quality; }
+    virtual uint32_t GetSampleCount() const = 0;
+    virtual uint32_t GetSampleQuality() const = 0;
 
-    bool IsCubeMap() const { return detail_.type == TextureType::kTextureCube; }
+    bool IsFileImage() const { return file_image_; }
 
-    virtual void GenerateMipMaps() = 0;
-
-    virtual void ReleaseUnderlyingResource() = 0;
+    virtual void ReleaseNativeResource() = 0;
 
     virtual bool Resize(uint32_t width, uint32_t height) = 0;
 
-    virtual void ReadBackImage(int left, int top,
+    virtual void ReadBackImage(CommandBuffer* cmd_buffer, int left, int top,
         int width, int height, int destX, int destY, ReadbackDelegate&& callback) = 0;
 
 protected:
-    TextureDescription detail_;
+    bool file_image_ = false;
 };
 
 }

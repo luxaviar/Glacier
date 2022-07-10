@@ -8,15 +8,16 @@ namespace glacier {
 namespace render {
 
 class GfxDriver;
+class CommandBuffer;
 
 class PerfStats {
 public:
     PerfStats(GfxDriver* gfx);
 
-    void PreRender();
-    void PostRender(bool show_stats);
+    void PreRender(CommandBuffer* cmd_buffer);
+    void PostRender(CommandBuffer* cmd_buffer, bool show_stats);
 
-    void DrawStatsPanel();
+    void DrawStatsPanel(CommandBuffer* cmd_buffer);
 
 protected:
     void Reset();

@@ -14,6 +14,7 @@ namespace render {
 class Material;
 class GfxDriver;
 class PassNode;
+class CommandBuffer;
 
 class Program : private Uncopyable, public Identifiable<Material>{
 public:
@@ -24,6 +25,7 @@ public:
 
     const std::string& name() const { return name_; }
     uint32_t version() const { return version_; }
+    bool IsCompute() const { return is_compute_; }
 
     void SetRasterState(const RasterStateDesc& rs);
     void SetInputLayout(const InputLayoutDesc& desc);
@@ -45,12 +47,9 @@ public:
         return nullptr;
     }
 
-    virtual void BindPSO(GfxDriver* gfx) = 0;
-    virtual void UnBindPSO(GfxDriver* gfx) {}
-
-    virtual void Bind(GfxDriver* gfx, Material* mat) = 0;
-    virtual void UnBind(GfxDriver* gfx, Material* mat) {}
-    virtual void RefreshTranstientBuffer(GfxDriver* gfx) {}
+    virtual void BindPSO(CommandBuffer* cmd_buffer) = 0;
+    virtual void Bind(CommandBuffer* cmd_buffer, Material* mat) = 0;
+    virtual void RefreshTranstientBuffer(CommandBuffer* cmd_buffer) = 0;
 
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;
@@ -79,6 +78,7 @@ protected:
     void SetShaderParameter(const std::string& name, const ShaderParameter::Entry& param);
 
     uint32_t version_ = 0;
+    bool is_compute_ = false;
     std::string name_;
     std::array<std::shared_ptr<Shader>, (size_t)ShaderType::kUnknown> shaders_;
     std::unordered_map<std::string, ShaderParameter> params_;

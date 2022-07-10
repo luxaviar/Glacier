@@ -1,6 +1,6 @@
 # Glacier
 
-A personal toy game engine project based on D3D11 & D3D12
+A personal toy game engine project based on ~~D3D11 &~~ D3D12
 
 ## Prerequistes
 * Visual Studio 2019
@@ -8,7 +8,7 @@ A personal toy game engine project based on D3D11 & D3D12
 
 ## Features
 
-* D3D11 & D3D12 backend
+* ~~D3D11 &~~ D3D12 backend
 * Forward & Deferred Rendering
 * PBR & IBL
 * HDR/linear lighting
@@ -33,3 +33,6 @@ A personal toy game engine project based on D3D11 & D3D12
 
 **Anti-Aliasing**
 ![Anti-Aliasing](samples/AA.png)
+
+**GTAO**
+![GTAO](samples/GTAO.png)

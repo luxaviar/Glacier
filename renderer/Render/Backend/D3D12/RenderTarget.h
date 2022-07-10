@@ -15,29 +15,28 @@ namespace render {
 
 class D3D12Texture;
 
-class D3D12RenderTarget : public RenderTarget, public std::enable_shared_from_this< D3D12RenderTarget>{
+class D3D12RenderTarget : public RenderTarget, public std::enable_shared_from_this<D3D12RenderTarget> {
 public:
-    static std::shared_ptr<D3D12RenderTarget> Create(uint32_t width, uint32_t height);
-
+    D3D12RenderTarget(uint32_t width, uint32_t height);
     void Resize(uint32_t width, uint32_t height) override;
 
     D3D12_RT_FORMAT_ARRAY GetRenderTargetFormats() const;
     DXGI_FORMAT GetDepthStencilFormat() const;
     DXGI_SAMPLE_DESC GetSampleDesc() const;
 
-    void Bind(GfxDriver* gfx) override;
-    void UnBind(GfxDriver* gfx) override;
-    void BindDepthStencil(GfxDriver* gfx) override;
-    void BindColor(GfxDriver* gfx) override;
+    void Bind(CommandBuffer* cmd_buffer) override;
+    void BindDepthStencil(CommandBuffer* cmd_buffer) override;
+    void BindColor(CommandBuffer* cmd_buffer) override;
+    void UnBind(CommandBuffer* cmd_buffer) override;
 
 #ifdef GLACIER_REVERSE_Z
-    void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 0.0f, uint8_t stencil = 0u) override;
-    void ClearDepthStencil(float depth = 0.0f, uint8_t stencil = 0u) override;
+    void Clear(CommandBuffer* cmd_buffer, const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 0.0f, uint8_t stencil = 0u) override;
+    void ClearDepthStencil(CommandBuffer* cmd_buffer, float depth = 0.0f, uint8_t stencil = 0u) override;
 #else
-    void Clear(const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 1.0f, uint8_t stencil = 0u) override;
-    void ClearDepthStencil(float depth = 1.0f, uint8_t stencil = 0u) override;
+    void Clear(CommandBuffer* cmd_buffer, const Color& color = { 0.0f,0.0f,0.0f,0.0f }, float depth = 1.0f, uint8_t stencil = 0u) override;
+    void ClearDepthStencil(CommandBuffer* cmd_buffer, float depth = 1.0f, uint8_t stencil = 0u) override;
 #endif
-    void ClearColor(AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) override;
+    void ClearColor(CommandBuffer* cmd_buffer, AttachmentPoint point = AttachmentPoint::kColor0, const Color& color = { 0.0f,0.0f,0.0f,0.0f }) override;
     
     void AttachColor(AttachmentPoint point, const std::shared_ptr<Texture>& tex, int16_t slice = -1, int16_t mip_slice = 0, bool srgb = false) override;
     void AttachDepthStencil(const std::shared_ptr<Texture>& tex) override;
@@ -52,7 +51,6 @@ public:
     void DisableScissor() override;
 
 private:
-    D3D12RenderTarget(uint32_t width, uint32_t height);
 
     D3D12Texture* GetAttachementTexture(AttachmentPoint point) const;
     D3D12Texture* GetAttachementTexture(size_t i) const;

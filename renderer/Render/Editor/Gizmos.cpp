@@ -26,9 +26,8 @@ Gizmos::Gizmos() :
 }
 
 void Gizmos::Setup(GfxDriver* gfx) {
-    auto vert_buffer = gfx->CreateVertexBuffer(nullptr, kMaxVertexCount * sizeof(GizmosVertex), 
-        sizeof(GizmosVertex), UsageType::kDynamic);
-    auto index_buffer = gfx->CreateIndexBuffer(nullptr, kMaxVertexCount * 2 * sizeof(uint32_t), IndexFormat::kUInt32, UsageType::kDynamic);
+    auto vert_buffer = gfx->CreateVertexBuffer(kMaxVertexCount * sizeof(GizmosVertex), sizeof(GizmosVertex));
+    auto index_buffer = gfx->CreateIndexBuffer(kMaxVertexCount * 2 * sizeof(uint32_t), IndexFormat::kUInt32);
 
     mesh_ = std::make_unique<Mesh>(vert_buffer, index_buffer);
 
@@ -85,40 +84,40 @@ void Gizmos::Draw(const GizmosVertex* vertex, uint32_t vert_count, const uint32_
     }
 }
 
-void Gizmos::Render(GfxDriver* gfx, bool late) {
+void Gizmos::Render(CommandBuffer* cmd_buffer, bool late) {
     if (vert_data_.empty()) return;
 
-    assert(vert_data_.size() <= kMaxVertexCount && "Too large gizmo vertex count");
+    assert(vert_data_.size() <= kMaxVertexCount && "Too large gizmos vertex count");
 
-    auto& view_mat = gfx->view();
+    auto& view_mat = cmd_buffer->view();
 
-    const auto& vp = gfx->projection() * view_mat;
+    const auto& vp = cmd_buffer->projection() * view_mat;
     material_->SetProperty("mvp_matrix", vp);
     occluded_material_->SetProperty("mvp_matrix", vp);
 
     {
         PerfSample("Update Buffer");
-        mesh_->vertex_buffer()->Update(vert_data_.data(), vert_data_.size() * sizeof(GizmosVertex));
-        mesh_->index_buffer()->Update(index_data_.data(), index_data_.size() * sizeof(uint32_t));
+        mesh_->vertex_buffer()->Upload(cmd_buffer, vert_data_.data(), vert_data_.size() * sizeof(GizmosVertex));
+        mesh_->index_buffer()->Upload(cmd_buffer, index_data_.data(), index_data_.size() * sizeof(uint32_t));
     }
 
     {
         PerfSample("Render");
-        BatchRender(gfx, material_.get(), 1.0f);
+        BatchRender(cmd_buffer, material_.get(), 1.0f);
     }
 
     {
         PerfSample("Occluded Render");
-        BatchRender(gfx, occluded_material_.get(), 0.3f);
+        BatchRender(cmd_buffer, occluded_material_.get(), 0.3f);
     }
 
     Clear();
 }
 
-void Gizmos::BatchRender(GfxDriver* gfx, Material* mat, float alpha) {
-    mat->SetProperty("line_color", Color{0,0, 0, alpha});
-    MaterialGuard guard(gfx, mat);
-    mesh_->Draw(gfx);
+void Gizmos::BatchRender(CommandBuffer* cmd_buffer, Material* mat, float alpha) {
+    mat->SetProperty("line_color", Color{ 0,0, 0, alpha });
+    cmd_buffer->BindMaterial(mat);
+    mesh_->Draw(cmd_buffer);
 }
 
 void Gizmos::DrawWireArc(const Vec3f& center, const Vec3f& normal, const Vec3f& from, float angle, 

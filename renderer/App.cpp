@@ -15,7 +15,6 @@
 #include "Render/ForwardRenderer.h"
 #include "Render/DeferredRenderer.h"
 #include "Render/Base/GfxDriver.h"
-#include "Render/Backend/D3D11/GfxDriver.h"
 #include "Render/Backend/D3D12/GfxDriver.h"
 #include "Inspect/Profiler.h"
 #include "Render/Material.h"
@@ -37,6 +36,8 @@ App::App( const std::string& commandLine ) :
 
     renderer_ = std::make_unique<render::DeferredRenderer>(gfx_, render::AntiAliasingType::kTAA);
     //renderer_ = std::make_unique<render::ForwardRenderer>(gfx_, render::MSAAType::k4x);
+
+    renderer_->Setup();
 
     wnd_.resize_signal().Connect([this] (uint32_t width, uint32_t height) {
         renderer_->OnResize(width, height);
@@ -94,7 +95,7 @@ void App::DoFrame(float dt) {
     //        counter++;
     //    }
     //});
-    renderer_->Setup();
+
     SceneManager::Instance()->Update(renderer_.get());
     Input::Instance()->keyboard().Update();
 

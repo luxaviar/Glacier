@@ -23,6 +23,7 @@
 #include "Render/Base/SwapChain.h"
 #include "Render/Base/RenderTexturePool.h"
 #include "Render/Base/Program.h"
+#include "Render/Base/CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -39,8 +40,6 @@ ForwardRenderer::ForwardRenderer(GfxDriver* gfx, MSAAType msaa) :
 }
 
 void ForwardRenderer::Setup() {
-    if (init_) return;
-
     pbr_program_ = gfx_->CreateProgram("PBR", TEXT("ForwardLighting"), TEXT("ForwardLighting"));
     pbr_program_->SetInputLayout(Mesh::kDefaultLayout);
 
@@ -72,17 +71,17 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
     return true;
 }
 
-void ForwardRenderer::PreRender() {
+void ForwardRenderer::PreRender(CommandBuffer* cmd_buffer) {
     if (msaa_ != option_msaa_) {
         msaa_ = option_msaa_;
         OnChangeMSAA();
     }
 
     if (msaa_ != MSAAType::kNone) {
-        msaa_render_target_->Clear();
+        msaa_render_target_->Clear(cmd_buffer);
     }
 
-    Renderer::PreRender();
+    Renderer::PreRender(cmd_buffer);
 }
 
 void ForwardRenderer::InitRenderTarget() {
@@ -99,7 +98,7 @@ void ForwardRenderer::InitRenderTarget() {
 
     auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
         CreateFlags::kRenderTarget, sample_count_, quality_level_);
-    msaa_color->SetName(TEXT("msaa color buffer"));
+    msaa_color->SetName("msaa color buffer");
 
     msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
 
@@ -110,7 +109,7 @@ void ForwardRenderer::InitRenderTarget() {
         .SetCreateFlag(CreateFlags::kShaderResource)
         .SetSampleDesc(sample_count_, quality_level_);
     auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-    depthstencil_texture->SetName(TEXT("msaa depth texture"));
+    depthstencil_texture->SetName("msaa depth texture");
 
     msaa_render_target_->AttachDepthStencil(depthstencil_texture);
 }
@@ -151,7 +150,7 @@ void ForwardRenderer::OnChangeMSAA() {
         auto height = present_render_target_->height();
         auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
             CreateFlags::kRenderTarget, sample_count_, quality_level_);
-        msaa_color->SetName(TEXT("msaa color buffer"));
+        msaa_color->SetName("msaa color buffer");
 
         msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
 
@@ -162,7 +161,7 @@ void ForwardRenderer::OnChangeMSAA() {
             .SetCreateFlag(CreateFlags::kShaderResource)
             .SetSampleDesc(sample_count_, quality_level_);
         auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-        depthstencil_texture->SetName(TEXT("msaa depth texture"));
+        depthstencil_texture->SetName("msaa depth texture");
 
         msaa_render_target_->AttachDepthStencil(depthstencil_texture);
     }
@@ -177,26 +176,25 @@ void ForwardRenderer::OnChangeMSAA() {
     msaa_render_target_->signal().Emit();
 }
 
-void ForwardRenderer::ResolveMSAA() {
+void ForwardRenderer::ResolveMSAA(CommandBuffer* cmd_buffer) {
     PerfSample("Resolve MSAA");
     if (msaa_ == MSAAType::kNone) return;
 
     auto& mat = msaa_resolve_mat_[toUType(msaa_)];
-    PostProcess(hdr_render_target_, mat.get());
+    PostProcess(cmd_buffer, hdr_render_target_, mat.get());
 }
 
 void ForwardRenderer::AddLightingPass() {
     render_graph_.AddPass("ForwardLighting",
         [&](PassNode& pass) {
         },
-        [this](Renderer* renderer, const PassNode& pass) {
-            auto gfx = renderer->driver();
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
             PerfSample("Lighting Pass");
 
-            LightManager::Instance()->Update();
+            LightManager::Instance()->Update(cmd_buffer);
             csm_manager_->Update();
 
-            pass.Render(renderer, visibles_);
+            pass.Render(cmd_buffer, visibles_);
         });
 }
 

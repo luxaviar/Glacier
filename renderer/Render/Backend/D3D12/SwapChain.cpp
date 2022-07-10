@@ -3,6 +3,7 @@
 #include "Texture.h"
 #include "RenderTarget.h"
 #include "GfxDriver.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -39,7 +40,7 @@ D3D12SwapChain::D3D12SwapChain(D3D12GfxDriver* driver, HWND hWnd, uint32_t width
     swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
     swapChainDesc.Flags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
 
-    auto command_queue = driver->GetCommandQueue()->GetUnderlyingCommandQueue();
+    auto command_queue = driver->GetCommandQueue()->GetNativeCommandQueue();
     ComPtr<IDXGISwapChain1> swapChain1;
     GfxThrowIfFailed(dxgiFactory4->CreateSwapChainForHwnd(
         command_queue,
@@ -61,8 +62,6 @@ D3D12SwapChain::D3D12SwapChain(D3D12GfxDriver* driver, HWND hWnd, uint32_t width
     cur_backbuffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
     frame_latency_waitable_object_ = swap_chain_->GetFrameLatencyWaitableObject();
     swap_chain_->SetMaximumFrameLatency(kBufferCount - 1);
-
-    //CreateRenderTarget();
 }
 
 D3D12SwapChain::~D3D12SwapChain() {
@@ -78,10 +77,10 @@ void D3D12SwapChain::CreateRenderTarget() {
 
         // Set the names for the backbuffer textures.
         // Useful for debugging.
-        back_buffer_textures_[i]->SetName((TEXT("Backbuffer[") + std::to_wstring(i) + TEXT("]")).c_str());
+        back_buffer_textures_[i]->SetName(("BackBuffer[" + std::to_string(i) + "]").c_str());
     }
 
-    render_target_ = D3D12RenderTarget::Create(width_, height_);
+    render_target_ = std::make_shared<D3D12RenderTarget>(width_, height_);
 
     auto depth_tex_desc = Texture::Description()
         .SetDimension(width_, height_)
@@ -89,7 +88,7 @@ void D3D12SwapChain::CreateRenderTarget() {
         .SetCreateFlag(CreateFlags::kDepthStencil)
         .SetCreateFlag(CreateFlags::kShaderResource);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
-    depthstencil_texture->SetName(TEXT("swapchain depth texture"));
+    depthstencil_texture->SetName("SwapChain Depth Buffer");
 
     render_target_->AttachDepthStencil(depthstencil_texture);
     render_target_->AttachColor(AttachmentPoint::kColor0, back_buffer_textures_[cur_backbuffer_index_]);
@@ -102,7 +101,7 @@ void D3D12SwapChain::OnResize(uint32_t width, uint32_t height) {
     height_ = height;
 
     for (uint32_t i = 0; i < kBufferCount; ++i) {
-        back_buffer_textures_[i]->ReleaseUnderlyingResource();
+        back_buffer_textures_[i]->ReleaseNativeResource();
     }
 
     render_target_->DetachColor(AttachmentPoint::kColor0);
@@ -128,7 +127,7 @@ void D3D12SwapChain::OnResize(uint32_t width, uint32_t height) {
         .SetCreateFlag(CreateFlags::kDepthStencil)
         .SetCreateFlag(CreateFlags::kShaderResource);
     auto depthstencil_texture = driver_->CreateTexture(depth_tex_desc);
-    depthstencil_texture->SetName(TEXT("swapchain depth texture"));
+    depthstencil_texture->SetName("SwapChain Depth Texture");
 
     cur_backbuffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
 
@@ -162,20 +161,18 @@ void D3D12SwapChain::Wait() {
     DWORD result = ::WaitForSingleObjectEx(frame_latency_waitable_object_, 1000, TRUE);
 }
 
-void D3D12SwapChain::Present() {
-
-#ifndef NDEBUG
-    DxgiInfo::Instance()->Set();
-#endif
-
-    auto command_queue = driver_->GetCommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT);
-    auto command_list = command_queue->GetCommandList();
-
+//TODO:
+void D3D12SwapChain::Present(std::vector<CommandBuffer*>& cmd_buffers) {
+    auto cmd_queue = driver_->GetCommandQueue(CommandBufferType::kDirect);
     auto& backBuffer = back_buffer_textures_[cur_backbuffer_index_];
 
-    command_list->TransitionBarrier(backBuffer, D3D12_RESOURCE_STATE_PRESENT);
+    auto present_cmd_buffer = cmd_queue->GetCommandBuffer();
+    present_cmd_buffer->TransitionBarrier(backBuffer.get(), ResourceAccessBit::kPresent);
 
-    command_queue->ExecuteCommandList();
+    //command_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_buffers.push_back(present_cmd_buffer);
+
+    cmd_queue->ExecuteCommandBuffer(cmd_buffers);
 
     UINT presentFlags = tearing_support_ && !full_screen_ && !vsync_ ? DXGI_PRESENT_ALLOW_TEARING : 0;
 
@@ -191,12 +188,16 @@ void D3D12SwapChain::Present() {
         }
     }
 
-    fence_values_[cur_backbuffer_index_] = command_queue->Signal();
+    fence_values_[cur_backbuffer_index_] = cmd_queue->Signal();
     cur_backbuffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
     auto fenceValue = fence_values_[cur_backbuffer_index_];
-    command_queue->WaitForFenceValue(fenceValue);
+    cmd_queue->WaitForFenceValue(fenceValue);
 
     render_target_->AttachColor(AttachmentPoint::kColor0, back_buffer_textures_[cur_backbuffer_index_]);
+
+#ifndef NDEBUG
+    DxgiInfo::Instance()->Set();
+#endif
 }
 
 std::shared_ptr<RenderTarget>& D3D12SwapChain::GetRenderTarget() {

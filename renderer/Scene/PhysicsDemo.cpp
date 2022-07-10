@@ -20,6 +20,7 @@
 #include "Render/Mesh/Primitive.h"
 #include "Physics/Dynamic/Rigidbody.h"
 #include "Physics/Collider/BoxCollider.h"
+#include "Render/Base/CommandQueue.h"
 
 namespace glacier {
 namespace render {
@@ -51,10 +52,16 @@ void PhysicsDemo::OnLoad(Renderer* renderer) {
     ground_go.transform().position({ 0.0f,-1.5f,0.0f });
     ground_go.AddComponent<BoxCollider>(Vec3f{ 25.0f, 1.0f, 25.0f });
 
+    auto cmd_queue = gfx->GetCommandQueue(CommandBufferType::kDirect);
+    auto cmd_buffer = cmd_queue->GetCommandBuffer();
+
     auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
-    auto& helmet = Model::GenerateGameObject("assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
+    auto& helmet = Model::GenerateGameObject(cmd_buffer, "assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
 
     helmet.transform().position({ 7.5f,6.0f,-14.0f });
+
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
+    cmd_queue->Flush();
 }
 
 }

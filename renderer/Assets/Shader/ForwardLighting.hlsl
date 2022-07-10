@@ -94,8 +94,8 @@ float4 main_ps(VSOut IN) : SV_Target
     }
     
     float3 ambient = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
-        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod);
-    ambient *= ao;
+        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod, ao, ao);
+    //ambient *= ao;
 
     final_color += ambient;
 

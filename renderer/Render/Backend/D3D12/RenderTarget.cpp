@@ -2,13 +2,10 @@
 #include "Texture.h"
 #include "Math/Util.h"
 #include "GfxDriver.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
-
-std::shared_ptr<D3D12RenderTarget> D3D12RenderTarget::Create(uint32_t width, uint32_t height) {
-    return std::shared_ptr<D3D12RenderTarget>(new D3D12RenderTarget(width, height));
-}
 
 D3D12RenderTarget::D3D12RenderTarget(uint32_t width, uint32_t height) :
     RenderTarget(width, height)
@@ -51,7 +48,12 @@ void D3D12RenderTarget::AttachColor(AttachmentPoint point, const std::shared_ptr
     auto driver = D3D12GfxDriver::Instance();
     auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
     auto slot = descriptor_allocator->Allocate();
-    driver->GetDevice()->CreateRenderTargetView(tex->GetUnderlyingResource().Get(), &rtv_desc, slot.GetDescriptorHandle());
+
+    driver->GetDevice()->CreateRenderTargetView(
+        static_cast<ID3D12Resource*>(tex->GetNativeResource()),
+        &rtv_desc,
+        slot.GetDescriptorHandle()
+    );
 
     rtv_slots_[idx] = std::move(slot);
 }
@@ -80,7 +82,12 @@ void D3D12RenderTarget::AttachDepthStencil(const std::shared_ptr<Texture>& textu
     auto driver = D3D12GfxDriver::Instance();
     auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_DSV);
     auto slot = descriptor_allocator->Allocate();
-    driver->GetDevice()->CreateDepthStencilView(tex->GetUnderlyingResource().Get(), &dsv_desc, slot.GetDescriptorHandle());
+
+    driver->GetDevice()->CreateDepthStencilView(
+        static_cast<ID3D12Resource*>(tex->GetNativeResource()),
+        &dsv_desc,
+        slot.GetDescriptorHandle()
+    );
 
     dsv_slot_ = std::move(slot);
 }
@@ -98,45 +105,44 @@ void D3D12RenderTarget::DetachDepthStencil() {
     attachments_[(int)AttachmentPoint::kDepthStencil] = {};
 }
 
-void D3D12RenderTarget::Clear(const Color& color, float depth, uint8_t stencil) {
-    auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
+void D3D12RenderTarget::Clear(CommandBuffer* cmd_buffer, const Color& color, float depth, uint8_t stencil) {
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
 
     for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
         auto texture = GetAttachementTexture(i);
         if (texture) {
-            command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            command_list->TransitionBarrier(texture, ResourceAccessBit::kRenderTarget);
             command_list->ClearRenderTargetView(rtv_slots_[i], &color, 0, nullptr);
         }
     }
 
     auto texture = GetAttachementTexture(AttachmentPoint::kDepthStencil);
     if (texture) {
-        command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        command_list->TransitionBarrier(texture, ResourceAccessBit::kDepthWrite);
         command_list->ClearDepthStencilView(dsv_slot_, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
     }
 }
 
-void D3D12RenderTarget::ClearColor(AttachmentPoint point, const Color& color) {
+void D3D12RenderTarget::ClearColor(CommandBuffer* cmd_buffer, AttachmentPoint point, const Color& color) {
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     auto tex = GetAttachementTexture(point);
     if (tex) {
-        auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
-        command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_RENDER_TARGET);
+        command_list->TransitionBarrier(tex, ResourceAccessBit::kRenderTarget);
         command_list->ClearRenderTargetView(rtv_slots_[(int)point], &color, 0, nullptr);
     }
 }
 
-void D3D12RenderTarget::ClearDepthStencil(float depth, uint8_t stencil) {
+void D3D12RenderTarget::ClearDepthStencil(CommandBuffer* cmd_buffer, float depth, uint8_t stencil) {
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     auto tex = GetAttachementTexture(AttachmentPoint::kDepthStencil);
     if (tex) {
-        auto command_list = D3D12GfxDriver::Instance()->GetCommandList();
-        command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        command_list->TransitionBarrier(tex, ResourceAccessBit::kDepthWrite);
         command_list->ClearDepthStencilView(dsv_slot_, D3D12_CLEAR_FLAG_DEPTH | D3D12_CLEAR_FLAG_STENCIL, depth, stencil, 0, nullptr);
     }
 }
 
-void D3D12RenderTarget::Bind(GfxDriver* gfx) {
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto command_list = driver->GetCommandList();
+void D3D12RenderTarget::Bind(CommandBuffer* cmd_buffer) {
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_descriptor[(size_t)AttachmentPoint::kDepthStencil];
 
     uint32_t rtv_count = 0;
@@ -144,7 +150,7 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
     for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
         auto tex = GetAttachementTexture(i);
         if (tex) {
-            command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            command_list->TransitionBarrier(tex, ResourceAccessBit::kRenderTarget);
             rtv_descriptor[rtv_count++] = rtv_slots_[i].GetDescriptorHandle();
         }
     }
@@ -152,7 +158,7 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
     auto tex = GetAttachementTexture(AttachmentPoint::kDepthStencil);
     CD3DX12_CPU_DESCRIPTOR_HANDLE dsv_descriptor(D3D12_DEFAULT);
     if (tex) {
-        command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_DEPTH_WRITE);
+        command_list->TransitionBarrier(tex, ResourceAccessBit::kDepthWrite);
         dsv_descriptor = dsv_slot_.GetDescriptorHandle();
     }
 
@@ -162,19 +168,26 @@ void D3D12RenderTarget::Bind(GfxDriver* gfx) {
     GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
     GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
 
-    driver->SetCurrentRenderTarget(shared_from_this());
+    command_list->SetCurrentRenderTarget(shared_from_this());
 }
 
-void D3D12RenderTarget::UnBind(GfxDriver* gfx) {
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto command_list = driver->GetCommandList();
+void D3D12RenderTarget::BindDepthStencil(CommandBuffer* cmd_buffer) {
+    auto tex = GetAttachementTexture(AttachmentPoint::kDepthStencil);
+    if (!tex) return;
 
-    driver->SetCurrentRenderTarget(nullptr);
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
+    command_list->TransitionBarrier(tex, ResourceAccessBit::kDepthWrite);
+    auto dsv_descriptor = dsv_slot_.GetDescriptorHandle();
+
+    D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle = dsv_descriptor.ptr != 0 ? &dsv_descriptor : nullptr;
+
+    GfxThrowIfAny(command_list->OMSetRenderTargets(0, nullptr, FALSE, dsv_handle));
+    GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
+    GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
 }
 
-void D3D12RenderTarget::BindColor(GfxDriver* gfx) {
-    auto driver = static_cast<D3D12GfxDriver*>(gfx);
-    auto command_list = driver->GetCommandList();
+void D3D12RenderTarget::BindColor(CommandBuffer* cmd_buffer) {
+    auto command_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     D3D12_CPU_DESCRIPTOR_HANDLE rtv_descriptor[(size_t)AttachmentPoint::kDepthStencil];
 
     uint32_t rtv_count = 0;
@@ -182,7 +195,7 @@ void D3D12RenderTarget::BindColor(GfxDriver* gfx) {
     for (size_t i = 0; i < (size_t)AttachmentPoint::kDepthStencil; ++i) {
         auto tex = GetAttachementTexture(i);
         if (tex) {
-            command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_RENDER_TARGET);
+            command_list->TransitionBarrier(tex, ResourceAccessBit::kRenderTarget);
             rtv_descriptor[rtv_count++] = rtv_slots_[i].GetDescriptorHandle();
         }
     }
@@ -191,22 +204,11 @@ void D3D12RenderTarget::BindColor(GfxDriver* gfx) {
     GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
     GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
 
-    driver->SetCurrentRenderTarget(shared_from_this());
+    command_list->SetCurrentRenderTarget(shared_from_this());
 }
 
-void D3D12RenderTarget::BindDepthStencil(GfxDriver* gfx) {
-    auto tex = GetAttachementTexture(AttachmentPoint::kDepthStencil);
-    if (!tex) return;
-
-    auto command_list = static_cast<D3D12GfxDriver*>(gfx)->GetCommandList();
-    command_list->TransitionBarrier(tex, D3D12_RESOURCE_STATE_DEPTH_WRITE);
-    auto dsv_descriptor = dsv_slot_.GetDescriptorHandle();
-
-    D3D12_CPU_DESCRIPTOR_HANDLE* dsv_handle = dsv_descriptor.ptr != 0 ? &dsv_descriptor : nullptr;
-
-    GfxThrowIfAny(command_list->OMSetRenderTargets(0, nullptr, FALSE, dsv_handle));
-    GfxThrowIfAny(command_list->RSSetViewports(1, &viewport_));
-    GfxThrowIfAny(command_list->RSSetScissorRects(1, &scissor_rect_));
+void D3D12RenderTarget::UnBind(CommandBuffer* cmd_buffer) {
+    cmd_buffer->SetCurrentRenderTarget(nullptr);
 }
 
 void D3D12RenderTarget::Resize(uint32_t width, uint32_t height) {
@@ -241,7 +243,7 @@ D3D12_RT_FORMAT_ARRAY D3D12RenderTarget::GetRenderTargetFormats() const {
     for (int i = (int)AttachmentPoint::kColor0; i <= (int)AttachmentPoint::kColor7; ++i) {
         auto tex = GetAttachementTexture(i);
         if (tex) {
-            rtv_formats.RTFormats[rtv_formats.NumRenderTargets++] = GetUnderlyingFormat(tex->GetFormat());
+            rtv_formats.RTFormats[rtv_formats.NumRenderTargets++] = tex->GetNativeFormat();
         }
     }
 
@@ -251,7 +253,7 @@ D3D12_RT_FORMAT_ARRAY D3D12RenderTarget::GetRenderTargetFormats() const {
 DXGI_FORMAT D3D12RenderTarget::GetDepthStencilFormat() const {
     auto tex = GetAttachementTexture(AttachmentPoint::kDepthStencil);
     if (tex) {
-        return GetDSVFormat(GetUnderlyingFormat(tex->GetFormat()));
+        return GetDSVFormat(tex->GetNativeFormat());
     }
 
     return DXGI_FORMAT_UNKNOWN;

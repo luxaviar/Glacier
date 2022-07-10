@@ -52,7 +52,7 @@ public:
         const char* code;
         const char* type_name;
         const DXGI_FORMAT gfx_format;
-        const D3D11_INPUT_ELEMENT_DESC d3d11_desc;
+        //const D3D11_INPUT_ELEMENT_DESC d3d11_desc;
         const D3D12_INPUT_ELEMENT_DESC d3d12_desc;
         const size_t size;
     };
@@ -74,7 +74,6 @@ public:
         Meta##el::Code, \
         Meta##el::GpuTypeName, \
         Meta##el::GpuType, \
-        {Meta##el::Semantic, 0, Meta##el::GpuType,0, D3D11_APPEND_ALIGNED_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0}, \
         {Meta##el::Semantic, 0, Meta##el::GpuType,0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0}, \
         Meta##el::SysSize \
     },
@@ -113,12 +112,7 @@ public:
         
         template<typename T>
         T desc() const noexcept {
-            if constexpr (std::is_same<T, D3D11_INPUT_ELEMENT_DESC>::value) {
-                return kMetaDescArray[(int)type_].d3d11_desc;
-            }
-            else {
-                return kMetaDescArray[(int)type_].d3d12_desc;
-            }
+            return kMetaDescArray[(int)type_].d3d12_desc;
         }
 
         size_t data_size() const noexcept;

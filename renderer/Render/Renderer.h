@@ -17,6 +17,7 @@ class GfxDriver;
 class CascadedShadowManager;
 class OldPointLight;
 class Light;
+class CommandBuffer;
 
 struct PerFrameData {
     Matrix4x4 _View;
@@ -25,6 +26,7 @@ struct PerFrameData {
     Matrix4x4 _InverseProjection;
     Matrix4x4 _ViewProjection;
     Matrix4x4 _PrevViewProjection;
+    Matrix4x4 _UnjitteredInverseProjection;
     Matrix4x4 _UnjitteredViewProjection;
     Vector4 _ScreenParam;
     Vector4 _CameraParams;
@@ -33,7 +35,7 @@ struct PerFrameData {
 
 class Renderer {
 public:
-    static void PostProcess(const std::shared_ptr<RenderTarget>& dst, Material* mat);
+    static void PostProcess(CommandBuffer* cmd_buffer, const std::shared_ptr<RenderTarget>& dst, Material* mat, bool color_only = false);
 
     Renderer(GfxDriver* gfx, AntiAliasingType aa = AntiAliasingType::kNone);
     virtual ~Renderer() {}
@@ -49,14 +51,14 @@ public:
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
-    virtual void PreRender();
+    virtual void PreRender(CommandBuffer* cmd_buffer);
     void Render();
-    virtual void PostRender();
+    virtual void PostRender(CommandBuffer* cmd_buffer);
 
     virtual std::shared_ptr<Material> CreateLightingMaterial(const char* name) = 0;
     virtual bool OnResize(uint32_t width, uint32_t height);
 
-    void SetupBuiltinProperty(Material* mat);
+    virtual void SetupBuiltinProperty(Material* mat);
 
     const std::vector<Renderable*>& GetVisibles() const { return visibles_; }
 
@@ -65,24 +67,25 @@ public:
 
     void CaptureScreen();
     void CaptureShadowMap();
+    void BindLightingTarget(CommandBuffer* cmd_buffer);
 
 protected:
     virtual void DrawOptionWindow() {}
 
     virtual void UpdatePerFrameData();
+
     virtual void InitRenderTarget();
 
-    virtual void DoTAA() {}
-    virtual void ResolveMSAA() {}
-    virtual void HdrPostProcess() {}
+    virtual void DoTAA(CommandBuffer* cmd_buffer) {}
+    virtual void ResolveMSAA(CommandBuffer* cmd_buffer) {}
+    virtual void HdrPostProcess(CommandBuffer* cmd_buffer) {}
 
-    virtual void DoToneMapping();
-    virtual void LdrPostProcess() {}
+    virtual void DoToneMapping(CommandBuffer* cmd_buffer);
+    virtual void LdrPostProcess(CommandBuffer* cmd_buffer) {}
 
-    virtual void DoFXAA();
+    virtual void DoFXAA(CommandBuffer* cmd_buffer);
 
     void FilterVisibles();
-    void BindLightingTarget();
 
     void InitMaterial();
 
@@ -90,12 +93,11 @@ protected:
 
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
-    void InitFloorPbr(GfxDriver* gfx);
-    void InitDefaultPbr(GfxDriver* gfx);
+    void InitFloorPbr(CommandBuffer* cmd_buffer);
+    void InitDefaultPbr(CommandBuffer* cmd_buffer);
 
     GfxDriver* gfx_;
     uint64_t frame_count_ = 0;
-    bool init_ = false;
     uint32_t sample_count_ = 1;
     uint32_t quality_level_ = 0;
 
@@ -112,8 +114,6 @@ protected:
 
     //hardware render target
     std::shared_ptr<RenderTarget> present_render_target_;
-
-    std::shared_ptr<RenderTarget> hdr_color_target_;
 
     std::shared_ptr<CascadedShadowManager> csm_manager_;
     std::vector<Renderable*> visibles_;

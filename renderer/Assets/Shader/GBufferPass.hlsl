@@ -41,19 +41,6 @@ Texture2D MetalRoughnessTexture : register(t6);
 Texture2D AoTexture : register(t7);
 Texture2D EmissiveTexture : register(t8);
 
-float2 OctWrap(float2 v)
-{
-    return (1.0 - abs(v.yx)) * (v.xy >= 0.0 ? 1.0 : -1.0);
-}
-
-float2 EncodeNormalOct(float3 n)
-{
-    n /= (abs(n.x) + abs(n.y) + abs(n.z));
-    n.xy = n.z >= 0.0 ? n.xy : OctWrap(n.xy);
-    n.xy = n.xy * 0.5 + 0.5;
-    return n.xy;
-}
-
 VertexOut main_vs(AppData IN)
 {
     VertexOut Out = (VertexOut)0.0f;

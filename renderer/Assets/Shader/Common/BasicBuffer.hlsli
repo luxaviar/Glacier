@@ -8,6 +8,7 @@ cbuffer _PerFrameData {
     matrix _InverseProjection;
     matrix _ViewProjection;
     matrix _PrevViewProjection; //unjitered
+    matrix _UnjitteredInverseProjection;
     matrix _UnjitteredViewProjection;
     float4 _ScreenParam; //width, height, 1/width, 1/height
     float4 _CameraParams; //nearz, farz, 1/nearz, 1/farz

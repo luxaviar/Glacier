@@ -5,6 +5,8 @@
 #include "GfxDriver.h"
 #include "Render/Base/Util.h"
 #include "Texture.h"
+#include "Program.h"
+#include "CommandBuffer.h"
 
 namespace glacier {
 namespace render {
@@ -17,14 +19,13 @@ MipsGenerator::MipsGenerator(ID3D12Device* device) :
     CreateDefaultUav();
 }
 
-void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* texture)
+void MipsGenerator::Generate(D3D12CommandBuffer* command_list, D3D12Texture* texture)
 {
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
-    auto old_state = texture->GetResourceState();
-    std::shared_ptr<D3D12Resource> uav_res;
-    std::shared_ptr<D3D12Resource> alias_res;
+    std::shared_ptr<D3D12Texture> uav_res;
+    std::shared_ptr<D3D12Texture> alias_res;
 
-    D3D12Resource* uav_tex = texture;
+    D3D12Texture* uav_tex = texture;
 
     // If the passed-in resource does not allow for UAV access
     // then create a staging resource that is used to generate
@@ -34,7 +35,7 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
         uav_tex = uav_res.get();
     }
 
-    program_->BindPSO(D3D12GfxDriver::Instance());
+    program_->BindPSO(command_list);
 
     if (tex_desc.DepthOrArraySize > 1) {
         GenerateTextureArray(command_list, uav_tex);
@@ -44,25 +45,22 @@ void MipsGenerator::Generate(D3D12CommandList* command_list, D3D12Resource* text
     }
 
     if (uav_res) {
-        auto gfx = D3D12GfxDriver::Instance();
-        command_list->AliasResource(uav_tex->GetUnderlyingResource().Get(), alias_res->GetUnderlyingResource().Get());
+        command_list->AliasResource(uav_tex, alias_res.get());
         command_list->CopyResource(alias_res.get(), texture);
 
-        gfx->AddInflightResource(std::move(uav_res));
-        gfx->AddInflightResource(std::move(alias_res));
+        command_list->AddInflightResource(std::move(uav_res));
+        command_list->AddInflightResource(std::move(alias_res));
     }
-
-    command_list->TransitionBarrier(texture, old_state);
 }
 
-void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture) {
+void MipsGenerator::GenerateTexture2D(D3D12CommandBuffer* command_list, D3D12Texture* texture) {
     auto gfx = D3D12GfxDriver::Instance();
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
-    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    command_list->TransitionBarrier(texture, ResourceAccessBit::kShaderWrite);// D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
-    auto resource = texture->GetUnderlyingResource().Get();
+    auto resource = static_cast<ID3D12Resource*>(texture->GetNativeResource());
 
     GenerateMipsCB cbuffer;
     cbuffer.IsSRGB = IsSRGBFormat(tex_desc.Format);
@@ -119,7 +117,7 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
         command_list->SetCompute32BitConstants(kCbuffer, cbuffer);
         command_list->SetDescriptorTable(kSrcMip, 0, &src_slot);
 
-        command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE, srcMip);
+        command_list->TransitionBarrier(texture, ResourceAccessBit::kNonPixelShaderRead, srcMip);
 
         auto dst_slot = allocator->Allocate(4);
         D3D12_CPU_DESCRIPTOR_HANDLE uav_arr[4];
@@ -146,28 +144,28 @@ void MipsGenerator::GenerateTexture2D(D3D12CommandList* command_list, D3D12Resou
 
         command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
-        command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS, srcMip);
+        command_list->TransitionBarrier(texture, ResourceAccessBit::kShaderWrite, srcMip);
 
         // make sure write completed
         command_list->UavResource(resource);
 
         srcMip += mipCount;
 
-        gfx->AddInflightResource(std::move(dst_slot));
+        command_list->AddInflightResource(std::move(dst_slot));
     }
 
-    gfx->AddInflightResource(std::move(src_slot));
+    command_list->AddInflightResource(std::move(src_slot));
 }
 
-void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture) {
+void MipsGenerator::GenerateTextureArray(D3D12CommandBuffer* command_list, D3D12Texture* texture) {
     auto gfx = D3D12GfxDriver::Instance();
     auto allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 
     //required by state tracker
-    command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    command_list->TransitionBarrier(texture, ResourceAccessBit::kShaderWrite);
 
     D3D12_RESOURCE_DESC tex_desc = texture->GetDesc();
-    auto resource = texture->GetUnderlyingResource().Get();
+    auto resource = static_cast<ID3D12Resource*>(texture->GetNativeResource());
 
     GenerateMipsCB cbuffer;
     cbuffer.IsSRGB = IsSRGBFormat(tex_desc.Format);
@@ -228,7 +226,7 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
             command_list->SetCompute32BitConstants(kCbuffer, cbuffer);
             command_list->SetDescriptorTable(kSrcMip, 0, &src_slot);
 
-            command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+            command_list->TransitionBarrier(texture, ResourceAccessBit::kNonPixelShaderRead,
                 array_index * tex_desc.MipLevels + srcMip);
 
             auto dst_slot = allocator->Allocate(4);
@@ -258,7 +256,7 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
 
             command_list->Dispatch(math::DivideByMultiple(dstWidth, 8), math::DivideByMultiple(dstHeight, 8), 1);
 
-            command_list->TransitionBarrier(texture, D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+            command_list->TransitionBarrier(texture, ResourceAccessBit::kShaderWrite,
                 array_index * tex_desc.MipLevels + srcMip);
 
             // make sure write completed
@@ -266,14 +264,14 @@ void MipsGenerator::GenerateTextureArray(D3D12CommandList* command_list, D3D12Re
 
             srcMip += mipCount;
 
-            gfx->AddInflightResource(std::move(dst_slot));
+            command_list->AddInflightResource(std::move(dst_slot));
         }
-        gfx->AddInflightResource(std::move(src_slot));
+        command_list->AddInflightResource(std::move(src_slot));
     }
 }
 
-void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Resource* texture,
-    std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res)
+void MipsGenerator::CreateUavResource(D3D12CommandBuffer* cmd_list, D3D12Texture* texture,
+    std::shared_ptr<D3D12Texture>& uav_res, std::shared_ptr<D3D12Texture>& alias_res)
 {
     D3D12_RESOURCE_DESC desc = texture->GetDesc();
     auto gfx = D3D12GfxDriver::Instance();
@@ -300,26 +298,30 @@ void MipsGenerator::CreateUavResource(D3D12CommandList* cmd_list, D3D12Resource*
     auto alias_location = allocator_.AllocResource((size_t)allocationInfo.SizeInBytes, allocationInfo.Alignment,
         aliasDesc, D3D12_RESOURCE_STATE_COMMON);
 
-    alias_res = std::make_shared<D3D12Resource>(alias_location);
-    alias_res->SetDebugName(TEXT("Alias Resource for MipsGenerate"));
+    alias_res = std::make_shared<D3D12Texture>(alias_location.GetResource());
+    alias_res->SetName("Alias Resource for MipsGenerate");
 
     // Create a UAV compatible resource in the same heap as the alias resource.
-    uav_res = alias_location.CreateAliasResource(uavDesc, alias_location.GetState());
-    uav_res->SetDebugName(TEXT("UAV Textuere for MipsGenerate"));
+    auto native_alias_res = alias_location.CreateAliasResource(uavDesc, alias_location.GetState());
+    uav_res = std::make_shared<D3D12Texture>(
+        native_alias_res,
+        alias_location.GetState()
+    );
+
+    uav_res->SetName("UAV Texture for MipsGenerate");
 
     // Add an aliasing barrier for the alias resource.
-    cmd_list->AliasResource(nullptr, alias_res->GetUnderlyingResource().Get());
+    cmd_list->AliasResource(nullptr, alias_res.get());
 
     // Copy the original resource to the alias resource.
     // This ensures GPU validation.
     cmd_list->CopyResource(texture, alias_res.get());
 
     // Add an aliasing barrier for the UAV compatible resource.
-    cmd_list->AliasResource(alias_res->GetUnderlyingResource().Get(), uav_res->GetUnderlyingResource().Get());
+    cmd_list->AliasResource(alias_res.get(), uav_res.get());
 
-    D3D12GfxDriver::Instance()->AddInflightResource(std::move(alias_location));
+    cmd_list->AddInflightResource(std::move(alias_location));
 }
-
 
 void MipsGenerator::CreateProgram() {
     program_ = std::make_unique<D3D12Program>("GenerateMips");

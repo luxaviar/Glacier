@@ -18,55 +18,37 @@ void PassNode::Reset() {
     //TODO:
 }
 
-//void PassNode::PreRender(Renderer* renderer) const {
-//
-//}
-//
-//void PassNode::PostRender(Renderer* renderer) const {
-//
-//}
-
-void PassNode::Execute(Renderer* renderer) {
+void PassNode::Execute(CommandBuffer* cmd_buffer) {
     if (executor_) {
-        executor_->Execute(renderer, *this);
-    } else {
-        Render(renderer);
+        executor_->Execute(cmd_buffer, *this);
+    }
+    else {
+        Render(cmd_buffer);
     }
 }
 
-void PassNode::Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat) const {
-    auto gfx = renderer->driver();
-
+void PassNode::Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat) const {
     if (mat) {
         for (auto o : objs) {
-            o->Render(gfx, mat);
+            o->Render(cmd_buffer, mat);
         }
-    } else {
+    }
+    else {
         for (auto o : objs) {
             auto cur_mat = o->GetMaterial();
             if (cur_mat->HasPass(this)) {
-                o->UpdateTransform(gfx);
-                gfx->BindMaterial(cur_mat.get());
-                o->Draw(gfx);
+                o->Render(cmd_buffer, cur_mat.get());
             }
         }
-
-        gfx->UnBindMaterial();
     }
 }
 
-void PassNode::Render(Renderer* renderer, const Renderable* obj, Material* mat) const {
+void PassNode::Render(CommandBuffer* cmd_buffer, const Renderable* obj, Material* mat) const {
     if (!obj) return;
 
-    //PreRender(renderer);
-
     if (obj->IsActive()) {
-        auto gfx = renderer->driver();
-        //MaterialGuard guard(gfx, mat);
-        obj->Render(gfx, mat);
+        obj->Render(cmd_buffer, mat);
     }
-
-    //PostRender(renderer);
 }
 
 void PassNode::Finalize() const

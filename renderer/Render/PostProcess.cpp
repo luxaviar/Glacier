@@ -37,11 +37,11 @@ PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
     }
 }
 
-void PostProcess::Render(GfxDriver* gfx) {
-    RenderTargetBindingGuard rt_guard(gfx, render_target_.get());
-    MaterialGuard mat_guard(gfx, material_.get());
+void PostProcess::Render(CommandBuffer* cmd_buffer) {
+    RenderTargetGuard rt_guard(cmd_buffer, render_target_.get());
+    cmd_buffer->BindMaterial(material_.get());
 
-    gfx->Draw(3, 0);
+    cmd_buffer->DrawInstanced(3, 1, 0, 0);
 }
 
 PostProcessManager::PostProcessManager(GfxDriver* gfx) :
@@ -56,9 +56,9 @@ void PostProcessManager::Push(PostProcessDescription& desc) {
     jobs_.emplace_back(desc, gfx_);
 }
 
-void PostProcessManager::Render() {
+void PostProcessManager::Render(CommandBuffer* cmd_buffer) {
     for (auto job : jobs_) {
-        job.Render(gfx_);
+        job.Render(cmd_buffer);
     }
 }
 

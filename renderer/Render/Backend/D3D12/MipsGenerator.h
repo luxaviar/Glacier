@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <d3d12.h>
+#include <cstdint>
 #include "DescriptorHeapAllocator.h"
 #include "MemoryHeapAllocator.h"
 
@@ -10,6 +11,7 @@ namespace render {
 
 class D3D12Texture;
 class D3D12Program;
+class D3D12CommandBuffer;
 
 class MipsGenerator {
 public:
@@ -32,14 +34,14 @@ public:
     using UavHeapAllocator = D3D12PlacedHeapAllocator<next_log_of2(DEFAULT_DEFAULT_HEAP_SIZE), next_log_of2(DEFAULT_RESOURCE_ALIGNMENT)>;
 
     MipsGenerator(ID3D12Device* device);
-    void Generate(D3D12CommandList* command_list, D3D12Resource* texture);
+    void Generate(D3D12CommandBuffer* command_list, D3D12Texture* texture);
 
 private:
-    void GenerateTexture2D(D3D12CommandList* command_list, D3D12Resource* texture);
-    void GenerateTextureArray(D3D12CommandList* command_list, D3D12Resource* texture);
+    void GenerateTexture2D(D3D12CommandBuffer* command_list, D3D12Texture* texture);
+    void GenerateTextureArray(D3D12CommandBuffer* command_list, D3D12Texture* texture);
 
-    void CreateUavResource(D3D12CommandList* command_list, D3D12Resource* texture,
-        std::shared_ptr<D3D12Resource>& uav_res, std::shared_ptr<D3D12Resource>& alias_res);
+    void CreateUavResource(D3D12CommandBuffer* command_list, D3D12Texture* texture,
+        std::shared_ptr<D3D12Texture>& uav_res, std::shared_ptr<D3D12Texture>& alias_res);
 
     void CreateProgram();
     void CreateDefaultUav();

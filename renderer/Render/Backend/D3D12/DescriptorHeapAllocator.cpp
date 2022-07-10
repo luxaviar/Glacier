@@ -51,7 +51,7 @@ D3D12DescriptorHeapEntry* D3D12DescriptorHeapAllocator::AllocateHeap()
     // Create a new descriptorHeap
     ComPtr<ID3D12DescriptorHeap> heap;
     GfxThrowIfFailed(device_->CreateDescriptorHeap(&desc_, IID_PPV_ARGS(&heap)));
-    //SetDebugName(heap.Get(), L"DX12DescriptorHeapAllocator Descriptor Heap");
+    heap.Get()->SetName(TEXT("D3D12DescriptorHeapEntry Descriptor Heap"));
 
     // Add an entry covering the entire heap.
     D3D12DescriptorHeapEntry::DescriptorHandle HeapBase = heap->GetCPUDescriptorHandleForHeapStart();
@@ -140,7 +140,6 @@ void D3D12DescriptorHeapAllocator::Deallocate(const D3D12DescriptorRange& slot)
 
     if (!found)
     {
-        // Add  NewRange to tail
         entry->free_list.push_back(return_range);
     }
 }

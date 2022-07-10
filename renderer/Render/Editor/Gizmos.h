@@ -15,6 +15,7 @@ namespace render {
 class Camera;
 class Mesh;
 class MeshRenderer;
+class CommandBuffer;
 
 class Gizmos : public Singleton<Gizmos> {
 public:
@@ -63,11 +64,12 @@ public:
 
     void DrawWireMesh(const MeshRenderer& mesh_renderer);
 
-    void Render(GfxDriver* gfx, bool late=false);
+    void Render(CommandBuffer* cmd_buffer, bool late = false);
     void Clear();
 
 private:
-    void BatchRender(GfxDriver* gfx, Material* mat, float alpha);
+    void BatchRender(CommandBuffer* cmd_buffer, Material* mat, float alpha);
+
     void Draw(const GizmosVertex* vertex, uint32_t vert_count,
         const uint32_t* index, uint32_t index_count);
     void DrawWireMesh(const Mesh& mesh, const Matrix4x4& m);
@@ -80,8 +82,6 @@ private:
     GfxDriver* gfx_;
 
     Color color_;
-    //std::shared_ptr<Buffer> vert_buffer_;
-    //std::shared_ptr<Buffer> index_buffer_;
     std::unique_ptr<Mesh> mesh_;
 
     std::shared_ptr<Material> material_;

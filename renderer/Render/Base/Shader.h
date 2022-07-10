@@ -33,7 +33,7 @@ struct ShaderParameter {
     operator bool() const { return !name.empty(); }
 };
 
-class Shader : public Resource {
+class Shader : private Uncopyable {
 public:
     static HRESULT CompileFromFile(const TCHAR* file_path, ID3DBlob** ptr_blob, const D3D_SHADER_MACRO* defines,
         const char* entry_point, const char* target, UINT flags1 = 0, UINT flags2 = 0);

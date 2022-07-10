@@ -9,7 +9,7 @@ struct aiMesh;
 namespace glacier {
 namespace render {
 
-class CommandList;
+class CommandBuffer;
 
 class Mesh {
 public:
@@ -18,7 +18,7 @@ public:
     Mesh();
     Mesh(const VertexCollection& vertices, const IndexCollection& indices, bool recalculate_normals = false);
     Mesh(const aiMesh& mesh);
-    Mesh(const std::shared_ptr<VertexBuffer>& vertex_buffer, const std::shared_ptr<IndexBuffer>& index_buffer);
+    Mesh(const std::shared_ptr<Buffer>& vertex_buffer, const std::shared_ptr<Buffer>& index_buffer);
     
     const AABB& bounds() const { return bounds_; }
 
@@ -31,16 +31,16 @@ public:
     Buffer* vertex_buffer() const { return vertex_buffer_.get(); }
     Buffer* index_buffer() const { return index_buffer_.get(); }
 
-    void Draw(GfxDriver* gfx) const;
+    void Draw(CommandBuffer* cmd_buffer) const;
 
     void RecalculateNormals();
 
 private:
     void Setup();
 
-    void Bind(GfxDriver* gfx) const;
-    inline Vec3f CalcRawNormalFromTriangle(const Vec3f& a, const Vec3f& b, const Vec3f& c)
-    {
+    void Bind(CommandBuffer* cmd_buffer) const;
+
+    inline Vec3f CalcRawNormalFromTriangle(const Vec3f& a, const Vec3f& b, const Vec3f& c) {
         return (b - a).Cross(c - a);
     }
 
@@ -50,8 +50,8 @@ protected:
     VertexCollection vertices_;
     IndexCollection indices_;
 
-    std::shared_ptr<VertexBuffer> vertex_buffer_;
-    std::shared_ptr<IndexBuffer> index_buffer_;
+    std::shared_ptr<Buffer> vertex_buffer_;
+    std::shared_ptr<Buffer> index_buffer_;
     AABB bounds_;
 };
 

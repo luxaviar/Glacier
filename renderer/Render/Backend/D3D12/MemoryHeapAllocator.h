@@ -14,6 +14,7 @@ namespace render {
 
 #define DEFAULT_UPLOAD_HEAP_SIZE _256MB
 #define DEFAULT_DEFAULT_HEAP_SIZE _256MB
+#define DEFAULT_READBACK_HEAP_SIZE _128MB
 
 #define UPLOAD_RESOURCE_ALIGNMENT 65536
 #define DEFAULT_RESOURCE_ALIGNMENT 65536
@@ -53,8 +54,8 @@ public:
         uint64_t offset = block.align_offset;
         GfxThrowIfFailed(device_->CreatePlacedResource(heap, offset, &desc, state, clear_value, IID_PPV_ARGS(&resource)));
 
-        return { block, heap, resource, state, desc_.Properties.Type != D3D12_HEAP_TYPE_DEFAULT };
-    }
+        return { block, heap, resource, state };// desc_.Properties.Type != D3D12_HEAP_TYPE_DEFAULT
+    };
 
     constexpr uint32_t heap_size() const {  return AllocatorPool::kHeapSize; }
 
@@ -85,7 +86,7 @@ public:
         D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
 
     ResourceLocation CreateVertexOrIndexBuffer(size_t size, size_t alignment,
-        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER);
+        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST);
 
 private:
     D3D12DefaultHeapAllocator default_allocator_;
@@ -104,6 +105,15 @@ public:
 
 private:
     ID3D12Device* device_;
+};
+
+class D3D12ReadbackBufferAllocator :
+    public D3D12PlacedHeapAllocator<next_log_of2(DEFAULT_READBACK_HEAP_SIZE), next_log_of2(DEFAULT_RESOURCE_ALIGNMENT)>
+{
+public:
+    D3D12ReadbackBufferAllocator(ID3D12Device* device, D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE);
+    ResourceLocation CreateResource(size_t size, size_t alignment = DEFAULT_RESOURCE_ALIGNMENT,
+        D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COPY_DEST);
 };
 
 }

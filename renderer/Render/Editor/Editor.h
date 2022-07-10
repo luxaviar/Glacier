@@ -2,7 +2,6 @@
 
 #include <string>
 #include "gizmos.h"
-//#include "picking.h"
 
 namespace glacier {
 
@@ -13,6 +12,7 @@ namespace render {
 class Material;
 class Renderer;
 class RenderTarget;
+class CommandBuffer;
 
 class Editor {
 public:
@@ -26,14 +26,15 @@ public:
 
     void OnResize(uint32_t width, uint32_t height);
 
-    void Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt);
+    void Pick(CommandBuffer* cmd_buffer, int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt);
 
     void RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer);
 
     bool ShowStats() const { return show_windows_ && show_stats_; }
 
-    void Render();
-    void DrawGizmos();
+    void Render(CommandBuffer* cmd_buffer);
+
+    void DrawGizmos(CommandBuffer* cmd_buffer);
     void DrawPanel();
 
 private:
@@ -59,11 +60,9 @@ private:
 
     bool renderer_option_window_ = false;
 
-    //Picking pick_;
-    std::shared_ptr<ConstantBuffer> color_buf_;
+    std::shared_ptr<Buffer> color_buf_;
     std::shared_ptr<Material> mat_;
 
-    //std::shared_ptr<RenderTarget> pick_rt_;
     GameObject* selected_go_ = nullptr;
     Material* selected_mat_ = nullptr;
 

@@ -43,7 +43,7 @@ void Editor::OnResize(uint32_t width, uint32_t height) {
     height_ = height;
 }
 
-void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt) {
+void Editor::Pick(CommandBuffer* cmd_buffer, int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt) {
     if (visibles.empty()) return;
 
     auto viewport = rt->viewport();
@@ -65,10 +65,10 @@ void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& 
 
     ScissorRect rect{ minx, miny, maxx, maxy };
     rt->EnableScissor(rect);
-    rt->Clear({ 0, 0, 0, 0 });
-    rt->Bind(gfx_);
+    rt->Clear(cmd_buffer, { 0, 0, 0, 0 });
+    rt->Bind(cmd_buffer);
 
-    gfx_->BindCamera(camera);
+    cmd_buffer->BindCamera(camera);
     {
         Vec4f encoded_id;
         for (auto o : visibles) {
@@ -82,14 +82,13 @@ void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& 
             encoded_id.a = ((id >> 24) & 0xFF) / 255.0f;
             color_buf_->Update(&encoded_id);
 
-            o->Render(gfx_, mat_.get());
+            o->Render(cmd_buffer, mat_.get());
         }
     }
     rt->DisableScissor();
-    rt->UnBind(gfx_);
 
     auto tex = rt->GetColorAttachment(AttachmentPoint::kColor0);
-    tex->ReadBackImage(minx, miny, sizex, sizey, 0, 0,
+    tex->ReadBackImage(cmd_buffer, minx, miny, sizex, sizey, 0, 0,
         [sizex, sizey, this](const uint8_t* data, size_t raw_pitch) {
             int pick_id = -1;
             int max_hit = 0;
@@ -118,15 +117,15 @@ void Editor::Pick(int x, int y, Camera* camera, const std::vector<Renderable*>& 
                     selected_go_ = mr->game_object();
                 }
             }
-    });
+        });
 }
 
-void Editor::Render() {
-    DrawGizmos();
+void Editor::Render(CommandBuffer* cmd_buffer) {
+    DrawGizmos(cmd_buffer);
     DrawPanel();
 }
 
-void Editor::DrawGizmos() {
+void Editor::DrawGizmos(CommandBuffer* cmd_buffer) {
     PerfSample("Gizmos");
 
     if (selected_go_) {
@@ -142,12 +141,12 @@ void Editor::DrawGizmos() {
             physics::World::Instance()->OnDrawGizmos(true);
         }
 
-        if (scene_gizmos_){
+        if (scene_gizmos_) {
             GameObjectManager::Instance()->DrawGizmos();
         }
     }
 
-    Gizmos::Instance()->Render(gfx_);
+    Gizmos::Instance()->Render(cmd_buffer);
 }
 
 void Editor::DrawPanel() {
@@ -285,17 +284,17 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     render_graph.AddPass("outline mask",
         [&](PassNode& pass) {
         },
-        [this, renderer, outline_mat](Renderer* renderer, const PassNode& pass) {
+        [this, renderer, outline_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
 
-            renderer->GetLightingRenderTarget()->BindDepthStencil(gfx_);
-            pass.Render(renderer, mr, outline_mat.get());
+            renderer->GetLightingRenderTarget()->BindDepthStencil(cmd_buffer);
+            pass.Render(cmd_buffer, mr, outline_mat.get());
         });
 
     auto outline_draw_tex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
-    outline_draw_tex->SetName(TEXT("Outline draw texture"));
+    outline_draw_tex->SetName("Outline draw texture");
 
     auto outline_draw_rt = gfx->CreateRenderTarget(outline_draw_tex->width(), outline_draw_tex->height());
     outline_draw_rt->AttachColor(AttachmentPoint::kColor0, outline_draw_tex);
@@ -308,15 +307,15 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     render_graph.AddPass("outline draw",
         [&](PassNode& pass) {
         },
-        [this, outline_draw_tex, outline_draw_rt, outline_solid_mat](Renderer* renderer, const PassNode& pass) {
+        [this, outline_draw_tex, outline_draw_rt, outline_solid_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
 
-            outline_draw_rt->Clear();
-            RenderTargetBindingGuard gurad(gfx_, outline_draw_rt.get());
+            outline_draw_rt->Clear(cmd_buffer);
+            RenderTargetGuard gurad(cmd_buffer, outline_draw_rt.get());
 
-            pass.Render(renderer, mr, outline_solid_mat.get());
+            pass.Render(cmd_buffer, mr, outline_solid_mat.get());
         });
 
     SetKernelGauss(blur_param_, 4, 2.0);
@@ -324,7 +323,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto blur_dir = gfx->CreateConstantBuffer<BlurDirection>(blur_dir_);
 
     auto outline_htex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
-    outline_htex->SetName(TEXT("horizontal outline draw texture"));
+    outline_htex->SetName("horizontal outline draw texture");
 
     auto outline_hrt = gfx->CreateRenderTarget(outline_htex->width(), outline_htex->height());
     outline_hrt->AttachColor(AttachmentPoint::kColor0, outline_htex);
@@ -349,16 +348,16 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     render_graph.AddPass("horizontal blur",
         [&](PassNode& pass) {
         },
-        [this, outline_htex, outline_hrt, blur_dir, hblur_mat](Renderer* renderer, const PassNode& pass) {
+        [this, outline_htex, outline_hrt, blur_dir, hblur_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
 
-            outline_hrt->ClearColor(AttachmentPoint::kColor0);
+            outline_hrt->ClearColor(cmd_buffer, AttachmentPoint::kColor0);
             blur_dir_.isHorizontal = true;
             blur_dir->Update(&blur_dir_);
 
-            Renderer::PostProcess(outline_hrt, hblur_mat.get());
+            Renderer::PostProcess(cmd_buffer, outline_hrt, hblur_mat.get());
         });
 
     SamplerState vss;
@@ -384,7 +383,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     render_graph.AddPass("vertical blur",
         [&](PassNode& pass) {
         },
-        [this, blur_dir, vblur_mat](Renderer* renderer, const PassNode& pass) {
+        [this, blur_dir, renderer, vblur_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;
@@ -392,7 +391,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             blur_dir_.isHorizontal = false;
             blur_dir->Update(&blur_dir_);
 
-            Renderer::PostProcess(renderer->GetLightingRenderTarget(), vblur_mat.get());
+            Renderer::PostProcess(cmd_buffer, renderer->GetLightingRenderTarget(), vblur_mat.get());
         });
 }
 

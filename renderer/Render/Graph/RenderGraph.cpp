@@ -31,11 +31,11 @@ PassNode& RenderGraph::CreatePass(const char* name, PassExecutor* executor) {
     return passes_.back();
 }
 
-void RenderGraph::Execute(Renderer* renderer) {
+void RenderGraph::Execute(CommandBuffer* cmd_buffer) {
     assert(baked);
     for (auto& p : passes_) {
         if (p.active()) {
-            p.Execute(renderer);
+            p.Execute(cmd_buffer);
         }
     }
 }

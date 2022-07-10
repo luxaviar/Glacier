@@ -13,8 +13,13 @@ struct aiScene;
 namespace glacier {
 namespace render {
 
+class CommandBuffer;
+class Texture;
+
 class Model {
 public:
+    using TextureWarpMode = std::array<WarpMode, 3>;
+
     struct MeshDesc {
         uint32_t mesh;
         uint32_t material;
@@ -48,7 +53,7 @@ public:
         std::vector<Node> children_;
     };
 
-    Model(const char* file, bool flip_uv=false);
+    Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv=false);
     Model(const VertexCollection& vertices, const IndexCollection& indices, const std::shared_ptr<Material>& material);
     
     Node& root() { return root_; }
@@ -61,13 +66,13 @@ public:
     const std::shared_ptr<Material>& GetMaterial(size_t idx) const;
 
     bool GetTexture(aiMaterial* mat, aiTextureType type, unsigned int index, aiString& value, aiTextureMapMode* mode) const;
-    TextureDescription GetTextureDesc(const std::filesystem::path& base_path, aiMaterial* mtl,
-        aiTextureType type, aiTextureType opt_type,
-        const char* color_key, const Color& default_color,
-        bool srgb, bool mips=true) const;
+
+    std::shared_ptr<Texture> LoadTexture(CommandBuffer* cmd_buffer, const std::filesystem::path& base_path, aiMaterial* mtl,
+        aiTextureType type, aiTextureType opt_type, const char* color_key, const Color& default_color,
+        bool srgb, bool mips, TextureWarpMode& mode) const;
 
     GameObject& GenerateGameObject(float scale = 1.0f);
-    static GameObject& GenerateGameObject(const char* file, bool flip_uv = false, float scale = 1.0f);
+    static GameObject& GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv = false, float scale = 1.0f);
 
 private:
     Node root_;
