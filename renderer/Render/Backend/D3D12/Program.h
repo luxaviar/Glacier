@@ -52,7 +52,7 @@ public:
 
     void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* cbuffer);
     //void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12StructuredBuffer* sbuffer);
-    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex, bool uav=false);
     void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Sampler* tex);
 
     void BindPSO(CommandBuffer* cmd_buffer) override;
@@ -69,6 +69,8 @@ public:
 protected:
     void CreateRootSignature();
     void Bind(D3D12CommandBuffer* cmd_list);
+
+    ResourceAccessBit GetTargetState(bool uav);
 
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
     void AddParameter(DescriptorTableParam& list, const D3D12ShaderParameter& param);

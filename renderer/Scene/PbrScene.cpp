@@ -25,6 +25,14 @@ static void DrawHelmet(CommandBuffer* cmd_buffer) {
     auto& helmet = Model::GenerateGameObject(cmd_buffer, "assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
     //helmet.transform().position(Vector3{ 6.0f,4.0f,10.0f });
     helmet.transform().position(Vector3{ 99, 25, 4 });
+
+    auto pbr_floor = MaterialManager::Instance()->Get("pbr_floor");
+
+    auto ground_size = Vec3f(200.0f, 1.0f, 200.0f);
+    auto& ground_go = Primitive::CreateCube(pbr_floor, ground_size);
+    ground_go.name("Ground");
+    ground_go.transform().position({ 0.0f,-1.5f,0.0f });
+    //ground_go.AddComponent<BoxCollider>(Vec3f{ 100.0f, 0.5f, 100.0f });
 }
 
 static void DrawSponza(CommandBuffer* cmd_buffer) {

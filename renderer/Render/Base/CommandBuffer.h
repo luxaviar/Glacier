@@ -9,6 +9,7 @@
 #include "Math/Mat4.h"
 #include "Math/Vec3.h"
 #include "Common/Color.h"
+#include "Common/Uncopyable.h"
 
 namespace glacier {
 namespace render {
@@ -25,13 +26,12 @@ class RenderTarget;
 class Buffer;
 class Texture;
 
-class CommandBuffer {
+class CommandBuffer : private Uncopyable {
 public:
     CommandBuffer(GfxDriver* driver, CommandBufferType type);
     virtual ~CommandBuffer() {}
 
     virtual void SetName(const char* Name) = 0;
-
     virtual void Reset() = 0;
 
     virtual std::shared_ptr<Texture> CreateTextureFromFile(const TCHAR* file, bool srgb,
@@ -62,7 +62,7 @@ public:
     virtual void SetShaderResourceView(uint32_t root_param_index, const Resource* res) = 0;
     virtual void SetUnorderedAccessView(uint32_t root_param_index, const Resource* res) = 0;
 
-    virtual void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* res) = 0;
+    virtual void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* res, bool uav=false) = 0;
     virtual void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const Resource* res) = 0;
 
     virtual void TransitionBarrier(Resource* res, ResourceAccessBit after_state,
@@ -80,7 +80,6 @@ public:
     virtual void Dispatch(uint32_t thread_group_x, uint32_t thread_group_y, uint32_t thread_group_z) = 0;
 
     virtual void FlushBarriers() = 0;
-
     virtual void BindDescriptorHeaps() = 0;
 
     virtual CommandBuffer* GetGenerateMipsCommandList() const { return compute_cmd_buffer_; }
@@ -112,9 +111,6 @@ protected:
     Matrix4x4 projection_;
     Vector3 camera_position_;
     std::shared_ptr<RenderTarget> current_render_target_;
-
-    RasterStateDesc raster_state_;
-    uint32_t input_layout_ = { 0 };
 
     Material* material_ = nullptr;
     Program* program_ = nullptr;

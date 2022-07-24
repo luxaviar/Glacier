@@ -118,10 +118,12 @@ float3 EvaluateIBL(in TextureCube radiance_tex, in TextureCube irradiance_tex, i
     float radianc_max_lod, float3 diffuse_ao, float speculer_ao)
 {
     //const float MAX_REFLECTION_LOD = 4.0;
-    float3 inverseV = normalize(reflect(-V, N));
+    float3 normal_ws = mul(N, (float3x3)_InverseView);
+    float3 view_ws = mul(V, (float3x3)_InverseView);
+    float3 inverseV = normalize(reflect(-view_ws, normal_ws));
+
     float3 radiance = radiance_tex.SampleLevel(linear_sampler, inverseV, roughness * radianc_max_lod).rgb;
 
-    float3 normal_ws = mul(N, (float3x3)_InverseView);
     float3 irradiance = irradiance_tex.Sample(linear_sampler, normal_ws).rgb;
 
     float VoN = max(dot(V, N), 0);

@@ -15,6 +15,12 @@
 namespace glacier {
 namespace render {
 
+Material::Material(const char* name) :
+    Material(name, Program::Create(name, nullptr, nullptr))
+{
+
+}
+
 Material::Material(const char* name, const std::shared_ptr<Program>& program) :
     name_(name),
     program_(program)
@@ -22,9 +28,15 @@ Material::Material(const char* name, const std::shared_ptr<Program>& program) :
 
 }
 
-Material::Material(const char* name, const TCHAR* vs, const TCHAR* ps):
+Material::Material(const char* name, const TCHAR* vs, const TCHAR* ps) :
     Material(name, Program::Create(name, vs, ps))
 {
+}
+
+Material::Material(const char* name, const TCHAR* cs) :
+    Material(name, Program::Create(name, cs))
+{
+
 }
 
 void Material::SetupBuiltinProperty() {

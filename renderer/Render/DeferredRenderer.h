@@ -38,18 +38,6 @@ protected:
         float padding;
     };
 
-    struct GtaoParam {
-        float temporal_cos_angle = 1.0f;
-        float temporal_sin_angle = 0.0f;
-        float temporal_offset = 0.0f;
-        float temporal_direction = 0.0f;
-        float radius = 5.0f;
-        float fade_to_radius = 2.0f;
-        float thickness = 1.0f;
-        float fov_scale;
-        float intensity = 1.0f;
-    };
-
     void DrawOptionWindow() override;
 
     void InitRenderTarget() override;
@@ -70,22 +58,12 @@ protected:
     std::shared_ptr<Material> fxaa_mat_;
     ConstantParameter<FXAAParam> fxaa_param_;
     ConstantParameter<TAAParam> taa_param_;
-    ConstantParameter<GtaoParam> gtao_param_;
 
     std::shared_ptr<Material> taa_mat_;
     std::shared_ptr<Texture> temp_hdr_texture_;
     std::shared_ptr<Texture> prev_hdr_texture_;
 
     std::shared_ptr<RenderTarget> gbuffer_render_target_;
-
-    std::shared_ptr<Material> gtao_mat_;
-    std::shared_ptr<Material> gtao_filter_x_mat_;
-    std::shared_ptr<Material> gtao_filter_y_mat_;
-    ConstantParameter<Vector4> gtao_filter_x_param_;
-    ConstantParameter<Vector4> gtao_filter_y_param_;
-
-    std::shared_ptr<RenderTarget> ao_render_target_;
-    std::shared_ptr<RenderTarget> ao_tmp_render_target_;
 };
 
 }

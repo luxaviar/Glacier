@@ -2,6 +2,7 @@
 #include "Common/BasicBuffer.hlsli"
 #include "Common/BasicTexture.hlsli"
 #include "Common/Lighting.hlsli"
+#include "Common/Utils.hlsli"
 
 struct PbrMaterial
 {
@@ -39,6 +40,7 @@ VSOut main_vs(AppData IN)
 
 float4 main_ps(VSOut IN) : SV_Target
 {
+    float3 screen_ao = _OcclusionTexture.Sample(linear_sampler, IN.position.xy * _ScreenParam.zw).rgb;
     float4 albedo = AlbedoTexture.Sample(linear_sampler, IN.tex_coord);
     float3 normal = IN.view_normal;
     ///TODO: use macro variant
@@ -55,7 +57,7 @@ float4 main_ps(VSOut IN) : SV_Target
     float metallic = metal_roughness.b;
     float roughness = metal_roughness.g;
     
-    float ao = AoTexture.Sample(linear_sampler, IN.tex_coord).r;
+    float self_ao = AoTexture.Sample(linear_sampler, IN.tex_coord).r;
     float3 f0 = lerp(mat.f0, albedo.rgb, metallic);
     
     float3 final_color = EmissiveTexture.Sample(linear_sampler, IN.tex_coord).rgb;
@@ -92,12 +94,25 @@ float4 main_ps(VSOut IN) : SV_Target
             final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic);
         }
     }
-    
-    float3 ambient = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
-        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod, ao, ao);
-    //ambient *= ao;
 
-    final_color += ambient;
+    
+    float3 diffuse_ao = self_ao.xxx;
+    float ro = self_ao;
+
+    if (self_ao == 1.0f) {
+        diffuse_ao = MultiBounce(screen_ao.r, albedo.rgb);
+
+        float unoccluded_angle = screen_ao.g;
+        float angle_between = screen_ao.b;
+        float reflection_cone_angle = max(roughness, 0.04) * kPI;
+        ro = ConeConeIntersection(reflection_cone_angle, unoccluded_angle, angle_between);
+        ro = lerp(0, ro, saturate((unoccluded_angle - 0.1) / 0.2));
+    }
+
+    float3 ambient_color = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,
+        V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod, diffuse_ao, ro);
+
+    final_color += ambient_color;
 
     return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
 }

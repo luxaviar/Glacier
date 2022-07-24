@@ -52,8 +52,9 @@ public:
     uint32_t GetSampleQuality() const override { return desc_.SampleDesc.Quality; }
 
     D3D12_GPU_VIRTUAL_ADDRESS GetGpuAddress() const { return gpu_address_; }
-    const D3D12DescriptorRange& GetDescriptorSlot() const { return descriptor_slot_; }
-    D3D12_CPU_DESCRIPTOR_HANDLE GetDescriptorHandle() const { return descriptor_slot_.GetDescriptorHandle(); }
+
+    D3D12_CPU_DESCRIPTOR_HANDLE GetSrvHandle() const { return srv_slot_.GetDescriptorHandle(); }
+    D3D12_CPU_DESCRIPTOR_HANDLE GetUavHandle(uint32_t offset = 0) const { return uav_slot_.GetDescriptorHandle(offset); }
 
     void Reset(ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state);
     bool Resize(uint32_t width, uint32_t height) override;
@@ -94,7 +95,8 @@ protected:
     uint8_t plant_count_ = 0;
 
     D3D12_GPU_VIRTUAL_ADDRESS gpu_address_ = 0;
-    D3D12DescriptorRange descriptor_slot_ = {};
+    D3D12DescriptorRange srv_slot_ = {};
+    D3D12DescriptorRange uav_slot_ = {};
 
     D3D12_FEATURE_DATA_FORMAT_SUPPORT format_support_;
 };

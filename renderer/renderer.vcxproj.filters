@@ -1504,5 +1504,11 @@
     <FxCompile Include="Assets\Shader\GTAOFilter.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Assets\Shader\DepthNormalCS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\PrePass.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

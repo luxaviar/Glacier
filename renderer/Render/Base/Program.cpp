@@ -11,6 +11,12 @@ std::shared_ptr<Program> Program::Create(const char* name, const TCHAR* vs, cons
     return GfxDriver::Get()->CreateProgram(name, vs, ps);
 }
 
+std::shared_ptr<Program> Program::Create(const char* name, const TCHAR* cs) {
+    auto program = GfxDriver::Get()->CreateProgram(name);
+    program->SetComputeShader(cs);
+    return program;
+}
+
 Program::Program(const char* name) : name_(name) {
     pso_ = GfxDriver::Get()->CreatePipelineState(this, {}, {});
     pso_->SetName(ToWide(name).c_str());
@@ -25,8 +31,25 @@ bool Program::HasPass(const PassNode* pass) const {
     return std::find(passes_.begin(), passes_.end(), pass->name()) != passes_.end();
 }
 
+void Program::SetVertexShader(const TCHAR* vs) {
+    auto shader = GfxDriver::Get()->CreateShader(ShaderType::kVertex, vs);
+    SetShader(shader);
+}
+
+void Program::SetPixelShader(const TCHAR* ps) {
+    auto shader = GfxDriver::Get()->CreateShader(ShaderType::kPixel, ps);
+    SetShader(shader);
+}
+
+void Program::SetComputeShader(const TCHAR* cs) {
+    auto shader = GfxDriver::Get()->CreateShader(ShaderType::kCompute, cs);
+    SetShader(shader);
+}
+
 void Program::SetShader(const std::shared_ptr<Shader>& shader) {
     auto type = shader->type();
+    assert(!GetShader(type));
+
     shaders_[(int)type] = shader;
 
     SetupShaderParameter(shader);
@@ -52,17 +75,17 @@ void Program::SetupMaterial(Material* material) {
     }
 }
 
-ShaderParameter& Program::FetchShaderParameter(const std::string& name) {
+ShaderParameter& Program::FetchShaderParameter(const std::string& name, ShaderParameterType type) {
     auto it = params_.find(name);
     if (it == params_.end()) {
-        it = params_.emplace_hint(it, name, ShaderParameter{name});
+        it = params_.emplace_hint(it, name, ShaderParameter{name, type});
     }
 
     return it->second;
 }
 
-void Program::SetShaderParameter(const std::string& name, const ShaderParameter::Entry& entry) {
-    auto& param = FetchShaderParameter(name);
+void Program::SetShaderParameter(const std::string& name, ShaderParameterType type, const ShaderParameter::Entry& entry) {
+    auto& param = FetchShaderParameter(name, type);
     param.entries[(int)entry.shader_type] = entry;
 }
 

@@ -36,7 +36,8 @@
 namespace glacier {
 namespace render {
 
-void Renderer::PostProcess(CommandBuffer* cmd_buffer, const std::shared_ptr<RenderTarget>& dst, Material* mat, bool color_only) {
+void Renderer::PostProcess(CommandBuffer* cmd_buffer, const std::shared_ptr<RenderTarget>& dst, Material* mat, bool color_only)
+{
     RenderTargetGuard dst_guard(cmd_buffer, dst.get(), color_only);
     cmd_buffer->BindMaterial(mat);
     cmd_buffer->DrawInstanced(3, 1, 0, 0);
@@ -55,8 +56,12 @@ Renderer::Renderer(GfxDriver* gfx, AntiAliasingType aa) :
     for (int i = 0; i < kTAASampleCount; ++i) {
         halton_sequence_[i] = { LowDiscrepancySequence::Halton(i + 1, 2), LowDiscrepancySequence::Halton(i + 1, 3) };
         halton_sequence_[i] = halton_sequence_[i] * 2.0f - 1.0f;
-        LOG_LOG("{}", halton_sequence_[i]);
+        //LOG_LOG("{}", halton_sequence_[i]);
     }
+
+    gtao_param_ = gfx_->CreateConstantParameter<GtaoParam, UsageType::kDefault>();
+    gtao_filter_x_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(1.0f, 0.0f, 0.0f, 0.0f);
+    gtao_filter_y_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(0.0f, 1.0f, 0.0f, 0.0f);
 }
 
 void Renderer::Setup() {
@@ -97,6 +102,16 @@ void Renderer::InitRenderTarget() {
     ldr_colorframe->SetName("ldr color frame");
     ldr_render_target_->AttachColor(AttachmentPoint::kColor0, ldr_colorframe);
     ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
+
+    auto ao_texture = RenderTexturePool::Get(width, height, TextureFormat::kR11G11B10_FLOAT);
+    ao_render_target_ = gfx_->CreateRenderTarget(width, height);
+    ao_render_target_->AttachColor(AttachmentPoint::kColor0, ao_texture);
+    ao_texture->SetName("ao texture");
+
+    auto ao_tmp_texture = RenderTexturePool::Get(width, height, TextureFormat::kR11G11B10_FLOAT);
+    ao_tmp_render_target_ = gfx_->CreateRenderTarget(width, height);
+    ao_tmp_render_target_->AttachColor(AttachmentPoint::kColor0, ao_tmp_texture);
+    ao_tmp_texture->SetName("ao temp texture");
 
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
 }
@@ -144,9 +159,12 @@ void Renderer::FilterVisibles() {
 }
 
 void Renderer::BindLightingTarget(CommandBuffer* cmd_buffer) {
+    GetLightingRenderTarget()->Bind(cmd_buffer);
+}
+
+void Renderer::BindMainCamera(CommandBuffer* cmd_buffer) {
     auto main_camera = GetMainCamera();
     cmd_buffer->BindCamera(main_camera);
-    GetLightingRenderTarget()->Bind(cmd_buffer);
 }
 
 void Renderer::InitMaterial() {
@@ -180,6 +198,7 @@ void Renderer::UpdatePerFrameData() {
     auto& param = per_frame_param_.param();
     prev_view_projection_ = projection * view;
     param._UnjitteredViewProjection = prev_view_projection_;
+    param._UnjitteredInverseViewProjection = prev_view_projection_.Inverted().value();
     param._UnjitteredInverseProjection = projection.Inverted().value();
 
     if (anti_aliasing_ == AntiAliasingType::kTAA) {
@@ -203,7 +222,8 @@ void Renderer::UpdatePerFrameData() {
     param._Projection = projection;
     param._InverseProjection = inverse_projection.value();
     param._ViewProjection = projection * view;
-    param._CameraParams = { farz, nearz, 1.0f / farz, 1.0f / nearz };
+    param._InverseViewProjection = param._ViewProjection.Inverted().value();
+    param._CameraParams = { nearz, farz, 1.0f / nearz, 1.0f / farz };
 
 #ifdef GLACIER_REVERSE_Z
     param._ZBufferParams.x = -1.0f + farz / nearz;
@@ -229,6 +249,7 @@ void Renderer::PreRender(CommandBuffer* cmd_buffer) {
     UpdatePerFrameData();
 
     BindLightingTarget(cmd_buffer);
+    BindMainCamera(cmd_buffer);
     FilterVisibles();
 }
 
@@ -304,6 +325,10 @@ void Renderer::SetupBuiltinProperty(Material* mat) {
         mat->SetProperty("_PerObjectData", Renderable::GetPerObjectData());
     }
 
+    if (mat->HasParameter("_OcclusionTexture")) {
+        mat->SetProperty("_OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    }
+
     csm_manager_->SetupMaterial(mat);
     LightManager::Instance()->SetupMaterial(mat);
 }
@@ -348,6 +373,7 @@ void Renderer::AddShadowPass() {
 
             csm_manager_->Render(cmd_buffer, main_camera_, visibles_, main_light);
 
+            BindMainCamera(cmd_buffer);
             BindLightingTarget(cmd_buffer);
         });
 }
@@ -433,6 +459,7 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
 
             auto& rt = shadow_map_rt[5];
 
+            BindMainCamera(cmd_buffer);
             BindLightingTarget(cmd_buffer);
         });
 

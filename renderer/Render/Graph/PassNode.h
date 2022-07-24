@@ -24,24 +24,16 @@ public:
     PassNode(PassNode&& other) noexcept = default;
     virtual ~PassNode() = default;
 
-    //virtual void Execute(Renderer* renderer);
     virtual void Execute(CommandBuffer* cmd_buffer);
-
-    //void Render(Renderer* renderer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
-    //void Render(Renderer* renderer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
 
     void Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
     void Render(CommandBuffer* cmd_buffer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
-
-    //void PreRender(Renderer* renderer) const;
-    //void PostRender(Renderer* renderer) const;
 
     void Reset();
 
     void Finalize() const;
 
     const std::string& name() const { return name_; }
-    //RasterState& raster_state() { return rs_; }
 
     bool active() const { return active_; }
     void active(bool enable) { active_ = enable; }
@@ -49,7 +41,6 @@ public:
 protected:
     bool active_ = true;
     std::string name_;
-    //RasterState rs_;
 
     std::unique_ptr<PassExecutor> executor_;
 };

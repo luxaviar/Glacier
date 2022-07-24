@@ -412,21 +412,26 @@ void D3D12Texture::CreateViews() {
         }
 
         auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        descriptor_slot_ = descriptor_allocator->Allocate();
-        device->CreateShaderResourceView(resource_.Get(), &srv_desc, descriptor_slot_.GetDescriptorHandle());
+        srv_slot_ = descriptor_allocator->Allocate();
+        device->CreateShaderResourceView(resource_.Get(), &srv_desc, srv_slot_.GetDescriptorHandle());
     }
 
-    // Create UAV for each mip (only supported for 1D and 2D textures).
     if ((desc_.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) != 0 && desc_.DepthOrArraySize == 1 &&
         CheckFormatSupport(D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW) &&
         CheckFormatSupport(D3D12_FORMAT_SUPPORT2_UAV_TYPED_LOAD) &&
         CheckFormatSupport(D3D12_FORMAT_SUPPORT2_UAV_TYPED_STORE))
     {
         auto descriptor_allocator = driver->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
-        descriptor_slot_ = descriptor_allocator->Allocate(desc_.MipLevels);
+        //uav_slot_ = descriptor_allocator->Allocate();
+
+        //auto uav_desc = GetUavDesc(desc_);
+        //device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, uav_slot_.GetDescriptorHandle());
+
+        //Create UAV for each mip(only supported for 1D and 2D textures).
+        uav_slot_ = descriptor_allocator->Allocate(desc_.MipLevels);
         for (int i = 0; i < desc_.MipLevels; ++i) {
             auto uav_desc = GetUavDesc(desc_, i);
-            device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, descriptor_slot_.GetDescriptorHandle(i));
+            device->CreateUnorderedAccessView(resource_.Get(), nullptr, &uav_desc, uav_slot_.GetDescriptorHandle(i));
         }
     }
 }
@@ -450,7 +455,8 @@ bool D3D12Texture::Resize(uint32_t width, uint32_t height) {
 void D3D12Texture::ReleaseNativeResource() {
     resource_.Reset();
     location_ = {};
-    descriptor_slot_ = {};
+    srv_slot_ = {};
+    uav_slot_ = {};
 }
 
 void D3D12Texture::ReadBackImage(CommandBuffer* cmd_buffer, int left, int top,

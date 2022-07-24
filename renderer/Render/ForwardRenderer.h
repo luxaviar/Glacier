@@ -29,6 +29,9 @@ protected:
     void InitRenderTarget() override;
     void ResolveMSAA(CommandBuffer* cmd_buffer) override;
 
+    void AddAOPass();
+    void AddPreDepthPass();
+    void AddDepthNormalPass();
     void AddLightingPass();
     
     void InitRenderGraph(GfxDriver* gfx);
@@ -39,9 +42,16 @@ protected:
 
     std::shared_ptr<Program> pbr_program_;
 
+    //predepth pass
+    std::shared_ptr<RenderTarget> prepass_render_target_;
+    std::shared_ptr<Texture> depthnormal_;
+
+    std::shared_ptr<Material> prepass_mat_;
+    std::shared_ptr<Material> depthnormal_mat_;
+    //std::shared_ptr<Material> ao_mat_;
+
     //intermediate (MSAA) render target
     std::shared_ptr<RenderTarget> msaa_render_target_;
-
     //for msaa resolve
     std::array<std::shared_ptr<Material>, (int)MSAAType::kMax> msaa_resolve_mat_; // 0 is no use
 };

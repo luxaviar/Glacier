@@ -60,6 +60,8 @@ DXGI_FORMAT GetUnderlyingFormat(TextureFormat format) {
         return DXGI_FORMAT_R16_UNORM;
     case TextureFormat::kR16G16_UNORM:
         return DXGI_FORMAT_R16G16_UNORM;
+    case TextureFormat::kR11G11B10_FLOAT:
+        return DXGI_FORMAT_R11G11B10_FLOAT;
     default:
         throw std::exception{ "Bad TextureFormat." };
     }
@@ -387,6 +389,8 @@ TextureFormat GetTextureFormat(DXGI_FORMAT format) {
         return TextureFormat::kR16G16_UNORM;
     case DXGI_FORMAT_R16_UNORM:
         return TextureFormat::kR16_UNORM;
+    case DXGI_FORMAT_R11G11B10_FLOAT:
+        return TextureFormat::kR11G11B10_FLOAT;
     default:
         throw std::exception{ "Bad TextureFormat." };
     }

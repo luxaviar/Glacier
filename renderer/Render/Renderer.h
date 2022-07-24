@@ -24,10 +24,12 @@ struct PerFrameData {
     Matrix4x4 _InverseView;
     Matrix4x4 _Projection;
     Matrix4x4 _InverseProjection;
-    Matrix4x4 _ViewProjection;
-    Matrix4x4 _PrevViewProjection;
     Matrix4x4 _UnjitteredInverseProjection;
+    Matrix4x4 _ViewProjection;
     Matrix4x4 _UnjitteredViewProjection;
+    Matrix4x4 _InverseViewProjection;
+    Matrix4x4 _UnjitteredInverseViewProjection;
+    Matrix4x4 _PrevViewProjection;
     Vector4 _ScreenParam;
     Vector4 _CameraParams;
     Vector4 _ZBufferParams;
@@ -68,6 +70,7 @@ public:
     void CaptureScreen();
     void CaptureShadowMap();
     void BindLightingTarget(CommandBuffer* cmd_buffer);
+    void BindMainCamera(CommandBuffer* cmd_buffer);
 
 protected:
     virtual void DrawOptionWindow() {}
@@ -95,6 +98,18 @@ protected:
 
     void InitFloorPbr(CommandBuffer* cmd_buffer);
     void InitDefaultPbr(CommandBuffer* cmd_buffer);
+
+    struct GtaoParam {
+        float temporal_cos_angle = 1.0f;
+        float temporal_sin_angle = 0.0f;
+        float temporal_offset = 0.0f;
+        float temporal_direction = 0.0f;
+        float radius = 5.0f;
+        float fade_to_radius = 2.0f;
+        float thickness = 1.0f;
+        float fov_scale;
+        float intensity = 1.0f;
+    };
 
     GfxDriver* gfx_;
     uint64_t frame_count_ = 0;
@@ -128,6 +143,16 @@ protected:
 
     static constexpr int kTAASampleCount = 8;
     std::array<Vector2, kTAASampleCount> halton_sequence_;
+
+    ConstantParameter<GtaoParam> gtao_param_;
+    std::shared_ptr<Material> gtao_mat_;
+    std::shared_ptr<Material> gtao_filter_x_mat_;
+    std::shared_ptr<Material> gtao_filter_y_mat_;
+    ConstantParameter<Vector4> gtao_filter_x_param_;
+    ConstantParameter<Vector4> gtao_filter_y_param_;
+
+    std::shared_ptr<RenderTarget> ao_render_target_;
+    std::shared_ptr<RenderTarget> ao_tmp_render_target_;
 };
 
 }

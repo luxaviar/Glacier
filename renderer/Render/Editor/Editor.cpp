@@ -270,7 +270,7 @@ void Editor::DrawScenePanel() {
 
 void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto& render_graph = renderer->render_graph();
-    auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"));
+    auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"), nullptr);
 
     RasterStateDesc outline_rs;
     outline_rs.depthWrite = false;

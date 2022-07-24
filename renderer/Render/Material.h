@@ -21,8 +21,10 @@ class Material : public Identifiable<Material> {
 public:
     friend class Program;
 
+    Material(const char* name);
     Material(const char* name, const std::shared_ptr<Program>& program);
-    Material(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
+    Material(const char* name, const TCHAR* vs, const TCHAR* ps);
+    Material(const char* name, const TCHAR* cs);
 
     const std::string& name() const { return name_; }
     void name(const char* name) { name_ = name; }

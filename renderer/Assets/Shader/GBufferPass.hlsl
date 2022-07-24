@@ -30,16 +30,16 @@ struct PbrMaterial
     //--------------------------- ( 16 bytes )
 }; //--------------------------- ( 16 * 2 = 32 bytes )
 
-cbuffer object_material : register(b3)
+cbuffer object_material// : register(b3)
 {
     PbrMaterial mat;
 };
 
-Texture2D AlbedoTexture : register(t4);
-Texture2D NormalTexture : register(t5);
-Texture2D MetalRoughnessTexture : register(t6);
-Texture2D AoTexture : register(t7);
-Texture2D EmissiveTexture : register(t8);
+Texture2D AlbedoTexture;// : register(t4);
+Texture2D NormalTexture;// : register(t5);
+Texture2D MetalRoughnessTexture;// : register(t6);
+Texture2D AoTexture;// : register(t7);
+Texture2D EmissiveTexture;// : register(t8);
 
 VertexOut main_vs(AppData IN)
 {

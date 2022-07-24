@@ -22,6 +22,7 @@ public:
     virtual ~D3D12CommandBuffer();
 
     void SetName(const char* Name) override;
+    void Reset() override;
 
     std::shared_ptr<Texture> CreateTextureFromFile(const TCHAR* file, bool srgb, 
         bool gen_mips, TextureType type = TextureType::kTexture2D) override;
@@ -30,10 +31,7 @@ public:
 
     void GenerateMipMaps(Texture* texture) override;
 
-    void Reset();
-
-    bool IsClosed() const { return closed_; }
-    void Close();
+    void Close() override;
     bool Close(CommandBuffer* pending_cmd_list) override;
 
     void SetPipelineState(ID3D12PipelineState* pso);
@@ -58,19 +56,19 @@ public:
     void SetShaderResourceView(uint32_t root_param_index, const Resource* resource) override;
     void SetUnorderedAccessView(uint32_t root_param_index, const Resource* resource) override;
 
-    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) override;
+    void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource, bool uav = false) override;
     void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) override;
 
     void SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
     void SetSamplerTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range);
 
-    void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
+    void TransitionBarrier(Resource* res, ResourceAccessBit after_state,
+        uint32_t subresource = BARRIER_ALL_SUBRESOURCES) override;
 
     void AliasResource(Resource* before, Resource* after) override;
     void UavResource(Resource* res) override;
 
-    void TransitionBarrier(Resource* res, ResourceAccessBit after_state,
-        uint32_t subresource = BARRIER_ALL_SUBRESOURCES);
+    void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
 
     void AliasResource(ID3D12Resource* before, ID3D12Resource* after);
     void UavResource(ID3D12Resource* res);
@@ -114,10 +112,10 @@ public:
     ID3D12CommandAllocator* GetCommandAllocator() { return command_allocator_.Get(); }
     ID3D12GraphicsCommandList* GetNativeCommandList() { return command_list_.Get(); }
 
-    void FlushBarriers();
+    void FlushBarriers() override;
 
     void SetDescriptorHeap(D3D12_DESCRIPTOR_HEAP_TYPE heapType, ID3D12DescriptorHeap* heap);
-    void BindDescriptorHeaps();
+    void BindDescriptorHeaps() override;
 
     CommandBuffer* GetGenerateMipsCommandList() const { return compute_cmd_buffer_; }
 

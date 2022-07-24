@@ -4,8 +4,6 @@
 
 static const uint kNumAngles = 8;
 static const uint kNumTaps = 10;
-static const float kPI = 3.141592653589793238462f;
-static const float kHalfPI = 3.141592653589793238462f / 2.0f;
 static const float kMaxScreenRadius = 256.0f;
 
 cbuffer gtao_param {
@@ -15,16 +13,14 @@ cbuffer gtao_param {
 };
 
 Texture2D<float2> NormalTexture;
-Texture2D AoMetalroughnessTexture;
+Texture2D DepthBuffer;
 
 float3 ReconstructViewPos(float2 uv) {
-    float depth = _DepthBuffer.SampleLevel(linear_sampler, uv, 0).r;
-    return ComputeViewPosition(uv, depth, _UnjitteredInverseProjection);
+    float depth = DepthBuffer.SampleLevel(linear_sampler, uv, 0).r;
+    return ConstructPosition(uv, depth, _UnjitteredInverseProjection);
 }
 
 float3 GetRandomVector(int2 pos) {
-    // pos.y = 16384 - pos.y;
-
     float noise = InterleavedGradientNoise(float2(pos));
     float2 cos_sin = float2(cos(noise * kPI), sin(noise * kPI));
 
@@ -77,7 +73,7 @@ float ComputeInnerIntegral(float2 h, float2 screen_dir, float3 view_dir, float3 
     float3 proj_normal = view_normal - plane_normal * dot(view_normal, plane_normal);
 
     float proj_length = length(proj_normal) + 0.000001f;
-    float cos_gamma = clamp(dot(proj_normal, view_dir) / proj_length, -1.0f, 1.0f);
+    float cos_gamma = clamp(dot(proj_normal / proj_length, view_dir), -1.0f, 1.0f);
     float gamma = -sign(dot(proj_normal, plane_tangent)) * acos(cos_gamma);
 
     // clamp to normal hemisphere 
@@ -87,21 +83,14 @@ float ComputeInnerIntegral(float2 h, float2 screen_dir, float3 view_dir, float3 
     float2 h2 = h * 2.0f;
     float sin_gamma = sin(gamma);
 
-    float ao = ((proj_length) * 0.25 *
+    float ao = proj_length * 0.25 *
             ((h2.x * sin_gamma + cos_gamma - cos(h2.x - gamma)) +
-            (h2.y * sin_gamma + cos_gamma - cos(h2.y - gamma))));
+            (h2.y * sin_gamma + cos_gamma - cos(h2.y - gamma)));
 
     float3 bent_angle = (h.x + h.y) * 0.5f;
     bent_normal += (view_dir * cos(bent_angle) - plane_tangent * sin(bent_angle));
 
     return ao;
-}
-
-float ConeConeIntersection(float arc_length0, float arc_length1, float angle_between_cones)
-{
-    float angle_difference = abs(arc_length0 - arc_length1);
-    float angle_blend_alpha = saturate((angle_between_cones - angle_difference) / (arc_length0 + arc_length1 - angle_difference));
-    return smoothstep(0, 1, 1 - angle_blend_alpha);
 }
 
 float ReflectionOcclusion(float3 bent_normal, float3 reflection_vector, float roughness, float ao)
@@ -116,7 +105,7 @@ float ReflectionOcclusion(float3 bent_normal, float3 reflection_vector, float ro
     return lerp(0, ro, saturate((unoccluded_angle - 0.1) / 0.2));
 }
 
-float2 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET {
+float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET {
     float3 view_normal = DecodeNormalOct(NormalTexture.SampleLevel(linear_sampler, uv, 0).xy);
     view_normal.y = -view_normal.y;
 
@@ -156,10 +145,12 @@ float2 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET 
     float ao = sum / (float)kNumAngles;
     //ao = lerp(1.0f, ao, ao_intensity);
 
-    float roughness = AoMetalroughnessTexture.Sample(linear_sampler, uv).g;
     float3 reflect_dir = reflect(view_dir, view_normal);
     bent_normal = normalize(normalize(bent_normal) - view_dir * 0.5f);
-    float ro = ReflectionOcclusion(bent_normal, reflect_dir, roughness, ao);
 
-    return float2(saturate(ao), saturate(ro));
+    float bent_normal_length = length(bent_normal);
+    float unoccluded_angle = bent_normal_length * kPI * ao;
+    float angle_between = acos(dot(bent_normal, reflect_dir) / max(bent_normal_length, 0.001));
+
+    return float3(saturate(ao), unoccluded_angle, angle_between);
 }

@@ -164,16 +164,18 @@ void D3D12CommandBuffer::SetUnorderedAccessView(uint32_t root_param_index, const
     dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineUAV(root_param_index, res->GetGpuAddress());
 }
 
-void D3D12CommandBuffer::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) {
+void D3D12CommandBuffer::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource, bool uav) {
     auto res = static_cast<const D3D12Texture*>(resource);
-    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->
-        StageDescriptors(root_param_index, offset, 1, res->GetDescriptorHandle());
+    auto handle = uav ? res->GetUavHandle() : res->GetSrvHandle();
+
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageDescriptors(root_param_index, offset, 1, handle);
 }
 
 void D3D12CommandBuffer::SetSamplerTable(uint32_t root_param_index, uint32_t offset, const Resource* resource) {
     auto res = static_cast<const D3D12Sampler*>(resource);
-    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]->
-        StageDescriptors(root_param_index, offset, 1, res->GetDescriptorHandle());
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER]->StageDescriptors(
+        root_param_index, offset, 1, res->GetDescriptorHandle()
+    );
 }
 
 void D3D12CommandBuffer::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const D3D12DescriptorRange* range) {

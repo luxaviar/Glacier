@@ -189,7 +189,7 @@ inline D3D12_TEXTURE_ADDRESS_MODE GetUnderlyingWrap(WarpMode wrap) {
 }
 
 // Get a UAV description that matches the resource description.
-inline D3D12_UNORDERED_ACCESS_VIEW_DESC GetUavDesc(const D3D12_RESOURCE_DESC& resDesc, UINT mipSlice, UINT arraySlice = 0,
+inline D3D12_UNORDERED_ACCESS_VIEW_DESC GetUavDesc(const D3D12_RESOURCE_DESC& resDesc, UINT mipSlice = 0, UINT arraySlice = 0,
     UINT planeSlice = 0)
 {
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc = {};

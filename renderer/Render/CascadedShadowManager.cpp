@@ -56,7 +56,7 @@ CascadedShadowManager::CascadedShadowManager(GfxDriver* gfx, uint32_t size,
     param.texel_size.y = 1.0f / size;
     param.partion_size = 1.0f / cascade_levels;
 
-    material_ = std::make_unique<Material>("shadow", TEXT("Shadow"));
+    material_ = std::make_unique<Material>("shadow", TEXT("Shadow"), nullptr);
     material_->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     shadow_sampler_.warpU = shadow_sampler_.warpV = WarpMode::kBorder;

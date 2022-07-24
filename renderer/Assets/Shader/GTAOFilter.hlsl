@@ -12,14 +12,15 @@ cbuffer filter_param {
 
 // Input textures.
 Texture2D OcclusionTexture;
+Texture2D DepthBuffer;
 
-inline float2 GetAo(float2 uv) {
-    float2 ao = OcclusionTexture.SampleLevel(linear_sampler, uv, 0).rg;
+inline float3 GetAo(float2 uv) {
+    float3 ao = OcclusionTexture.SampleLevel(linear_sampler, uv, 0).rgb;
     return ao;
 }
 
 inline float GetDepth(float2 uv) {
-    float depth = LinearDepth(_DepthBuffer.SampleLevel(linear_sampler, uv, 0).r);
+    float depth = LinearDepth(DepthBuffer.SampleLevel(linear_sampler, uv, 0).r);
     return depth;
 }
 
@@ -31,15 +32,16 @@ inline float CrossBilateralWeight(float r, float d, float d0) {
     return exp2(-r * r * BlurFalloff - dz * dz);
 }
 
-float2 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_Target
+float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_Target
 {
     float2 delta_uv = delta_direction * _ScreenParam.zw;
     float center_depth = GetDepth(uv);
-    float2 total_ao = GetAo(uv);
+    float3 total_ao = GetAo(uv);
     float total_weight = 1;
 
     float r = 1.0;
-    float2 offset_uv = 0.0, ao;
+    float2 offset_uv = 0.0;
+    float3 ao;
     float depth, w;
 
     [unroll]

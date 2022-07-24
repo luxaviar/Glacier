@@ -110,7 +110,7 @@ void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
             break;
         }
 
-        SetShaderParameter(param.name, ShaderParameter::Entry{ param.shader_type, param.category, param.bind_point, param.bind_count });
+        SetShaderParameter(param.name, param.category, ShaderParameter::Entry{ param.shader_type, param.bind_point, param.bind_count });
     }
 }
 
@@ -204,18 +204,26 @@ void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::stri
 //    }
 //}
 
-void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex) {
-    auto& params = srv_table_.params;
+ResourceAccessBit D3D12Program::GetTargetState(bool uav) {
+    if (uav) {
+        assert(is_compute_);
+        return ResourceAccessBit::kShaderWrite;
+    }
+    else {
+        return is_compute_ ? ResourceAccessBit::kNonPixelShaderRead : ResourceAccessBit::kPixelShaderRead;
+    }
+}
+
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex, bool uav) {
+    DescriptorTableParam& table = uav ? uav_table_ : srv_table_;
+    auto& params = table.params;
     for (uint32_t i = 0; i < params.size(); ++i) {
         auto& param = params[i];
         if (param.name == name) {
-            if (is_compute_) {
-                cmd_buffer->TransitionBarrier(tex, ResourceAccessBit::kNonPixelShaderRead);
-            }
-            else {
-                cmd_buffer->TransitionBarrier(tex, ResourceAccessBit::kPixelShaderRead);
-            }
-            cmd_buffer->SetDescriptorTable(srv_table_.root_index, i, tex);
+            auto target_state = GetTargetState(uav);
+            cmd_buffer->TransitionBarrier(tex, target_state);
+
+            cmd_buffer->SetDescriptorTable(table.root_index, i, tex, uav);
             return;
         }
     }
@@ -253,7 +261,7 @@ void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialPr
         }
 
         auto tex = dynamic_cast<D3D12Texture*>(prop.resource.get());
-        BindParameter(cmd_buffer, name, tex);
+        BindParameter(cmd_buffer, name, tex, prop.shader_param->type == ShaderParameterType::kUAV);
     }
     break;
     case MaterialPropertyType::kSampler:
@@ -320,12 +328,16 @@ void D3D12Program::Bind(D3D12CommandBuffer* cmd_list) {
 
     for (uint32_t i = 0; i < srv_table_.params.size(); ++i) {
         auto& param = srv_table_.params[i];
+        //auto target_state = GetTargetState(false);
+        //cmd_list->TransitionBarrier(param.resource, target_state);
         cmd_list->SetDescriptorTable(srv_table_.root_index, i, param.resource);
     }
 
     for (uint32_t i = 0; i < uav_table_.params.size(); ++i) {
         auto& param = uav_table_.params[i];
-        cmd_list->SetDescriptorTable(uav_table_.root_index, i, param.resource);
+        //auto target_state = GetTargetState(true);
+        //cmd_list->TransitionBarrier(param.resource, target_state);
+        cmd_list->SetDescriptorTable(uav_table_.root_index, i, param.resource, true);
     }
 
     for (uint32_t i = 0; i < sampler_table_.params.size(); ++i) {

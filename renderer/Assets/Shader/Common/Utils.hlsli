@@ -5,6 +5,9 @@
 
 #define FLT_EPS 5.960464478e-8 //2^-24
 
+static const float kPI = 3.141592653589793238462f;
+static const float kHalfPI = 3.141592653589793238462f / 2.0f;
+
 float2 OctWrap(float2 v)
 {
     return (1.0 - abs(v.yx)) * (v.xy >= 0.0 ? 1.0 : -1.0);
@@ -28,7 +31,7 @@ float3 DecodeNormalOct(float2 f)
     return normalize(n);
 }
 
-float3 ComputeViewPosition(float2 uv, float depth, float4x4 inv_proj)
+float3 ConstructPosition(float2 uv, float depth, float4x4 inv_proj)
 {
     //#ifdef GLACIER_REVERSE_Z
         //depth = 1 - depth;
@@ -67,7 +70,6 @@ float FastACos(float inX)
 
 float LinearDepth(float z) {
     return 1.0 / (_ZBufferParams.z * z + _ZBufferParams.w);
-    //return _CameraParams.x * _CameraParams.y / (z * (_CameraParams.x - _CameraParams.y) + _CameraParams.y);
 }
 
 float Linear01Depth(float z) {
@@ -76,6 +78,21 @@ float Linear01Depth(float z) {
 
 float2 NDCToUV(float4 ndc_pos) {
     return float2(0.5 + 0.5 * ndc_pos.x, 0.5 - 0.5 * ndc_pos.y);
+}
+
+float3 MultiBounce(float ao, float3 albedo)
+{
+    float3 a = 2.0404 * albedo - 0.3324;
+    float3 b = -4.7951 * albedo + 0.6417;
+    float3 c = 2.7552 * albedo + 0.6903;
+    return max(ao, ((ao * a + b) * ao + c) * ao);
+}
+
+float ConeConeIntersection(float arc_length0, float arc_length1, float angle_between_cones)
+{
+    float angle_difference = abs(arc_length0 - arc_length1);
+    float angle_blend_alpha = saturate((angle_between_cones - angle_difference) / (arc_length0 + arc_length1 - angle_difference));
+    return smoothstep(0, 1, 1 - angle_blend_alpha);
 }
 
 // Cubic filters naturually work in a [-2, 2] domain. For the resolve case we

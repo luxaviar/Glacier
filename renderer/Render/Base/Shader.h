@@ -17,7 +17,6 @@ struct ShaderMacroEntry {
 struct ShaderParameter {
     struct Entry {
         ShaderType shader_type = ShaderType::kUnknown;
-        ShaderParameterType category = ShaderParameterType::kUnknown;
         uint32_t bind_point;
         uint32_t bind_count = 1;
         uint32_t register_space = 0;
@@ -25,9 +24,10 @@ struct ShaderParameter {
         operator bool() const { return shader_type != ShaderType::kUnknown; }
     };
 
-    ShaderParameter(const std::string& name) : name(name) {}
+    ShaderParameter(const std::string& name, ShaderParameterType type) : name(name), type(type) {}
 
     std::string name;
+    ShaderParameterType type;
     std::array<Entry, (size_t)ShaderType::kUnknown> entries;
 
     operator bool() const { return !name.empty(); }

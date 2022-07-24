@@ -12,13 +12,13 @@ namespace glacier {
 namespace render {
 
 class Material;
-class GfxDriver;
 class PassNode;
 class CommandBuffer;
 
-class Program : private Uncopyable, public Identifiable<Material>{
+class Program : private Uncopyable, public Identifiable<Program> {
 public:
-    static std::shared_ptr<Program> Create(const char* name, const TCHAR* vs = nullptr, const TCHAR* ps = nullptr);
+    static std::shared_ptr<Program> Create(const char* name, const TCHAR* vs, const TCHAR* ps);
+    static std::shared_ptr<Program> Create(const char* name, const TCHAR* cs);
 
     Program(const char* name);
     virtual ~Program() {}
@@ -33,9 +33,12 @@ public:
     void SetupMaterial(Material* material);
 
     void SetShader(const std::shared_ptr<Shader>& shader);
-    const Shader* GetShader(ShaderType type) const {
-        return shaders_[(size_t)type].get();
-    }
+
+    void SetVertexShader(const TCHAR* vs);
+    void SetPixelShader(const TCHAR* ps);
+    void SetComputeShader(const TCHAR* cs);
+
+    const Shader* GetShader(ShaderType type) const { return shaders_[(size_t)type].get(); }
 
     template<typename T>
     const T* GetNativeShader(ShaderType type) {
@@ -74,8 +77,8 @@ public:
     
 protected:
     virtual void SetupShaderParameter(const std::shared_ptr<Shader>& shader) = 0;
-    ShaderParameter& FetchShaderParameter(const std::string& name);
-    void SetShaderParameter(const std::string& name, const ShaderParameter::Entry& param);
+    ShaderParameter& FetchShaderParameter(const std::string& name, ShaderParameterType type);
+    void SetShaderParameter(const std::string& name, ShaderParameterType type, const ShaderParameter::Entry& param);
 
     uint32_t version_ = 0;
     bool is_compute_ = false;

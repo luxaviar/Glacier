@@ -36,9 +36,6 @@ DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
     assert(aa != AntiAliasingType::kMSAA);
     fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam, UsageType::kDefault>(0.0833f, 0.166f, 0.75f, 0.0f);
     taa_param_ = gfx_->CreateConstantParameter<TAAParam, UsageType::kDefault>(0.95f, 0.85f, 6000.0f, 0.0f);
-    gtao_param_ = gfx_->CreateConstantParameter<GtaoParam, UsageType::kDefault>();
-    gtao_filter_x_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(1.0f, 0.0f, 0.0f, 0.0f);
-    gtao_filter_y_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(0.0f, 1.0f, 0.0f, 0.0f);
 }
 
 void DeferredRenderer::Setup() {
@@ -79,18 +76,17 @@ void DeferredRenderer::Setup() {
 
     gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
     gtao_mat_->SetProperty("gtao_param", gtao_param_);
-    gtao_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
     gtao_mat_->SetProperty("NormalTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
-    gtao_mat_->SetProperty("AoMetalroughnessTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
 
     gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
     gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
-    gtao_filter_x_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_filter_x_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
     gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 
     gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
     gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
-    gtao_filter_y_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
+    gtao_filter_y_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
     gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_tmp_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
@@ -123,16 +119,6 @@ void DeferredRenderer::InitRenderTarget() {
 
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
-
-    auto ao_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_UNORM);
-    ao_render_target_ = gfx_->CreateRenderTarget(width, height);
-    ao_render_target_->AttachColor(AttachmentPoint::kColor0, ao_texture);
-    ao_texture->SetName("ao texture");
-
-    auto ao_tmp_texture = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_UNORM);
-    ao_tmp_render_target_ = gfx_->CreateRenderTarget(width, height);
-    ao_tmp_render_target_->AttachColor(AttachmentPoint::kColor0, ao_tmp_texture);
-    ao_tmp_texture->SetName("ao temp texture");
 
     temp_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
     prev_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
@@ -167,7 +153,6 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
         return false;
     }
 
-    ao_render_target_->Resize(width, height);
     gbuffer_render_target_->Resize(width, height);
 
     temp_hdr_texture_->Resize(width, height);
@@ -178,10 +163,6 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
 
 void DeferredRenderer::SetupBuiltinProperty(Material* mat) {
     Renderer::SetupBuiltinProperty(mat);
-
-    if (mat->HasParameter("_OcclusionTexture")) {
-        mat->SetProperty("_OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    }
 }
 
 void DeferredRenderer::PreRender(CommandBuffer* cmd_buffer) {

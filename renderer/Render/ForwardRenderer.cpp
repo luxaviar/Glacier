@@ -53,6 +53,31 @@ void ForwardRenderer::Setup() {
     InitMSAA();
     InitRenderGraph(gfx_);
 
+    prepass_mat_ = std::make_shared<Material>("PrePass", TEXT("PrePass"), nullptr);
+    prepass_mat_->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
+
+    depthnormal_mat_ = std::make_shared<Material>("DepthNormalCS", TEXT("DepthNormalCS"));
+    depthnormal_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
+    depthnormal_mat_->SetProperty("NormalTexture", depthnormal_);
+
+    ss.warpU = ss.warpV = WarpMode::kClamp;
+    depthnormal_mat_->SetProperty("linear_sampler", ss);
+
+    gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
+    gtao_mat_->SetProperty("gtao_param", gtao_param_);
+    gtao_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
+    gtao_mat_->SetProperty("NormalTexture", depthnormal_);
+
+    gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
+    gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
+    gtao_filter_x_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
+    gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+
+    gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
+    gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
+    gtao_filter_y_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
+    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_tmp_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     solid_mat->AddPass("solid");
 }
@@ -65,6 +90,10 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
     if (!Renderer::OnResize(width, height)) {
         return false;
     }
+
+    depthnormal_->Resize(width, height);
+    prepass_render_target_->Resize(width, height);
+    ao_render_target_->Resize(width, height);
 
     msaa_render_target_->Resize(width, height);
 
@@ -81,6 +110,8 @@ void ForwardRenderer::PreRender(CommandBuffer* cmd_buffer) {
         msaa_render_target_->Clear(cmd_buffer);
     }
 
+    prepass_render_target_->ClearDepthStencil(cmd_buffer);
+
     Renderer::PreRender(cmd_buffer);
 }
 
@@ -89,13 +120,24 @@ void ForwardRenderer::InitRenderTarget() {
 
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
-    msaa_render_target_ = gfx_->CreateRenderTarget(width, height);
+
+    auto predepth_texture = RenderTexturePool::Get(width, height, TextureFormat::kR24G8_TYPELESS,
+        (CreateFlags)((uint32_t)CreateFlags::kDepthStencil | (uint32_t)CreateFlags::kShaderResource));
+    predepth_texture->SetName("prepass depth texture");
+
+    prepass_render_target_ = gfx_->CreateRenderTarget(width, height);
+    prepass_render_target_->AttachDepthStencil(predepth_texture);
+
+    depthnormal_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_FLOAT,
+        (CreateFlags)((uint32_t)CreateFlags::kUav | (uint32_t)CreateFlags::kShaderResource));
+    depthnormal_->SetName("depth normal texture");
 
     if (msaa_ == MSAAType::kNone) {
         msaa_render_target_ = hdr_render_target_;
         return;
     }
 
+    msaa_render_target_ = gfx_->CreateRenderTarget(width, height);
     auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
         CreateFlags::kRenderTarget, sample_count_, quality_level_);
     msaa_color->SetName("msaa color buffer");
@@ -184,6 +226,66 @@ void ForwardRenderer::ResolveMSAA(CommandBuffer* cmd_buffer) {
     PostProcess(cmd_buffer, hdr_render_target_, mat.get());
 }
 
+void ForwardRenderer::AddPreDepthPass() {
+    render_graph_.AddPass("prepass",
+        [&](PassNode& pass) {
+        },
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+            PerfSample("predepth pass");
+
+            prepass_render_target_->Bind(cmd_buffer);
+            pass.Render(cmd_buffer, visibles_, prepass_mat_.get());
+
+            BindLightingTarget(cmd_buffer);
+        });
+}
+
+void ForwardRenderer::AddDepthNormalPass() {
+    render_graph_.AddPass("depth normal",
+        [&](PassNode& pass) {
+        },
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+            PerfSample("depth normal pass");
+
+            auto dst_width = depthnormal_->width();
+            auto dst_height = depthnormal_->height();
+
+            cmd_buffer->BindMaterial(depthnormal_mat_.get());
+            cmd_buffer->Dispatch(math::DivideByMultiple(dst_width, 8), math::DivideByMultiple(dst_height, 8), 1);
+
+            cmd_buffer->UavResource(depthnormal_.get());
+
+            //prepass_render_target_->Bind(cmd_buffer);
+            //pass.Render(cmd_buffer, visibles_, prepass_mat_.get());
+
+            //BindLightingTarget(cmd_buffer);
+        });
+}
+
+void ForwardRenderer::AddAOPass() {
+    render_graph_.AddPass("GTAO",
+        [&](PassNode& pass) {
+        },
+        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+            PerfSample("GTAO Pass");
+
+            float thickness = 1.0f;
+            float inv_thickness = 1.0f - thickness;
+
+            auto camera = GetMainCamera();
+            GtaoParam Params;
+            Params.thickness = math::Clamp((1.0f - inv_thickness * inv_thickness), 0.0f, 0.99f);
+            Params.fov_scale = hdr_render_target_->height() / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
+
+            gtao_param_.param() = Params;
+            gtao_param_.Update();
+
+            PostProcess(cmd_buffer, ao_render_target_, gtao_mat_.get());
+            PostProcess(cmd_buffer, ao_tmp_render_target_, gtao_filter_x_mat_.get());
+            PostProcess(cmd_buffer, ao_render_target_, gtao_filter_y_mat_.get());
+        });
+}
+
 void ForwardRenderer::AddLightingPass() {
     render_graph_.AddPass("ForwardLighting",
         [&](PassNode& pass) {
@@ -199,6 +301,9 @@ void ForwardRenderer::AddLightingPass() {
 }
 
 void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
+    AddPreDepthPass();
+    AddDepthNormalPass();
+    AddAOPass();
     AddShadowPass();
     AddLightingPass();
 
