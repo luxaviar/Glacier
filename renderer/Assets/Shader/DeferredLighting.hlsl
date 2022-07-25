@@ -68,8 +68,8 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         float unoccluded_angle = screen_ao.g;
         float angle_between = screen_ao.b;
         float reflection_cone_angle = max(roughness, 0.04) * kPI;
-        //ro = ConeConeIntersection(reflection_cone_angle, unoccluded_angle, angle_between);
-        //ro = lerp(0, ro, saturate((unoccluded_angle - 0.1) / 0.2));
+        ro = ConeConeIntersection(reflection_cone_angle, unoccluded_angle, angle_between);
+        ro = lerp(0, ro, saturate((unoccluded_angle - 0.1) / 0.2));
     }
 
     float3 ambient_color = EvaluateIBL(_RadianceTextureCube, _IrradianceTextureCube, _BrdfLutTexture, linear_sampler,

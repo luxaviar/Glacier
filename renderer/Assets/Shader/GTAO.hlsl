@@ -145,7 +145,7 @@ float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET 
     float ao = sum / (float)kNumAngles;
     //ao = lerp(1.0f, ao, ao_intensity);
 
-    float3 reflect_dir = reflect(view_dir, view_normal);
+    float3 reflect_dir = reflect(-view_dir, view_normal);
     bent_normal = normalize(normalize(bent_normal) - view_dir * 0.5f);
 
     float bent_normal_length = length(bent_normal);
