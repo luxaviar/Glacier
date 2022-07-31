@@ -1,16 +1,10 @@
 #include "PostProcessCommon.hlsl"
 #include "Common/Colors.hlsli"
-#include "Common/Utils.hlsli"
+#include "Common/Ao.hlsli"
 
 static const uint kNumAngles = 8;
 static const uint kNumTaps = 10;
 static const float kMaxScreenRadius = 256.0f;
-
-cbuffer gtao_param {
-    //[0]{temporal cos, temporal sin, temporal offset, temporal direction}
-    //[1]{radius, fade_to_radius, thickness, fov_scale}
-    float4 _GTAOParam[2];
-};
 
 Texture2D<float2> NormalTexture;
 Texture2D DepthBuffer;
@@ -27,13 +21,13 @@ float3 GetRandomVector(int2 pos) {
     // Spatial Offsets and Directions - s2016_pbs_activision_occlusion - Slide 93
     float offset = 0.25 * ((pos.y - pos.x) & 3);
 
-    float TemporalCos = _GTAOParam[0].x;
-    float TemporalSin = _GTAOParam[0].y;
+    float TemporalCos = _GTAOParam.temporal_cos;
+    float TemporalSin = _GTAOParam.temporal_sin;
 
     return float3(
         dot(cos_sin.xy, float2(TemporalCos, -TemporalSin)),
         dot(cos_sin.xy, float2(TemporalSin, TemporalCos)),
-        frac(offset + _GTAOParam[0].z)
+        frac(offset + _GTAOParam.temporal_offset)
     );
 }
 
@@ -41,7 +35,7 @@ float2 SearchForLargestAngleDual(int steps, float2 center_uv, float2 screen_dir,
     float3 view_pos, float3 view_dir, float atten_factor)
 {
     float2 h = float2(-1, -1);
-    float thickness = _GTAOParam[1].z;
+    float thickness = _GTAOParam.thickness;
 
     for (int i = 0; i < steps; i++) {
         float2 uv_offset = screen_dir * max(step_radius * (i + init_offset), (i + 1.0));
@@ -55,10 +49,8 @@ float2 SearchForLargestAngleDual(int steps, float2 center_uv, float2 screen_dir,
 
         float2 H = float2(dot(ds, view_dir), dot(dt, view_dir)) *  inv_length;
         float2 attn = saturate(dsdt.xy * atten_factor);
-        H = lerp(H, h, attn);
         
-        h.x = (H.x > h.x) ? H.x : lerp(H.x, h.x, thickness);
-        h.y = (H.y > h.y) ? H.y : lerp(H.y, h.y, thickness);
+        h.xy = (H.xy > h.xy) ? lerp(H, h, attn) : lerp(H, h, thickness);
     }
 
     h = acos(clamp(h, -1.0f, 1.0f));
@@ -115,8 +107,8 @@ float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET 
     int2 ipos = int2(position.xy);
     float3 random_vector = GetRandomVector(ipos);
 
-    float world_radius = _GTAOParam[1].x;
-    float world_radius_adj = world_radius * _GTAOParam[1].w;
+    float world_radius = _GTAOParam.radius;
+    float world_radius_adj = world_radius * _GTAOParam.fov_scale;
     float screen_radius = max(min(world_radius_adj / view_position.z, kMaxScreenRadius), (float)kNumTaps);
     float step_radius = screen_radius / ((float)kNumTaps + 1);
     float atten_factor = 2.0f / (world_radius * world_radius);
@@ -130,7 +122,7 @@ float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET 
 
     float sum = 0.0;
     for (uint i = 0; i < kNumAngles; i++) {
-        float2 horizons = SearchForLargestAngleDual(kNumTaps, uv, screen_dir * _ScreenParam.zw, step_radius, offset,
+        float2 horizons = SearchForLargestAngleDual(kNumTaps, uv, screen_dir * _GTAOParam.render_param.zw, step_radius, offset,
             view_position, view_dir, atten_factor);
 
         sum += ComputeInnerIntegral(horizons, screen_dir, view_dir, view_normal, bent_normal);
@@ -142,7 +134,7 @@ float3 main_ps(float4 position : SV_Position, float2 uv : TEXCOORD) : SV_TARGET 
         offset = frac(offset + 0.617);
     }
     
-    float ao = sum / (float)kNumAngles;
+    float ao = saturate(pow(sum / (float)kNumAngles, _GTAOParam.intensity));
     //ao = lerp(1.0f, ao, ao_intensity);
 
     float3 reflect_dir = reflect(-view_dir, view_normal);

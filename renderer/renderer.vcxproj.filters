@@ -1510,5 +1510,8 @@
     <FxCompile Include="Assets\Shader\PrePass.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
+    <FxCompile Include="Assets\Shader\GTAOUpsampling.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
   </ItemGroup>
 </Project>

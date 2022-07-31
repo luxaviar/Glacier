@@ -75,19 +75,13 @@ void DeferredRenderer::Setup() {
     taa_mat_->SetProperty("VelocityTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
 
     gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
-    gtao_mat_->SetProperty("gtao_param", gtao_param_);
+    gtao_mat_->SetProperty("_GtaoData", gtao_param_);
     gtao_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
     gtao_mat_->SetProperty("NormalTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
 
-    gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
+    gtao_upsampling_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
     gtao_filter_x_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
-    gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-
-    gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
     gtao_filter_y_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
-    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_tmp_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
 std::shared_ptr<Material> DeferredRenderer::CreateLightingMaterial(const char* name) {
@@ -184,37 +178,6 @@ void DeferredRenderer::AddGPass() {
 
             RenderTargetGuard rt_gurad(cmd_buffer, gbuffer_render_target_.get());
             pass.Render(cmd_buffer, visibles_);
-        });
-}
-
-void DeferredRenderer::AddGtaoPass() {
-    render_graph_.AddPass("GTAO",
-        [&](PassNode& pass) {
-        },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            PerfSample("GTAO Pass");
-
-            //constexpr float Rots[6] = { 60.0f, 300.0f, 180.0f, 240.0f, 120.0f, 0.0f };
-            //constexpr float Offsets[4] = { 0.1f, 0.6f, 0.35f, 0.85f };
-            //float TemporalAngle = Rots[frame_count_ % 6] * (math::k2PI / 360.0f);
-            //float SinAngle, CosAngle;
-            //math::FastSinCos(&SinAngle, &CosAngle, TemporalAngle);
-            // GtaoParam Params = { CosAngle, SinAngle, Offsets[(frame_count_ / 6) % 4] * 0.25, Offsets[frame_count_ % 4] };
-
-            float thickness = 1.0f;
-            float inv_thickness = 1.0f - thickness;
-
-            auto camera = GetMainCamera();
-            GtaoParam Params;
-            Params.thickness = math::Clamp((1.0f - inv_thickness * inv_thickness), 0.0f, 0.99f);
-            Params.fov_scale = hdr_render_target_->height() / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
-
-            gtao_param_.param() = Params;
-            gtao_param_.Update();
-
-            PostProcess(cmd_buffer, ao_render_target_, gtao_mat_.get());
-            PostProcess(cmd_buffer, ao_tmp_render_target_, gtao_filter_x_mat_.get());
-            PostProcess(cmd_buffer, ao_render_target_, gtao_filter_y_mat_.get());
         });
 }
 

@@ -47,7 +47,6 @@ protected:
 
     void AddGPass();
     void AddLightingPass();
-    void AddGtaoPass();
 
     void InitRenderGraph(GfxDriver* gfx);
 

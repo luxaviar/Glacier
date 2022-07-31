@@ -29,7 +29,6 @@ protected:
     void InitRenderTarget() override;
     void ResolveMSAA(CommandBuffer* cmd_buffer) override;
 
-    void AddAOPass();
     void AddPreDepthPass();
     void AddDepthNormalPass();
     void AddLightingPass();

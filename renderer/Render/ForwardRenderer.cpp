@@ -64,19 +64,13 @@ void ForwardRenderer::Setup() {
     depthnormal_mat_->SetProperty("linear_sampler", ss);
 
     gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
-    gtao_mat_->SetProperty("gtao_param", gtao_param_);
+    gtao_mat_->SetProperty("_GtaoData", gtao_param_);
     gtao_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
     gtao_mat_->SetProperty("NormalTexture", depthnormal_);
 
-    gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
+    gtao_upsampling_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
     gtao_filter_x_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
-    gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-
-    gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
     gtao_filter_y_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
-    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_tmp_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     solid_mat->AddPass("solid");
@@ -93,7 +87,6 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
 
     depthnormal_->Resize(width, height);
     prepass_render_target_->Resize(width, height);
-    ao_render_target_->Resize(width, height);
 
     msaa_render_target_->Resize(width, height);
 
@@ -262,30 +255,6 @@ void ForwardRenderer::AddDepthNormalPass() {
         });
 }
 
-void ForwardRenderer::AddAOPass() {
-    render_graph_.AddPass("GTAO",
-        [&](PassNode& pass) {
-        },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            PerfSample("GTAO Pass");
-
-            float thickness = 1.0f;
-            float inv_thickness = 1.0f - thickness;
-
-            auto camera = GetMainCamera();
-            GtaoParam Params;
-            Params.thickness = math::Clamp((1.0f - inv_thickness * inv_thickness), 0.0f, 0.99f);
-            Params.fov_scale = hdr_render_target_->height() / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
-
-            gtao_param_.param() = Params;
-            gtao_param_.Update();
-
-            PostProcess(cmd_buffer, ao_render_target_, gtao_mat_.get());
-            PostProcess(cmd_buffer, ao_tmp_render_target_, gtao_filter_x_mat_.get());
-            PostProcess(cmd_buffer, ao_render_target_, gtao_filter_y_mat_.get());
-        });
-}
-
 void ForwardRenderer::AddLightingPass() {
     render_graph_.AddPass("ForwardLighting",
         [&](PassNode& pass) {
@@ -303,7 +272,7 @@ void ForwardRenderer::AddLightingPass() {
 void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
     AddPreDepthPass();
     AddDepthNormalPass();
-    AddAOPass();
+    AddGtaoPass();
     AddShadowPass();
     AddLightingPass();
 

@@ -1,6 +1,6 @@
 #include "Common/Lighting.hlsli"
 #include "PostProcessCommon.hlsl"
-#include "Common/Utils.hlsli"
+#include "Common/Ao.hlsli"
 
 Texture2D AlbedoTexture;
 Texture2D<float2> NormalTexture;
@@ -76,6 +76,14 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         V, normal, f0, albedo.rgb, metallic, roughness, radiance_max_lod, diffuse_ao, ro);
 
     final_color += ambient_color;
+
+    if (_GTAOParam.debug_ao) {
+        return float4(diffuse_ao, 1);
+    }
+
+    if (_GTAOParam.debug_ro) {
+        return float4(ro, ro, ro, 1);
+    }
 
     return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
 }

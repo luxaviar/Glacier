@@ -51,6 +51,7 @@ class ConstantParameter {
 public:
     ConstantParameter() {}
     ConstantParameter(std::shared_ptr<Buffer>& buf) : buffer_(buf) {}
+    ConstantParameter(std::shared_ptr<Buffer>& buf, const T& v) : buffer_(buf), param_(v) {}
 
     ConstantParameter<T>& operator=(const T& v) {
         param_ = v;

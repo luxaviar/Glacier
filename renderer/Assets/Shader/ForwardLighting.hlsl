@@ -2,7 +2,7 @@
 #include "Common/BasicBuffer.hlsli"
 #include "Common/BasicTexture.hlsli"
 #include "Common/Lighting.hlsli"
-#include "Common/Utils.hlsli"
+#include "Common/Ao.hlsli"
 
 struct PbrMaterial
 {

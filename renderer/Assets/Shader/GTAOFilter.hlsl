@@ -1,9 +1,9 @@
 #include "PostProcessCommon.hlsl"
 #include "Common/Colors.hlsli"
 #include "Common/Utils.hlsli"
+#include "Common/Ao.hlsli"
 
 #define BLUR_RADIUS 6
-#define SHARPNESS 0.2f
 
 cbuffer filter_param {
     float2 delta_direction;
@@ -28,7 +28,7 @@ inline float CrossBilateralWeight(float r, float d, float d0) {
     const float BlurSigma = (float)BLUR_RADIUS * 0.5;
     const float BlurFalloff = 1 / (2 * BlurSigma * BlurSigma);
 
-    float dz = (d0 - d) * SHARPNESS;
+    float dz = (d0 - d) * _GTAOParam.sharpness;
     return exp2(-r * r * BlurFalloff - dz * dz);
 }
 

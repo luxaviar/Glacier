@@ -28,6 +28,11 @@ struct CascadeShadowMapInfo
     float3 padding;
 };
 
+cbuffer _CascadeShadowData
+{
+    CascadeShadowMapInfo _ShadowParam;
+}
+
 int CalcCascadeIndex(in float3 vpos, in CascadeShadowMapInfo info)
 {
     int index = 0;

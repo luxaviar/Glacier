@@ -259,8 +259,8 @@ void CascadedShadowManager::UpdateShadowData(const Camera* camera, DirectionalLi
 }
 
 void CascadedShadowManager::SetupMaterial(Material* mat) {
-    if (mat->HasParameter("CascadeShadowData")) {
-        mat->SetProperty("CascadeShadowData", shadow_param_);
+    if (mat->HasParameter("_CascadeShadowData")) {
+        mat->SetProperty("_CascadeShadowData", shadow_param_);
     }
     if (mat->HasParameter("_ShadowTexture")) {
         mat->SetProperty("_ShadowTexture", shadow_map_);

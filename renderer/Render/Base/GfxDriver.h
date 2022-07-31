@@ -80,7 +80,7 @@ public:
     ConstantParameter<T> CreateConstantParameter(Args&&... args) {
         T param{ std::forward<Args>(args)... };
         auto cbuf = CreateConstantBuffer(&param, sizeof(T), U);
-        return ConstantParameter<T>(cbuf);
+        return ConstantParameter<T>(cbuf, param);
     }
 
     virtual std::shared_ptr<PipelineState> CreatePipelineState(Program* program, RasterStateDesc rs, const InputLayoutDesc& layout) =0;

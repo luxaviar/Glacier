@@ -79,9 +79,4 @@ cbuffer LightList
     float3 padding;
 }
 
-cbuffer CascadeShadowData
-{
-    CascadeShadowMapInfo _ShadowParam;
-}
-
 #endif
