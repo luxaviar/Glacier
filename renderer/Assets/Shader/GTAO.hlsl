@@ -1,5 +1,5 @@
 #include "PostProcessCommon.hlsl"
-#include "Common/Colors.hlsli"
+#include "Common/Color.hlsli"
 #include "Common/Ao.hlsli"
 
 static const uint kNumAngles = 8;

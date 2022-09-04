@@ -1,5 +1,5 @@
 #include "PostProcessCommon.hlsl"
-#include "Common/Colors.hlsli"
+#include "Common/Color.hlsli"
 
 #ifndef MSAASamples_
     #define MSAASamples_ 1

@@ -306,5 +306,29 @@ inline D3D12_COMMAND_LIST_TYPE GetNativeCommandBufferType(CommandBufferType type
     return native_type;
 }
 
+inline ShaderParameterType GetShaderParameterType(D3D_SHADER_INPUT_TYPE type) {
+    switch (type)
+    {
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_CBUFFER:
+        return ShaderParameterType::kConstantBuffer;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_STRUCTURED:
+        return ShaderParameterType::kStructuredBuffer;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_TEXTURE:
+        return ShaderParameterType::kTexture;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_BYTEADDRESS:
+        return ShaderParameterType::kByteAddressBuffer;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWSTRUCTURED:
+        return ShaderParameterType::kRWStructuredBuffer;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWBYTEADDRESS:
+        return ShaderParameterType::kRWByteAddressBuffer;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWTYPED:
+        return ShaderParameterType::kRWTyped;
+    case D3D_SHADER_INPUT_TYPE::D3D_SIT_SAMPLER:
+        return ShaderParameterType::kSampler;
+    default:
+        throw std::exception{ "Bad D3D_SHADER_INPUT_TYPE to ShaderParameterType." };
+    }
+}
+
 }
 }

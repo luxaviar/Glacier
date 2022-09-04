@@ -4,7 +4,7 @@
 #include <array>
 #include <d3dcommon.h>
 #include "Common/Util.h"
-#include "resource.h"
+#include "Resource.h"
 
 namespace glacier {
 namespace render {
@@ -15,22 +15,24 @@ struct ShaderMacroEntry {
 };
 
 struct ShaderParameter {
-    struct Entry {
-        ShaderType shader_type = ShaderType::kUnknown;
-        uint32_t bind_point;
-        uint32_t bind_count = 1;
-        uint32_t register_space = 0;
-
-        operator bool() const { return shader_type != ShaderType::kUnknown; }
-    };
-
-    ShaderParameter(const std::string& name, ShaderParameterType type) : name(name), type(type) {}
-
+    //struct Entry {
     std::string name;
+    ShaderType shader_type = ShaderType::kUnknown;
+    ShaderParameterCategory category;
     ShaderParameterType type;
-    std::array<Entry, (size_t)ShaderType::kUnknown> entries;
+    uint32_t bind_point;
+    uint32_t bind_count = 1;
+    uint32_t register_space = 0;
+    const Resource* resource = nullptr;
 
-    operator bool() const { return !name.empty(); }
+        //operator bool() const { return shader_type != ShaderType::kUnknown; }
+    //};
+
+    //ShaderParameter(const std::string& name, ShaderParameterCategory type) : name(name), type(type) {}
+
+    //std::array<Entry, (size_t)ShaderType::kUnknown> entries;
+
+    //operator bool() const { return !name.empty(); }
 };
 
 class Shader : private Uncopyable {

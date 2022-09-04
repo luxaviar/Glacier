@@ -44,6 +44,7 @@ public:
     uint32_t height() const override { return (uint32_t)desc_.Height; }
     TextureFormat GetFormat() const override { return GetTextureFormat(desc_.Format); }
     DXGI_FORMAT GetNativeFormat() const { return desc_.Format; }
+    const D3D12_CLEAR_VALUE& GetClearValue() const { return clear_value_; }
 
     uint32_t GetMipLevels() const override { return desc_.MipLevels; }
     uint32_t GetFlags() const override { return desc_.Flags; }

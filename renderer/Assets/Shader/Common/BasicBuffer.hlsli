@@ -15,6 +15,7 @@ cbuffer _PerFrameData {
     float4 _ScreenParam; //width, height, 1/width, 1/height
     float4 _CameraParams; //nearz, farz, 1/nearz, 1/farz
     float4 _ZBufferParams; // 1-far/near, 1 + far/near, x/far, y/far
+    float _DeltaTime;
 };
 
 cbuffer _PerObjectData

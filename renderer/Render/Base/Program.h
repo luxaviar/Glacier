@@ -59,6 +59,7 @@ public:
 
     const ShaderParameter* FindParameter(const std::string& name) const;
     const ShaderParameter* FindParameter(const char* name) const;
+    bool HasProperty(const char* name);
 
     template<typename T>
     void SetProperty(const char* name, ConstantParameter<T>& param) {
@@ -77,8 +78,7 @@ public:
     
 protected:
     virtual void SetupShaderParameter(const std::shared_ptr<Shader>& shader) = 0;
-    ShaderParameter& FetchShaderParameter(const std::string& name, ShaderParameterType type);
-    void SetShaderParameter(const std::string& name, ShaderParameterType type, const ShaderParameter::Entry& param);
+    void SetShaderParameter(const std::string& name, const ShaderParameter& param);
 
     uint32_t version_ = 0;
     bool is_compute_ = false;

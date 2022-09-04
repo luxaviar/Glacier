@@ -75,18 +75,9 @@ void Program::SetupMaterial(Material* material) {
     }
 }
 
-ShaderParameter& Program::FetchShaderParameter(const std::string& name, ShaderParameterType type) {
-    auto it = params_.find(name);
-    if (it == params_.end()) {
-        it = params_.emplace_hint(it, name, ShaderParameter{name, type});
-    }
-
-    return it->second;
-}
-
-void Program::SetShaderParameter(const std::string& name, ShaderParameterType type, const ShaderParameter::Entry& entry) {
-    auto& param = FetchShaderParameter(name, type);
-    param.entries[(int)entry.shader_type] = entry;
+void Program::SetShaderParameter(const std::string& name, const ShaderParameter& param) {
+    assert(params_.find(name) == params_.end());
+    params_[name] = param;
 }
 
 const ShaderParameter* Program::FindParameter(const std::string& name) const {
@@ -107,6 +98,11 @@ const ShaderParameter* Program::FindParameter(const char* name) const {
     return nullptr;
 }
 
+bool Program::HasProperty(const char* name) {
+    auto it = properties_.find(name);
+    return it != properties_.end();
+}
+
 void Program::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) {
     auto param = FindParameter(name);
     if (!param) {
@@ -124,9 +120,7 @@ void Program::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf) 
 
     auto& prop = it->second;
     assert(prop.shader_param == param);
-    assert(prop.prop_type == MaterialPropertyType::kConstantBuffer ||
-        prop.prop_type == MaterialPropertyType::kStructuredBuffer ||
-        prop.prop_type == MaterialPropertyType::kRWStructuredBuffer);
+    assert(param->type != ShaderParameterType::kTexture && param->type != ShaderParameterType::kSampler);
 
     prop.resource = buf;
     prop.dirty = true;
@@ -149,7 +143,7 @@ void Program::SetProperty(const char* name, const std::shared_ptr<Texture>& tex,
     }
 
     auto& prop = it->second;
-    assert(prop.prop_type == MaterialPropertyType::kTexture && prop.shader_param == param);
+    assert(param->type == ShaderParameterType::kTexture && prop.shader_param == param);
 
     prop.resource = tex;
     prop.default_color = default_color;
@@ -173,7 +167,7 @@ void Program::SetProperty(const char* name, const SamplerState& ss) {
     }
 
     auto& prop = it->second;
-    assert(prop.prop_type == MaterialPropertyType::kSampler && prop.shader_param == param);
+    assert(param->type == ShaderParameterType::kSampler && prop.shader_param == param);
 
     prop.sampler_state = ss;
     prop.dirty = true;
@@ -195,7 +189,7 @@ void Program::SetProperty(const char* name, const Color& color) {
     }
 
     auto& prop = it->second;
-    assert(prop.prop_type == MaterialPropertyType::kColor && prop.shader_param == param);
+    assert(prop.prop_type == ConstantPropertyType::kColor && prop.shader_param == param);
 
     prop.color = color;
     prop.dirty = true;
@@ -217,7 +211,7 @@ void Program::SetProperty(const char* name, const Vec4f& v) {
     }
 
     auto& prop = it->second;
-    assert(prop.prop_type == MaterialPropertyType::kFloat4 && prop.shader_param == param);
+    assert(prop.prop_type == ConstantPropertyType::kFloat4 && prop.shader_param == param);
 
     prop.float4 = v;
     prop.dirty = true;
@@ -239,7 +233,7 @@ void Program::SetProperty(const char* name, const Matrix4x4& v) {
     }
 
     auto& prop = it->second;
-    assert(prop.prop_type == MaterialPropertyType::kMatrix && prop.shader_param == param);
+    assert(prop.prop_type == ConstantPropertyType::kMatrix && prop.shader_param == param);
 
     prop.matrix = v;
     prop.dirty = true;
@@ -258,7 +252,7 @@ void Program::UpdateProperty(const char* name, const void* data) {
 
     if (it != properties_.end()) {
         auto& prop = it->second;
-        assert(prop.prop_type == MaterialPropertyType::kConstantBuffer && prop.shader_param == param);
+        assert(param->type == ShaderParameterType::kConstantBuffer && prop.shader_param == param);
         dynamic_cast<Buffer*>(prop.resource.get())->Update(data);
         return;
     }

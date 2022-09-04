@@ -58,7 +58,10 @@ public:
 
     virtual std::shared_ptr<Buffer> CreateIndexBuffer(size_t size, IndexFormat type) = 0;
     virtual std::shared_ptr<Buffer> CreateVertexBuffer(size_t size, size_t stride) = 0;
+
     virtual std::shared_ptr<Buffer> CreateConstantBuffer(const void* data, size_t size, UsageType usage = UsageType::kDynamic) = 0;
+    virtual std::shared_ptr<Buffer> CreateStructuredBuffer(size_t element_size, size_t element_count, bool uav = false) = 0;
+    virtual std::shared_ptr<Buffer> CreateByteAddressBuffer(size_t size, bool uav = false) = 0;
 
     template<typename T>
     std::shared_ptr<Buffer> CreateConstantBuffer(const T& data, UsageType usage = UsageType::kDynamic) {

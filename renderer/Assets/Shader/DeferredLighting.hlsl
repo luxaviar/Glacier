@@ -1,6 +1,7 @@
 #include "Common/Lighting.hlsli"
 #include "PostProcessCommon.hlsl"
 #include "Common/Ao.hlsli"
+#include "Common/Color.hlsli"
 
 Texture2D AlbedoTexture;
 Texture2D<float2> NormalTexture;
@@ -86,4 +87,6 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
     }
 
     return float4(final_color.rgb, albedo.a) * visualize_cascade_color;
+    //float lum = RGBToLuminance(final_color.rgb);
+    //return float4(lum, lum, lum, albedo.a);
 }

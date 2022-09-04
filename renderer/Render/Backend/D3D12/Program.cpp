@@ -13,6 +13,7 @@
 #include "Inspect/Profiler.h"
 #include "Common/Log.h"
 #include "CommandBuffer.h"
+#include "Buffer.h"
 
 namespace glacier {
 namespace render {
@@ -67,7 +68,8 @@ void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
         auto bind_point = resource_desc.BindPoint;
         auto bind_count = resource_desc.BindCount;
 
-        D3D12ShaderParameter param;
+        ShaderParameter param;
+        param.type = GetShaderParameterType(resource_type);
         switch (resource_type) 
         {
         case D3D_SHADER_INPUT_TYPE::D3D_SIT_CBUFFER:
@@ -75,28 +77,30 @@ void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
             param.shader_type = type;
             param.bind_point = bind_point;
             param.register_space = register_space;
-            param.category = ShaderParameterType::kCBV;
+            param.category = ShaderParameterCategory::kCBV;
             AddParameter(cbv_table_, param);
             break;
-        case D3D_SHADER_INPUT_TYPE::D3D_SIT_STRUCTURED:
         case D3D_SHADER_INPUT_TYPE::D3D_SIT_TEXTURE:
+        case D3D_SHADER_INPUT_TYPE::D3D_SIT_STRUCTURED:
+        case D3D_SHADER_INPUT_TYPE::D3D_SIT_BYTEADDRESS:
             param.name = param_name;
             param.shader_type = type;
             param.bind_point = bind_point;
             param.bind_count = bind_count;
             param.register_space = register_space;
-            param.category = ShaderParameterType::kSRV;
+            param.category = ShaderParameterCategory::kSRV;
             AddParameter(srv_table_, param);
             break;
-        case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWSTRUCTURED:
         case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWTYPED:
+        case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWSTRUCTURED:
+        case D3D_SHADER_INPUT_TYPE::D3D_SIT_UAV_RWBYTEADDRESS:
             assert(type == ShaderType::kCompute);
             param.name = param_name;
             param.shader_type = type;
             param.bind_point = bind_point;
             param.bind_count = bind_count;
             param.register_space = register_space;
-            param.category = ShaderParameterType::kUAV;
+            param.category = ShaderParameterCategory::kUAV;
             AddParameter(uav_table_, param);
             break;
         case D3D_SHADER_INPUT_TYPE::D3D_SIT_SAMPLER:
@@ -105,16 +109,38 @@ void D3D12Program::SetupShaderParameter(const std::shared_ptr<Shader>& shader) {
             param.shader_type = type;
             param.bind_point = bind_point;
             param.register_space = register_space;
-            param.category = ShaderParameterType::kSampler;
+            param.category = ShaderParameterCategory::kSampler;
             AddParameter(sampler_table_, param);
             break;
         }
 
-        SetShaderParameter(param.name, param.category, ShaderParameter::Entry{ param.shader_type, param.bind_point, param.bind_count });
+        SetShaderParameter(param.name, param);
+    }
+
+    //TODO: rearrage me
+    if (FindParameter("linear_sampler") && !HasProperty("linear_sampler")) {
+        SamplerState linear_ss;
+        linear_ss.filter = FilterMode::kBilinear;
+        linear_ss.warpU = linear_ss.warpV = linear_ss.warpW  = WarpMode::kClamp;
+        SetProperty("linear_sampler", linear_ss);
+    }
+
+    if (FindParameter("_linear_clamp_sampler") && !HasProperty("_linear_clamp_sampler")) {
+        SamplerState linear_ss;
+        linear_ss.filter = FilterMode::kBilinear;
+        linear_ss.warpU = linear_ss.warpV = linear_ss.warpW = WarpMode::kClamp;
+        SetProperty("_linear_clamp_sampler", linear_ss);
+    }
+
+    if (FindParameter("_point_clamp_sampler") && !HasProperty("_point_clamp_sampler")) {
+        SamplerState point_ss;
+        point_ss.filter = FilterMode::kPoint;
+        point_ss.warpU = point_ss.warpV = point_ss.warpW  = WarpMode::kClamp;
+        SetProperty("_point_clamp_sampler", point_ss);
     }
 }
 
-void D3D12Program::AddParameter(DescriptorTableParam& table, const D3D12ShaderParameter& param) {
+void D3D12Program::AddParameter(DescriptorTableParam& table, const ShaderParameter& param) {
     for (const auto& p : table.params) {
         assert(p.name != param.name || p.shader_type != param.shader_type);
     }
@@ -167,7 +193,17 @@ void D3D12Program::RefreshTranstientBuffer(CommandBuffer* cmd_buffer) {
     }
 }
 
-void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* cbuffer) {
+ResourceAccessBit D3D12Program::GetShaderResourceTargetState(bool uav) {
+    if (uav) {
+        assert(is_compute_);
+        return ResourceAccessBit::kShaderWrite;
+    }
+    else {
+        return is_compute_ ? ResourceAccessBit::kNonPixelShaderRead : ResourceAccessBit::kPixelShaderRead;
+    }
+}
+
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12ConstantBuffer* cbuffer) {
     auto& params = cbv_table_.params;
     for (uint32_t i = 0; i < params.size(); ++i) {
         auto& param = params[i];
@@ -193,24 +229,17 @@ void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::stri
     }
 }
 
-//void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12StructuredBuffer* sbuffer) {
-//    auto& params = srv_table_.params;
-//    for (uint32_t i = 0; i < params.size(); ++i) {
-//        auto& param = params[i];
-//        if (param.name == name) {
-//            cmd_buffer->SetDescriptorTable(srv_table_.root_index, i, sbuffer);
-//            return;
-//        }
-//    }
-//}
-
-ResourceAccessBit D3D12Program::GetTargetState(bool uav) {
-    if (uav) {
-        assert(is_compute_);
-        return ResourceAccessBit::kShaderWrite;
-    }
-    else {
-        return is_compute_ ? ResourceAccessBit::kNonPixelShaderRead : ResourceAccessBit::kPixelShaderRead;
+void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* buffer, bool uav) {
+    DescriptorTableParam& table = uav ? uav_table_ : srv_table_;
+    auto& params = table.params;
+    for (uint32_t i = 0; i < params.size(); ++i) {
+        auto& param = params[i];
+        if (param.name == name) {
+            auto target_state = GetShaderResourceTargetState(uav);
+            cmd_buffer->TransitionBarrier(buffer, target_state);
+            cmd_buffer->SetDescriptorTable(table.root_index, i, buffer, uav);
+            return;
+        }
     }
 }
 
@@ -220,7 +249,7 @@ void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::stri
     for (uint32_t i = 0; i < params.size(); ++i) {
         auto& param = params[i];
         if (param.name == name) {
-            auto target_state = GetTargetState(uav);
+            auto target_state = GetShaderResourceTargetState(uav);
             cmd_buffer->TransitionBarrier(tex, target_state);
 
             cmd_buffer->SetDescriptorTable(table.root_index, i, tex, uav);
@@ -250,53 +279,40 @@ void D3D12Program::Bind(CommandBuffer* cmd_buffer, Material* mat) {
 }
 
 void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialProperty& prop) {
-    auto& name = prop.shader_param->name;
-    switch (prop.prop_type)
+    auto param = prop.shader_param;
+    auto& name = param->name;
+    switch (param->type)
     {
-    case MaterialPropertyType::kTexture:
+    case ShaderParameterType::kTexture:
     {
         if ((prop.use_default && prop.dirty) || !prop.resource) {
             prop.resource = cmd_buffer->CreateTextureFromColor(prop.color, false);
             prop.resource->SetName(name.c_str());
         }
 
-        auto tex = dynamic_cast<D3D12Texture*>(prop.resource.get());
-        BindParameter(cmd_buffer, name, tex, prop.shader_param->type == ShaderParameterType::kUAV);
+        auto tex = static_cast<D3D12Texture*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, tex, prop.shader_param->category == ShaderParameterCategory::kUAV);
     }
     break;
-    case MaterialPropertyType::kSampler:
+    case ShaderParameterType::kSampler:
     {
         if (!prop.resource || prop.dirty) {
             auto gfx = cmd_buffer->GetDriver();
             prop.resource = D3D12Sampler::Create(gfx, prop.sampler_state);
         }
 
-        auto sampler = dynamic_cast<D3D12Sampler*>(prop.resource.get());
+        auto sampler = static_cast<D3D12Sampler*>(prop.resource.get());
         BindParameter(cmd_buffer, name, sampler);
     }
     break;
-    case MaterialPropertyType::kConstantBuffer:
-    {
-        auto buf = dynamic_cast<D3D12Buffer*>(prop.resource.get());
-        BindParameter(cmd_buffer, name, buf);
-    }
-    break;
-    case MaterialPropertyType::kStructuredBuffer:
-    {
-        auto buf = dynamic_cast<D3D12Buffer*>(prop.resource.get());
-        BindParameter(cmd_buffer, name, buf);
-    }
-    break;
-    case MaterialPropertyType::kColor:
-    case MaterialPropertyType::kFloat4:
-    case MaterialPropertyType::kMatrix:
+    case ShaderParameterType::kConstantBuffer:
     {
         if (!prop.resource) {
             auto gfx = cmd_buffer->GetDriver();
-            if (prop.prop_type == MaterialPropertyType::kColor) {
+            if (prop.prop_type == ConstantPropertyType::kColor) {
                 prop.resource = gfx->CreateConstantBuffer<Color>(prop.color, UsageType::kDefault);
             }
-            else if (prop.prop_type == MaterialPropertyType::kFloat4) {
+            else if (prop.prop_type == ConstantPropertyType::kFloat4) {
                 prop.resource = gfx->CreateConstantBuffer<Vec4f>(prop.float4, UsageType::kDefault);
             }
             else {
@@ -304,11 +320,26 @@ void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialPr
             }
         }
         else if (prop.dirty) {
-            dynamic_cast<Buffer*>(prop.resource.get())->Update(&prop.matrix); //compatible with color & float4
+            static_cast<Buffer*>(prop.resource.get())->Update(&prop.matrix); //also works for color & float4
         }
 
-        auto cbuffer = dynamic_cast<D3D12Buffer*>(prop.resource.get());
+        auto cbuffer = static_cast<D3D12ConstantBuffer*>(prop.resource.get());
         BindParameter(cmd_buffer, name, cbuffer);
+    }
+    break;
+    case ShaderParameterType::kStructuredBuffer:
+    case ShaderParameterType::kByteAddressBuffer:
+    {
+        auto buf = static_cast<D3D12Buffer*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, buf);
+    }
+    break;
+    case ShaderParameterType::kRWStructuredBuffer:
+    case ShaderParameterType::kRWByteAddressBuffer:
+    case ShaderParameterType::kRWTyped:
+    {
+        auto buf = static_cast<D3D12Buffer*>(prop.resource.get());
+        BindParameter(cmd_buffer, name, buf, true);
     }
     break;
     default:
@@ -350,12 +381,14 @@ void D3D12Program::CreateRootSignature() {
     std::vector<CD3DX12_ROOT_PARAMETER> root_params;
 
     // CBV
+    //root constant
     for (auto& param : root_constants_) {
         CD3DX12_ROOT_PARAMETER RootParam;
         RootParam.InitAsConstants(param.num_32bit, param.bind_point, param.register_space, GetShaderVisibility(param.shader_type));
         root_params.push_back(RootParam);
     }
 
+    //constant buffer view
     if (cbv_table_) {
         cbv_table_.root_index = (uint32_t)root_params.size();
         for (auto& param : cbv_table_.params)
@@ -366,7 +399,7 @@ void D3D12Program::CreateRootSignature() {
         }
     }
 
-    // SRV
+    // SRV - descriptor table
     std::vector<CD3DX12_DESCRIPTOR_RANGE> srv_table;
     if (srv_table_) {
         auto root_index = (uint32_t)root_params.size();
@@ -389,7 +422,7 @@ void D3D12Program::CreateRootSignature() {
         srv_uav_table_bitmask_ |= (1 << root_index);
     }
 
-    // UAV
+    // UAV - descriptor table
     std::vector<CD3DX12_DESCRIPTOR_RANGE> uav_table;
     if (uav_table_) {
         auto root_index = (uint32_t)root_params.size();
@@ -412,6 +445,7 @@ void D3D12Program::CreateRootSignature() {
         srv_uav_table_bitmask_ |= (1 << root_index);
     }
 
+    // Sampler - descriptor table
     std::vector<CD3DX12_DESCRIPTOR_RANGE> sampler_table;
     if (sampler_table_) {
         auto root_index = (uint32_t)root_params.size();

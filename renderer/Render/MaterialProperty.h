@@ -28,7 +28,7 @@ struct MaterialProperty {
 
     mutable bool dirty = false;
     const ShaderParameter* shader_param;
-    MaterialPropertyType prop_type;
+    ConstantPropertyType prop_type = ConstantPropertyType::kNone;
 
     //texture
     bool use_default = false;

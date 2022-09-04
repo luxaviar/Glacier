@@ -11,15 +11,16 @@ namespace render {
 class Resource;
 struct D3D12DescriptorRange;
 
-struct D3D12ShaderParameter {
-    std::string name;
-    ShaderType shader_type = ShaderType::kUnknown;
-    ShaderParameterType category = ShaderParameterType::kUnknown;
-    uint32_t bind_point;
-    uint32_t bind_count = 1;
-    uint32_t register_space = 0;
-    const Resource* resource = nullptr;
-};
+//struct D3D12ShaderParameter {
+//    std::string name;
+//    ShaderType shader_type = ShaderType::kUnknown;
+//    ShaderParameterCategory category = ShaderParameterCategory::kUnknown;
+//    D3D_SHADER_INPUT_TYPE type;
+//    uint32_t bind_point;
+//    uint32_t bind_count = 1;
+//    uint32_t register_space = 0;
+//    const Resource* resource = nullptr;
+//};
 
 class D3D12Shader : public Shader {
 public:

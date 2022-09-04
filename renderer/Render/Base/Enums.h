@@ -133,6 +133,12 @@ enum class UsageType : uint8_t {
     kDynamic,
 };
 
+enum class ResourceType : uint8_t {
+    kBuffer,
+    kTexture,
+    kSampler,
+};
+
 enum class BufferType : uint8_t {
     kNone,
     kVertexBuffer,
@@ -140,6 +146,8 @@ enum class BufferType : uint8_t {
     kConstantBuffer,
     kStructuredBuffer,
     kRWStructuredBuffer,
+    kByteAdressBuffer,
+    kRWByteAdressBuffer,
 };
 
 enum class TextureFormat : uint8_t {
@@ -160,6 +168,7 @@ enum class TextureFormat : uint8_t {
     kR16G16_UNORM,
     kR16_UNORM,
     kR11G11B10_FLOAT,
+    kR8_UINT,
 };
 
 enum class CubeFace : uint8_t {
@@ -191,9 +200,9 @@ enum class ShaderType : uint8_t {
 
 constexpr const char* DefaultShaderEntry[] = {"main_vs", "main_hs", "main_ds", "main_gs", "main_ps", "main_cs"};
 
-enum class ShaderParameterType : uint8_t {
-    kVertex,
-    kIndex,
+enum class ShaderParameterCategory : uint8_t {
+    //kVertex,
+    //kIndex,
     kCBV,
     kSRV,
     kUAV,
@@ -201,12 +210,19 @@ enum class ShaderParameterType : uint8_t {
     kUnknown = 0,
 };
 
-enum class MaterialPropertyType : uint8_t {
+enum class ShaderParameterType : uint8_t {
     kTexture,
     kSampler,
     kConstantBuffer,
     kStructuredBuffer,
     kRWStructuredBuffer,
+    kByteAddressBuffer,
+    kRWByteAddressBuffer,
+    kRWTyped,
+};
+
+enum class ConstantPropertyType : uint8_t {
+    kNone,
     kColor,
     kFloat4,
     kMatrix,

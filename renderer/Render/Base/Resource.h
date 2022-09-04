@@ -30,6 +30,7 @@ public:
     virtual void SetName(const char* name) { name_ = name; };
     virtual const std::string& GetName() const { return name_; };
 
+    ResourceType resource_type() const { return resource_type_; }
     ResourceState& GetState() { return state_; }
     uint32_t GetSubresourceNum() const { return state_.num_subresources; }
 
@@ -40,6 +41,7 @@ public:
     virtual void* GetNativeResource() const { return nullptr; }
 
 protected:
+    ResourceType resource_type_ = ResourceType::kBuffer;
     std::string name_;
     ResourceState state_ = { 0, ResourceAccessBit::kCommon };
 };

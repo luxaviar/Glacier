@@ -115,7 +115,7 @@ void App::DoFrame(float dt) {
 
     {
         PerfSample("Render");
-        renderer_->Render();
+        renderer_->Render(dt);
     }
     
 

@@ -13,7 +13,11 @@ namespace glacier {
 namespace render {
 
 class D3D12Buffer;
+class D3D12ConstantBuffer;
 class D3D12StructuredBuffer;
+class D3D12RWStructuredBuffer;
+class D3D12ByteAddressBuffer;
+class D3D12RWByteAddressBuffer;
 class D3D12Texture;
 struct MaterialProperty;
 class D3D12RenderTarget;
@@ -34,13 +38,13 @@ public:
     struct DescriptorTableParam {
         uint32_t root_index;
         uint32_t bind_count = 0;
-        std::vector<D3D12ShaderParameter> params;
+        std::vector<ShaderParameter> params;
 
         operator bool() const { return !params.empty(); }
         size_t size() const { return params.size(); }
 
-        D3D12ShaderParameter& operator[](size_t index) { return params[index]; }
-        const D3D12ShaderParameter& operator[](size_t index) const { return params[index]; }
+        ShaderParameter& operator[](size_t index) { return params[index]; }
+        const ShaderParameter& operator[](size_t index) const { return params[index]; }
     };
 
     D3D12Program(const char* name);
@@ -50,8 +54,9 @@ public:
     void SetRootConstants(const char* name, uint32_t num_32bit);
     void SetStaticSampler(const char* name, D3D12_STATIC_SAMPLER_DESC desc);
 
-    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* cbuffer);
-    //void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12StructuredBuffer* sbuffer);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12ConstantBuffer* cbuffer);
+    void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Buffer* buffer, bool uav = false);
+
     void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Texture* tex, bool uav=false);
     void BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12Sampler* tex);
 
@@ -70,10 +75,10 @@ protected:
     void CreateRootSignature();
     void Bind(D3D12CommandBuffer* cmd_list);
 
-    ResourceAccessBit GetTargetState(bool uav);
+    ResourceAccessBit GetShaderResourceTargetState(bool uav);
 
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
-    void AddParameter(DescriptorTableParam& list, const D3D12ShaderParameter& param);
+    void AddParameter(DescriptorTableParam& list, const ShaderParameter& param);
 
     void BindProperty(D3D12CommandBuffer* cmd_list, const MaterialProperty& prop);
 

@@ -18,7 +18,7 @@ PostProcess::PostProcess(const PostProcessDescription& desc, GfxDriver* gfx) :
     assert(material_);
 
     if (desc.sampler.filter == FilterMode::kPoint) {
-        material_->SetProperty("point_sampler", desc.sampler);
+        material_->SetProperty("_point_clamp_sampler", desc.sampler);
     }
     else {
         material_->SetProperty("linear_sampler", desc.sampler);

@@ -73,6 +73,9 @@ public:
 
     virtual void CopyResource(Resource* src, Resource* dst) = 0;
 
+    virtual void ClearUAV(Buffer* buffer) = 0;
+    virtual void ClearUAV(Texture* texture) = 0;
+
     virtual void DrawIndexedInstanced(UINT IndexCountPerInstance, UINT InstanceCount, UINT StartIndexLocation,
         INT BaseVertexLocation, UINT StartInstanceLocation) = 0;
     virtual void DrawInstanced(UINT VertexCountPerInstance, UINT InstanceCount, UINT StartVertexLocation, UINT StartInstanceLocation) = 0;

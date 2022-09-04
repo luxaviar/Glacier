@@ -38,7 +38,10 @@ struct SamplerState {
 
 class Sampler : public Resource {
 public:
-    Sampler(const SamplerState& ss) : state_(ss) {}
+    Sampler(const SamplerState& ss) : state_(ss)
+    {
+        resource_type_ = ResourceType::kSampler;
+    }
 
     const SamplerState& state() const { return state_; }
 

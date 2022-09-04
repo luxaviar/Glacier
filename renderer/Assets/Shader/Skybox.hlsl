@@ -1,5 +1,6 @@
 #include "Common/BasicSampler.hlsli"
 #include "Common/BasicTexture.hlsli"
+#include "Common/Color.hlsli"
 
 cbuffer vp_matrix : register(b1)
 {
@@ -31,4 +32,6 @@ float4 main_ps(float3 wpos : Position) : SV_TARGET
 {
     float4 col = _SkyboxTextureCube.Sample(linear_sampler, wpos);
     return col;
+    //float lum = RGBToLuminance(col.rgb);
+    //return float4(lum, lum, lum, col.a);
 }

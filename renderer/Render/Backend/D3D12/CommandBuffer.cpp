@@ -155,8 +155,17 @@ void D3D12CommandBuffer::SetConstantBufferView(uint32_t root_param_index, const 
 }
 
 void D3D12CommandBuffer::SetShaderResourceView(uint32_t root_param_index, const Resource* resource) {
-    auto res = static_cast<const D3D12Texture*>(resource);
-    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineSRV(root_param_index, res->GetGpuAddress());
+    D3D12_GPU_VIRTUAL_ADDRESS gpu_address;
+    if (resource->resource_type() == ResourceType::kTexture) {
+        auto res = static_cast<const D3D12Texture*>(resource);
+        gpu_address = res->GetGpuAddress();
+    }
+    else if (resource->resource_type() == ResourceType::kBuffer) {
+        auto res = static_cast<const D3D12Buffer*>(resource);
+        gpu_address = res->GetGpuAddress();
+    }
+
+    dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageInlineSRV(root_param_index, gpu_address);
 }
 
 void D3D12CommandBuffer::SetUnorderedAccessView(uint32_t root_param_index, const Resource* resource) {
@@ -165,8 +174,15 @@ void D3D12CommandBuffer::SetUnorderedAccessView(uint32_t root_param_index, const
 }
 
 void D3D12CommandBuffer::SetDescriptorTable(uint32_t root_param_index, uint32_t offset, const Resource* resource, bool uav) {
-    auto res = static_cast<const D3D12Texture*>(resource);
-    auto handle = uav ? res->GetUavHandle() : res->GetSrvHandle();
+    D3D12_CPU_DESCRIPTOR_HANDLE handle;
+    if (resource->resource_type() == ResourceType::kTexture) {
+        auto res = static_cast<const D3D12Texture*>(resource);
+        handle = uav ? res->GetUavHandle() : res->GetSrvHandle();
+    }
+    else if (resource->resource_type() == ResourceType::kBuffer) {
+        auto res = static_cast<const D3D12Buffer*>(resource);
+        handle = uav ? res->GetUavHandle() : res->GetSrvHandle();
+    }
 
     dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->StageDescriptors(root_param_index, offset, 1, handle);
 }
@@ -259,6 +275,41 @@ void D3D12CommandBuffer::ClearDepthStencilView(D3D12DescriptorRange& DepthStenci
 {
     FlushBarriers();
     command_list_->ClearDepthStencilView(DepthStencilView.GetDescriptorHandle(), ClearFlags, Depth, Stencil, NumRects, pRects);
+}
+
+void D3D12CommandBuffer::ClearUAV(Buffer* buffer) {
+    auto buf = static_cast<D3D12Buffer*>(buffer);
+    ClearUnorderAccessView(buf);
+}
+
+void D3D12CommandBuffer::ClearUAV(Texture* texture) {
+    auto tex = static_cast<D3D12Texture*>(texture);
+    ClearUnorderAccessView(tex);
+}
+
+void D3D12CommandBuffer::ClearUnorderAccessView(D3D12Buffer* buffer)
+{
+    FlushBarriers();
+
+    auto cpu_handle = buffer->GetUavHandle();
+    auto gpu_handle = dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->CopyDescriptor(*this, cpu_handle);
+    auto res = static_cast<ID3D12Resource*>(buffer->GetNativeResource());
+
+    const UINT clear_color[4] = {};
+    command_list_->ClearUnorderedAccessViewUint(gpu_handle, cpu_handle, res, clear_color, 0, nullptr);
+}
+
+void D3D12CommandBuffer::ClearUnorderAccessView(D3D12Texture* texture)
+{
+    FlushBarriers();
+
+    auto cpu_handle = texture->GetUavHandle();
+    auto gpu_handle = dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV]->CopyDescriptor(*this, cpu_handle);
+    auto res = static_cast<ID3D12Resource*>(texture->GetNativeResource());
+    CD3DX12_RECT clear_rect(0, 0, (LONG)texture->width(), (LONG)texture->height());
+
+    const float* clear_color = texture->GetClearValue().Color;
+    command_list_->ClearUnorderedAccessViewFloat(gpu_handle, cpu_handle, res, clear_color, 1, &clear_rect);
 }
 
 void D3D12CommandBuffer::OMSetRenderTargets(UINT NumRenderTargetDescriptors, const D3D12_CPU_DESCRIPTOR_HANDLE* pRenderTargetDescriptors,

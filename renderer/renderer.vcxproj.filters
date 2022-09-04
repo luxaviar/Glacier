@@ -193,6 +193,15 @@
     <None Include="Assets\Shader\Common\Macros.hlsli">
       <Filter>Shader\Common</Filter>
     </None>
+    <None Include="Assets\Shader\Common\Ao.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
+    <None Include="Assets\Shader\Common\Color.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
+    <None Include="Assets\Shader\Common\Exposure.hlsli">
+      <Filter>Shader\Common</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="3rdparty\imgui\imgui.cpp">
@@ -1511,6 +1520,18 @@
       <Filter>Shader</Filter>
     </FxCompile>
     <FxCompile Include="Assets\Shader\GTAOUpsampling.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\AdaptExposureCS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\ExtractLumaCS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\GenerateHistogramCS.hlsl">
+      <Filter>Shader</Filter>
+    </FxCompile>
+    <FxCompile Include="Assets\Shader\ToneMapCS.hlsl">
       <Filter>Shader</Filter>
     </FxCompile>
   </ItemGroup>

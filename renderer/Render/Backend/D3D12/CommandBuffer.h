@@ -85,6 +85,12 @@ public:
     void ClearDepthStencilView(D3D12DescriptorRange& DepthStencilView, D3D12_CLEAR_FLAGS ClearFlags, FLOAT Depth,
         UINT8 Stencil, UINT NumRects, const D3D12_RECT* pRects);
 
+    void ClearUAV(Buffer* buffer) override;
+    void ClearUAV(Texture* texture) override;
+
+    void ClearUnorderAccessView(D3D12Buffer* buffer);
+    void ClearUnorderAccessView(D3D12Texture* buffer);
+
     void OMSetRenderTargets(UINT NumRenderTargetDescriptors, const D3D12_CPU_DESCRIPTOR_HANDLE* pRenderTargetDescriptors,
         BOOL RTsSingleHandleToDescriptorRange, const D3D12_CPU_DESCRIPTOR_HANDLE* pDepthStencilDescriptor);
 

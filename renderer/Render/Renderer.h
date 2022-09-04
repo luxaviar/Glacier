@@ -19,7 +19,7 @@ class OldPointLight;
 class Light;
 class CommandBuffer;
 
-struct PerFrameData {
+struct alignas(16) PerFrameData {
     Matrix4x4 _View;
     Matrix4x4 _InverseView;
     Matrix4x4 _Projection;
@@ -33,9 +33,11 @@ struct PerFrameData {
     Vector4 _ScreenParam;
     Vector4 _CameraParams;
     Vector4 _ZBufferParams;
+    float _DeltaTime;
+    Vector3 padding;
 };
 
-struct GtaoParam {
+struct alignas(16) GtaoParam {
     float temporal_cos_angle = 1.0f;
     float temporal_sin_angle = 0.0f;
     float temporal_offset = 0.0f;
@@ -49,6 +51,26 @@ struct GtaoParam {
     float sharpness = 0.2f;
     int debug_ao = 0;
     int debug_ro = 0;
+};
+
+struct alignas(16) ExposureAdaptParam {
+    float min_exposure = -5;
+    float max_exposure = 15;
+    float rcp_exposure_range = 1.0f / 20;
+    float exposure_compensation = 0.0f;
+    Vector4 lum_size;
+    float meter_calibration_constant = 12.5f;
+    float speed_to_light = 3.0f;
+    float speed_to_dark = 1.0f;
+    uint32_t pixel_count;
+};
+
+struct alignas(16) ToneMapParam {
+    float rcp_width;
+    float rcp_height;
+    float bloom_strength;
+    float paperwhite_ratio;
+    float max_brightness;
 };
 
 class Renderer {
@@ -70,7 +92,7 @@ public:
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
     virtual void PreRender(CommandBuffer* cmd_buffer);
-    void Render();
+    void Render(float delta_time);
     virtual void PostRender(CommandBuffer* cmd_buffer);
 
     virtual std::shared_ptr<Material> CreateLightingMaterial(const char* name) = 0;
@@ -96,9 +118,10 @@ protected:
 
     virtual void DoTAA(CommandBuffer* cmd_buffer) {}
     virtual void ResolveMSAA(CommandBuffer* cmd_buffer) {}
-    virtual void HdrPostProcess(CommandBuffer* cmd_buffer) {}
+    virtual void HdrPostProcess(CommandBuffer* cmd_buffer);
 
     virtual void DoToneMapping(CommandBuffer* cmd_buffer);
+    void UpdateExposure(CommandBuffer* cmd_buffer);
     virtual void LdrPostProcess(CommandBuffer* cmd_buffer) {}
 
     virtual void DoFXAA(CommandBuffer* cmd_buffer);
@@ -118,6 +141,7 @@ protected:
     uint64_t frame_count_ = 0;
     uint32_t sample_count_ = 1;
     uint32_t quality_level_ = 0;
+    float delta_time_ = 1.0 / 60;
     bool half_ao_res_ = false;
 
     constexpr static std::array<const char*, 4> kAADesc = { "None", "MSAA", "FXAA", "TAA" };
@@ -159,6 +183,18 @@ protected:
     std::shared_ptr<RenderTarget> ao_half_render_target_;
     std::shared_ptr<RenderTarget> ao_full_render_target_;
     std::shared_ptr<RenderTarget> ao_spatial_render_target_;
+
+    std::shared_ptr<Material> lumin_mat_;
+    std::shared_ptr<Texture> lumin_texture_;
+    std::shared_ptr<Buffer> exposure_buf_;
+
+    std::shared_ptr<Material> histogram_mat_;
+    std::shared_ptr<Buffer> histogram_buf_;
+
+    std::shared_ptr<Material> exposure_mat_;
+    ConstantParameter<ExposureAdaptParam> exposure_params_;
+
+    ConstantParameter<ToneMapParam> tonemap_buf_;
 };
 
 }

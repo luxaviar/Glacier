@@ -343,15 +343,33 @@ void D3D12GfxDriver::ProcessReadback() {
 }
 
 std::shared_ptr<Buffer> D3D12GfxDriver::CreateIndexBuffer(size_t size, IndexFormat type) {
-    return std::make_shared<D3D12Buffer>(size, type);
+    return std::make_shared<D3D12IndexBuffer>(size, type);
 }
 
 std::shared_ptr<Buffer> D3D12GfxDriver::CreateVertexBuffer(size_t size, size_t stride) {
-    return std::make_shared<D3D12Buffer>(size, stride);
+    return std::make_shared<D3D12VertexBuffer>(size, stride);
 }
 
 std::shared_ptr<Buffer> D3D12GfxDriver::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
-    return std::make_shared<D3D12Buffer>(data, size, usage);
+    return std::make_shared<D3D12ConstantBuffer>(data, size, usage);
+}
+
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateStructuredBuffer(size_t element_size, size_t element_count, bool uav) {
+    if (uav) {
+        return std::make_shared<D3D12RWStructuredBuffer>(element_size, element_count);
+    }
+    else {
+        return std::make_shared<D3D12StructuredBuffer>(element_size, element_count);
+    }
+}
+
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateByteAddressBuffer(size_t size, bool uav) {
+    if (uav) {
+        return std::make_shared<D3D12RWByteAddressBuffer>(size);
+    }
+    else {
+        return std::make_shared<D3D12ByteAddressBuffer>(size);
+    }
 }
 
 std::shared_ptr<PipelineState> D3D12GfxDriver::CreatePipelineState(Program* program, RasterStateDesc rs, const InputLayoutDesc& layout) {

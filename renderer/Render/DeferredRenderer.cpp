@@ -255,7 +255,6 @@ void DeferredRenderer::DrawOptionWindow() {
             }
         }
 
-
         if (anti_aliasing_ == AntiAliasingType::kTAA) {
             auto& param = taa_param_.param();
             bool dirty = false;

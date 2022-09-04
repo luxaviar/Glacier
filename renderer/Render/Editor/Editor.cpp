@@ -342,7 +342,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     hblur_mat->GetProgram()->SetRasterState(hblur_rs);
     hblur_mat->SetProperty("Kernel", blur_param);
     hblur_mat->SetProperty("Control", blur_dir);
-    hblur_mat->SetProperty("point_sampler", ss);
+    hblur_mat->SetProperty("_point_clamp_sampler", ss);
     hblur_mat->SetProperty("_PostSourceTexture", outline_draw_tex);
 
     render_graph.AddPass("horizontal blur",
@@ -365,7 +365,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vss.filter = FilterMode::kPoint;
 
     auto vblur_mat = std::make_shared<PostProcessMaterial>("hightlight", TEXT("BlurOutline"));
-    vblur_mat->SetProperty("point_sampler", vss);
+    vblur_mat->SetProperty("_point_clamp_sampler", vss);
 
     RasterStateDesc blur_rs;
     blur_rs.depthWrite = false;

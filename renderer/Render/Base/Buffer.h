@@ -19,6 +19,7 @@ public:
         size_(size),
         stride_(stride)
     {
+
     }
 
     BufferType type() const { return type_; }
@@ -33,7 +34,7 @@ public:
 
     virtual void Bind(CommandBuffer* cmd_buffer) = 0;
 
-    virtual void Upload(CommandBuffer* cmd_buffer, const void* data, size_t size) = 0;
+    virtual void Upload(CommandBuffer* cmd_buffer, const void* data, size_t size = (size_t)-1) = 0;
     virtual void Update(const void* data, size_t size) = 0;
 
     void Update(const void* data) { Update(data, size_); }
@@ -43,7 +44,7 @@ protected:
     UsageType usage_;
     size_t size_;
     size_t stride_; //for vertex/index/structure
-    size_t count_ = 0; //for index
+    size_t count_ = 0; //for index/structure
 };
 
 template<typename T>

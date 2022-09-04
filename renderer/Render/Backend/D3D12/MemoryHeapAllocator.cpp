@@ -24,7 +24,7 @@ D3D12DefaultBufferAllocator::D3D12DefaultBufferAllocator(ID3D12Device* device) :
 }
 
 ResourceLocation D3D12DefaultBufferAllocator::CreateResource(const D3D12_RESOURCE_DESC& desc, uint32_t alignment, D3D12_RESOURCE_STATES state) {
-    if (desc.Flags == D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
+    if (desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS) {
         return uav_allocator_.AllocResource((uint32_t)desc.Width, alignment, desc, state);
     } else {
         return default_allocator_.AllocResource((uint32_t)desc.Width, alignment, desc, state);

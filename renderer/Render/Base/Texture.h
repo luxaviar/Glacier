@@ -59,6 +59,10 @@ public:
         return mip_slice + array_slice * mip_levels;
     }
 
+    Texture() {
+        resource_type_ = ResourceType::kTexture;
+    }
+
     virtual uint32_t width() const = 0;
     virtual uint32_t height() const = 0;
     

@@ -1,5 +1,5 @@
 #include "PostProcessCommon.hlsl"
-#include "Common/Colors.hlsli"
+#include "Common/Color.hlsli"
 #include "Common/Utils.hlsli"
 #include "Common/Ao.hlsli"
 
