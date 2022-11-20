@@ -20,14 +20,14 @@ RenderGraph::RenderGraph()
 RenderGraph::~RenderGraph()
 {}
 
-PassNode& RenderGraph::CreatePass(const char* name, PassExecutor* executor) {
+PassNode& RenderGraph::CreatePass(const char* name, std::unique_ptr<PassExecutor>&& executor) {
     for (auto& p : passes_) {
         if (p.name() == name) {
             throw RGC_EXCEPTION("In RenderGraph::CreatePass, pass name duplicated: " + std::string(name));
         }
     }
 
-    passes_.emplace_back(name, executor);
+    passes_.emplace_back(name, std::move(executor));
     return passes_.back();
 }
 

@@ -9,6 +9,9 @@
 #include "Render/PerfStats.h"
 #include "Render/PostProcess.h"
 #include "Algorithm/LowDiscrepancySequence.h"
+#include "PostProcess/GTAO.h"
+#include "PostProcess/Exposure.h"
+#include "PostProcess/ToneMapping.h"
 
 namespace glacier {
 namespace render {
@@ -37,42 +40,6 @@ struct alignas(16) PerFrameData {
     Vector3 padding;
 };
 
-struct alignas(16) GtaoParam {
-    float temporal_cos_angle = 1.0f;
-    float temporal_sin_angle = 0.0f;
-    float temporal_offset = 0.0f;
-    float temporal_direction = 0.0f;
-    float radius = 5.0f;
-    float fade_to_radius = 2.0f;
-    float thickness = 1.0f;
-    float fov_scale;
-    Vec4f render_param;
-    float intensity = 1.0f;
-    float sharpness = 0.2f;
-    int debug_ao = 0;
-    int debug_ro = 0;
-};
-
-struct alignas(16) ExposureAdaptParam {
-    float min_exposure = -5;
-    float max_exposure = 15;
-    float rcp_exposure_range = 1.0f / 20;
-    float exposure_compensation = 0.0f;
-    Vector4 lum_size;
-    float meter_calibration_constant = 12.5f;
-    float speed_to_light = 3.0f;
-    float speed_to_dark = 1.0f;
-    uint32_t pixel_count;
-};
-
-struct alignas(16) ToneMapParam {
-    float rcp_width;
-    float rcp_height;
-    float bloom_strength;
-    float paperwhite_ratio;
-    float max_brightness;
-};
-
 class Renderer {
 public:
     static void PostProcess(CommandBuffer* cmd_buffer, const std::shared_ptr<RenderTarget>& dst, Material* mat, bool color_only = false);
@@ -83,10 +50,13 @@ public:
 
     RenderGraph& render_graph() { return render_graph_; }
     Editor& editor() { return editor_; }
+    void SetAntiAliasingType(AntiAliasingType v) { anti_aliasing_ = v; }
+    auto frame_count() const { return frame_count_; }
 
     virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return hdr_render_target_; }
     std::shared_ptr<RenderTarget>& GetHdrRenderTarget() { return hdr_render_target_; }
     std::shared_ptr<RenderTarget>& GetLdrRenderTarget() { return ldr_render_target_; }
+    std::shared_ptr<RenderTarget>& GetPresentRenderTarget() { return present_render_target_; }
 
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
@@ -114,14 +84,13 @@ protected:
     virtual void DrawOptionWindow() {}
 
     virtual void UpdatePerFrameData();
+    virtual void JitterProjection(Matrix4x4& projection) {}
     virtual void InitRenderTarget();
 
     virtual void DoTAA(CommandBuffer* cmd_buffer) {}
     virtual void ResolveMSAA(CommandBuffer* cmd_buffer) {}
+    
     virtual void HdrPostProcess(CommandBuffer* cmd_buffer);
-
-    virtual void DoToneMapping(CommandBuffer* cmd_buffer);
-    void UpdateExposure(CommandBuffer* cmd_buffer);
     virtual void LdrPostProcess(CommandBuffer* cmd_buffer) {}
 
     virtual void DoFXAA(CommandBuffer* cmd_buffer);
@@ -139,10 +108,7 @@ protected:
 
     GfxDriver* gfx_;
     uint64_t frame_count_ = 0;
-    uint32_t sample_count_ = 1;
-    uint32_t quality_level_ = 0;
     float delta_time_ = 1.0 / 60;
-    bool half_ao_res_ = false;
 
     constexpr static std::array<const char*, 4> kAADesc = { "None", "MSAA", "FXAA", "TAA" };
     RenderGraph render_graph_;
@@ -161,7 +127,9 @@ protected:
     std::shared_ptr<CascadedShadowManager> csm_manager_;
     std::vector<Renderable*> visibles_;
 
-    std::shared_ptr<Material> tonemapping_mat_;
+    Exposure exposure_;
+    GTAO gtao_;
+    ToneMapping tonemapping_;
 
     Editor editor_;
     PostProcessManager post_process_manager_;
@@ -169,32 +137,6 @@ protected:
 
     Matrix4x4 prev_view_projection_;
 
-    static constexpr int kTAASampleCount = 8;
-    std::array<Vector2, kTAASampleCount> halton_sequence_;
-
-    ConstantParameter<GtaoParam> gtao_param_;
-    std::shared_ptr<Material> gtao_mat_;
-    std::shared_ptr<Material> gtao_upsampling_mat_;
-    std::shared_ptr<Material> gtao_filter_x_mat_;
-    std::shared_ptr<Material> gtao_filter_y_mat_;
-    ConstantParameter<Vector4> gtao_filter_x_param_;
-    ConstantParameter<Vector4> gtao_filter_y_param_;
-
-    std::shared_ptr<RenderTarget> ao_half_render_target_;
-    std::shared_ptr<RenderTarget> ao_full_render_target_;
-    std::shared_ptr<RenderTarget> ao_spatial_render_target_;
-
-    std::shared_ptr<Material> lumin_mat_;
-    std::shared_ptr<Texture> lumin_texture_;
-    std::shared_ptr<Buffer> exposure_buf_;
-
-    std::shared_ptr<Material> histogram_mat_;
-    std::shared_ptr<Buffer> histogram_buf_;
-
-    std::shared_ptr<Material> exposure_mat_;
-    ConstantParameter<ExposureAdaptParam> exposure_params_;
-
-    ConstantParameter<ToneMapParam> tonemap_buf_;
 };
 
 }

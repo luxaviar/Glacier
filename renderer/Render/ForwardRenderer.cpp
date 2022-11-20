@@ -24,19 +24,16 @@
 #include "Render/Base/RenderTexturePool.h"
 #include "Render/Base/Program.h"
 #include "Render/Base/CommandBuffer.h"
+#include "PostProcess/GTAO.h"
 
 namespace glacier {
 namespace render {
 
 ForwardRenderer::ForwardRenderer(GfxDriver* gfx, MSAAType msaa) :
     Renderer(gfx, msaa == MSAAType::kNone ? AntiAliasingType::kNone :AntiAliasingType::kMSAA),
-    msaa_(msaa),
-    option_msaa_(msaa)
+    msaa_(msaa)
 {
-    if (msaa_ != MSAAType::kNone) {
-        gfx_->CheckMSAA(1 << toUType(msaa_), sample_count_, quality_level_);
-        assert(sample_count_ <= 8);
-    }
+
 }
 
 void ForwardRenderer::Setup() {
@@ -49,8 +46,8 @@ void ForwardRenderer::Setup() {
     pbr_program_->AddPass("ForwardLighting");
 
     Renderer::Setup();
+    msaa_.Setup(this);
 
-    InitMSAA();
     InitRenderGraph(gfx_);
 
     prepass_mat_ = std::make_shared<Material>("PrePass", TEXT("PrePass"), nullptr);
@@ -63,14 +60,7 @@ void ForwardRenderer::Setup() {
     ss.warpU = ss.warpV = WarpMode::kClamp;
     depthnormal_mat_->SetProperty("linear_sampler", ss);
 
-    gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
-    gtao_mat_->SetProperty("_GtaoData", gtao_param_);
-    gtao_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
-    gtao_mat_->SetProperty("NormalTexture", depthnormal_);
-
-    gtao_upsampling_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
-    gtao_filter_x_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
-    gtao_filter_y_mat_->SetProperty("DepthBuffer", prepass_render_target_->GetDepthStencil());
+    gtao_.Setup(this, prepass_render_target_->GetDepthStencil(), depthnormal_);
 
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     solid_mat->AddPass("solid");
@@ -87,21 +77,13 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
 
     depthnormal_->Resize(width, height);
     prepass_render_target_->Resize(width, height);
-
-    msaa_render_target_->Resize(width, height);
+    msaa_.OnResize(width, height);
 
     return true;
 }
 
 void ForwardRenderer::PreRender(CommandBuffer* cmd_buffer) {
-    if (msaa_ != option_msaa_) {
-        msaa_ = option_msaa_;
-        OnChangeMSAA();
-    }
-
-    if (msaa_ != MSAAType::kNone) {
-        msaa_render_target_->Clear(cmd_buffer);
-    }
+    msaa_.PreRender(this, cmd_buffer);
 
     prepass_render_target_->ClearDepthStencil(cmd_buffer);
 
@@ -124,99 +106,11 @@ void ForwardRenderer::InitRenderTarget() {
     depthnormal_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16_FLOAT,
         (CreateFlags)((uint32_t)CreateFlags::kUav | (uint32_t)CreateFlags::kShaderResource));
     depthnormal_->SetName("depth normal texture");
-
-    if (msaa_ == MSAAType::kNone) {
-        msaa_render_target_ = hdr_render_target_;
-        return;
-    }
-
-    msaa_render_target_ = gfx_->CreateRenderTarget(width, height);
-    auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
-        CreateFlags::kRenderTarget, sample_count_, quality_level_);
-    msaa_color->SetName("msaa color buffer");
-
-    msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
-
-    auto depth_tex_desc = Texture::Description()
-        .SetDimension(width, height)
-        .SetFormat(TextureFormat::kR24G8_TYPELESS)
-        .SetCreateFlag(CreateFlags::kDepthStencil)
-        .SetCreateFlag(CreateFlags::kShaderResource)
-        .SetSampleDesc(sample_count_, quality_level_);
-    auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-    depthstencil_texture->SetName("msaa depth texture");
-
-    msaa_render_target_->AttachDepthStencil(depthstencil_texture);
-}
-
-void ForwardRenderer::InitMSAA() {
-    RasterStateDesc rs;
-    rs.depthFunc = CompareFunc::kAlways;
-
-    auto vert_shader = gfx_->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
-
-    for (int i = (int)MSAAType::k2x; i < (int)MSAAType::kMax; ++i) {
-        auto sample_count = 1 << toUType(msaa_);
-        auto sample_count_str = fmt::format("{}", sample_count);
-
-        auto pixel_shader = gfx_->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps",
-            { {"MSAASamples_", sample_count_str.c_str()}, {nullptr, nullptr}});
-
-        auto program = gfx_->CreateProgram("MSAA");
-        program->SetShader(vert_shader);
-        program->SetShader(pixel_shader);
-
-        auto mat = std::make_shared<Material>("msaa resolve", program);
-        mat->GetProgram()->SetRasterState(rs);
-
-        mat->SetProperty("depth_buffer", msaa_render_target_->GetDepthStencil());
-        mat->SetProperty("color_buffer", msaa_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-        msaa_resolve_mat_[i] = mat;
-    }
-}
-
-void ForwardRenderer::OnChangeMSAA() {
-    if (msaa_ != MSAAType::kNone) {
-        anti_aliasing_ = AntiAliasingType::kMSAA;
-        gfx_->CheckMSAA(1 << toUType(msaa_), sample_count_, quality_level_);
-        assert(sample_count_ <= 8);
-
-        auto width = present_render_target_->width();
-        auto height = present_render_target_->height();
-        auto msaa_color = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT,
-            CreateFlags::kRenderTarget, sample_count_, quality_level_);
-        msaa_color->SetName("msaa color buffer");
-
-        msaa_render_target_->AttachColor(AttachmentPoint::kColor0, msaa_color);
-
-        auto depth_tex_desc = Texture::Description()
-            .SetDimension(width, height)
-            .SetFormat(TextureFormat::kR24G8_TYPELESS)
-            .SetCreateFlag(CreateFlags::kDepthStencil)
-            .SetCreateFlag(CreateFlags::kShaderResource)
-            .SetSampleDesc(sample_count_, quality_level_);
-        auto depthstencil_texture = gfx_->CreateTexture(depth_tex_desc);
-        depthstencil_texture->SetName("msaa depth texture");
-
-        msaa_render_target_->AttachDepthStencil(depthstencil_texture);
-    }
-    else {
-        sample_count_ = 1;
-        quality_level_ = 0;
-
-        msaa_render_target_->AttachColor(AttachmentPoint::kColor0, hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-        msaa_render_target_->AttachDepthStencil(hdr_render_target_->GetDepthStencil());
-    }
-
-    msaa_render_target_->signal().Emit();
 }
 
 void ForwardRenderer::ResolveMSAA(CommandBuffer* cmd_buffer) {
     PerfSample("Resolve MSAA");
-    if (msaa_ == MSAAType::kNone) return;
-
-    auto& mat = msaa_resolve_mat_[toUType(msaa_)];
-    PostProcess(cmd_buffer, hdr_render_target_, mat.get());
+    msaa_.Execute(this, cmd_buffer);
 }
 
 void ForwardRenderer::AddPreDepthPass() {
@@ -283,24 +177,7 @@ void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
 }
 
 void ForwardRenderer::DrawOptionWindow() {
-    if (ImGui::CollapsingHeader("Anti-Aliasing", ImGuiTreeNodeFlags_DefaultOpen)) {
-        const char* combo_label = kMsaaDesc[(int)option_msaa_];
-
-        ImGui::Text("MSAA");
-        ImGui::SameLine(80);
-        if (ImGui::BeginCombo("##MSAA", combo_label, ImGuiComboFlags_PopupAlignLeft)) {
-            for (int n = 0; n < kMsaaDesc.size(); n++) {
-                const bool is_selected = ((int)option_msaa_ == n);
-
-                if (ImGui::Selectable(kMsaaDesc[n], is_selected))
-                    option_msaa_ = (MSAAType)n;
-
-                if (is_selected)
-                    ImGui::SetItemDefaultFocus();
-            }
-            ImGui::EndCombo();
-        }
-    }
+    msaa_.DrawOptionWindow();
 }
 
 

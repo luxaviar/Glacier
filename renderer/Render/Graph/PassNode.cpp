@@ -7,15 +7,26 @@
 namespace glacier {
 namespace render {
 
-PassNode::PassNode(const char* name, PassExecutor* executor) noexcept :
+PassNode::PassNode(const char* name) noexcept :
     Identifiable<PassNode>(),
-    name_(name), executor_(executor)
+    name_(name)
+{
+
+}
+
+PassNode::PassNode(const char* name, std::unique_ptr<PassExecutor>&& executor) noexcept :
+    Identifiable<PassNode>(),
+    name_(name), executor_(std::move(executor))
 {
 
 }
 
 void PassNode::Reset() {
     //TODO:
+}
+
+void PassNode::Setup(Renderer* renderer) {
+
 }
 
 void PassNode::Execute(CommandBuffer* cmd_buffer) {

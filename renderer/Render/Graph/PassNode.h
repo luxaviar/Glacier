@@ -15,25 +15,27 @@ namespace render {
 
 class Material;
 class CommandBuffer;
+class Renderer;
 
 class PassNode : public Identifiable<PassNode> {
 public:
-    PassNode(const char* name, PassExecutor* executor) noexcept;
+    PassNode(const char* name) noexcept;
+    PassNode(const char* name, std::unique_ptr<PassExecutor>&& executor) noexcept;
 
     PassNode(const PassNode& other) = delete;
     PassNode(PassNode&& other) noexcept = default;
     virtual ~PassNode() = default;
 
+    const std::string& name() const { return name_; }
+
+    virtual void Setup(Renderer* renderer);
     virtual void Execute(CommandBuffer* cmd_buffer);
 
     void Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
     void Render(CommandBuffer* cmd_buffer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
 
     void Reset();
-
     void Finalize() const;
-
-    const std::string& name() const { return name_; }
 
     bool active() const { return active_; }
     void active(bool enable) { active_ = enable; }

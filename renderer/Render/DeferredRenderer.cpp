@@ -25,6 +25,7 @@
 #include "Render/Base/Program.h"
 #include "Common/Log.h"
 #include "Render/Base/CommandBuffer.h"
+#include "PostProcess/Gtao.h"
 
 namespace glacier {
 namespace render {
@@ -34,8 +35,6 @@ DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
     option_aa_(aa)
 {
     assert(aa != AntiAliasingType::kMSAA);
-    fxaa_param_ = gfx_->CreateConstantParameter<FXAAParam, UsageType::kDefault>(0.0833f, 0.166f, 0.75f, 0.0f);
-    taa_param_ = gfx_->CreateConstantParameter<TAAParam, UsageType::kDefault>(0.95f, 0.85f, 6000.0f, 0.0f);
 }
 
 void DeferredRenderer::Setup() {
@@ -63,25 +62,15 @@ void DeferredRenderer::Setup() {
     lighting_mat_->SetProperty("EmissiveTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
     lighting_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
 
-    fxaa_mat_ = std::make_shared<PostProcessMaterial>("FXAA", TEXT("FXAA"));
-    fxaa_mat_->SetProperty("fxaa_param", fxaa_param_);
-    fxaa_mat_->SetProperty("_PostSourceTexture", ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
+    fxaa_.Setup(this);
+    taa_.Setup(this);
+    gtao_.Setup(this, hdr_render_target_->GetDepthStencil(), gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
+}
 
-    taa_mat_ = std::make_shared<PostProcessMaterial>("TAA", TEXT("TAA"));
-    taa_mat_->SetProperty("taa_param", taa_param_);
-    taa_mat_->SetProperty("_PostSourceTexture", temp_hdr_texture_);
-    taa_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
-    taa_mat_->SetProperty("PrevColorTexture", prev_hdr_texture_);
-    taa_mat_->SetProperty("VelocityTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4));
-
-    gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
-    gtao_mat_->SetProperty("_GtaoData", gtao_param_);
-    gtao_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
-    gtao_mat_->SetProperty("NormalTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
-
-    gtao_upsampling_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
-    gtao_filter_x_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
-    gtao_filter_y_mat_->SetProperty("DepthBuffer", hdr_render_target_->GetDepthStencil());
+void DeferredRenderer::JitterProjection(Matrix4x4& projection) {
+    auto width = hdr_render_target_->width();
+    auto height = hdr_render_target_->height();
+    taa_.UpdatePerFrameData(frame_count_, projection, 1.0f / width, 1.0f / height);
 }
 
 std::shared_ptr<Material> DeferredRenderer::CreateLightingMaterial(const char* name) {
@@ -90,13 +79,7 @@ std::shared_ptr<Material> DeferredRenderer::CreateLightingMaterial(const char* n
 
 void DeferredRenderer::DoTAA(CommandBuffer* cmd_buffer) {
     if (anti_aliasing_ != AntiAliasingType::kTAA) return;
-
-    if (frame_count_ > 0) {
-        cmd_buffer->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(), temp_hdr_texture_.get());
-        PostProcess(cmd_buffer, hdr_render_target_, taa_mat_.get());
-    }
-
-    cmd_buffer->CopyResource(hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(), prev_hdr_texture_.get());
+    taa_.Execute(this, cmd_buffer);
 }
 
 void DeferredRenderer::DoFXAA(CommandBuffer* cmd_buffer) {
@@ -105,7 +88,7 @@ void DeferredRenderer::DoFXAA(CommandBuffer* cmd_buffer) {
         return;
     }
 
-    PostProcess(cmd_buffer, present_render_target_, fxaa_mat_.get());
+    fxaa_.Execute(this, cmd_buffer);
 }
 
 void DeferredRenderer::InitRenderTarget() {
@@ -113,9 +96,6 @@ void DeferredRenderer::InitRenderTarget() {
 
     auto width = gfx_->GetSwapChain()->GetWidth();
     auto height = gfx_->GetSwapChain()->GetHeight();
-
-    temp_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
-    prev_hdr_texture_ = RenderTexturePool::Get(width, height, TextureFormat::kR16G16B16A16_FLOAT);
 
     auto albedo_texture = RenderTexturePool::Get(width, height);
     albedo_texture->SetName("GBuffer Albedo");
@@ -148,9 +128,7 @@ bool DeferredRenderer::OnResize(uint32_t width, uint32_t height) {
     }
 
     gbuffer_render_target_->Resize(width, height);
-
-    temp_hdr_texture_->Resize(width, height);
-    prev_hdr_texture_->Resize(width, height);
+    taa_.OnResize(width, height);
 
     return true;
 }
@@ -229,57 +207,11 @@ void DeferredRenderer::DrawOptionWindow() {
         }
 
         if (anti_aliasing_ == AntiAliasingType::kFXAA) {
-            auto& param = fxaa_param_.param();
-            bool dirty = false;
-
-            ImGui::Text("Contrast Threshold");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Contrast Threshold", &param.contrast_threshold, 0.0312f, 0.0833f)) {
-                dirty = true;
-            }
-
-            ImGui::Text("Relative Threshold");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Relative Threshold", &param.relative_threshold, 0.063f, 0.333f)) {
-                dirty = true;
-            }
-
-            ImGui::Text("Subpixel Blending");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Subpixel Blending", &param.subpixel_blending, 0.0f, 1.0f)) {
-                dirty = true;
-            }
-
-            if (dirty) {
-                fxaa_param_.Update();
-            }
+            fxaa_.DrawOptionWindow();
         }
 
         if (anti_aliasing_ == AntiAliasingType::kTAA) {
-            auto& param = taa_param_.param();
-            bool dirty = false;
-
-            ImGui::Text("Static Blending");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Static Blending", &param.static_blending, 0.9f, 0.99f)) {
-                dirty = true;
-            }
-
-            ImGui::Text("Dynamic Blending");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Dynamic Blending", &param.dynamic_blending, 0.8f, 0.9f)) {
-                dirty = true;
-            }
-
-            ImGui::Text("Motion Amplify");
-            ImGui::SameLine(140);
-            if (ImGui::SliderFloat("##Motion Amplify", &param.motion_amplify, 4000.0f, 6000.0f)) {
-                dirty = true;
-            }
-
-            if (dirty) {
-                taa_param_.Update();
-            }
+            taa_.DrawOptionWindow();
         }
     }
 }

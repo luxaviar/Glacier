@@ -22,8 +22,8 @@ namespace glacier {
 namespace render {
 
 static void DrawHelmet(CommandBuffer* cmd_buffer) {
+    //auto helmet_mat = MaterialManager::Instance()->Get("pbr_helmet");
     auto& helmet = Model::GenerateGameObject(cmd_buffer, "assets\\model\\helmet\\DamagedHelmet.gltf", true, 1.0f);
-    //helmet.transform().position(Vector3{ 6.0f,4.0f,10.0f });
     helmet.transform().position(Vector3{ 99, 25, 4 });
 
     auto pbr_floor = MaterialManager::Instance()->Get("pbr_floor");
@@ -62,8 +62,8 @@ void PbrScene::OnLoad(Renderer* renderer) {
     auto cmd_queue = gfx->GetCommandQueue(CommandBufferType::kDirect);
     auto cmd_buffer = cmd_queue->GetCommandBuffer();
 
-    //DrawHelmet(cmd_buffer);
-    DrawSponza(cmd_buffer);
+    DrawHelmet(cmd_buffer);
+    //DrawSponza(cmd_buffer);
 
     cmd_queue->ExecuteCommandBuffer(cmd_buffer);
     cmd_queue->Flush();

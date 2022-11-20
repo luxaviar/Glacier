@@ -52,20 +52,6 @@ Renderer::Renderer(GfxDriver* gfx, AntiAliasingType aa) :
     per_frame_param_ = gfx->CreateConstantParameter<PerFrameData, UsageType::kDynamic>();
     stats_ = std::make_unique<PerfStats>(gfx);
     csm_manager_ = std::make_shared<CascadedShadowManager>(gfx, 1024, std::vector<float>{ 10.6, 18.6, 19.2, 51.6 });
-
-    for (int i = 0; i < kTAASampleCount; ++i) {
-        halton_sequence_[i] = { LowDiscrepancySequence::Halton(i + 1, 2), LowDiscrepancySequence::Halton(i + 1, 3) };
-        halton_sequence_[i] = halton_sequence_[i] * 2.0f - 1.0f;
-    }
-
-    gtao_param_ = gfx_->CreateConstantParameter<GtaoParam, UsageType::kDefault>();
-    gtao_filter_x_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(1.0f, 0.0f, 0.0f, 0.0f);
-    gtao_filter_y_param_ = gfx_->CreateConstantParameter<Vector4, UsageType::kDefault>(0.0f, 1.0f, 0.0f, 0.0f);
-
-    exposure_buf_ = gfx_->CreateStructuredBuffer(4, 4, true);
-    histogram_buf_ = gfx_->CreateByteAddressBuffer(256, true);
-    exposure_params_ = gfx->CreateConstantParameter<ExposureAdaptParam, UsageType::kDefault>();
-    tonemap_buf_ = gfx->CreateConstantParameter<ToneMapParam, UsageType::kDefault>();
 }
 
 void Renderer::Setup() {
@@ -76,56 +62,17 @@ void Renderer::Setup() {
 
     Gizmos::Instance()->Setup(gfx_);
     LightManager::Instance()->Setup(gfx_);
+    exposure_.Setup(this);
+    tonemapping_.Setup(this, exposure_.GetExposureBuffer());
 
     auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kCopy);
 
     InitFloorPbr(cmd_buffer);
     InitDefaultPbr(cmd_buffer);
 
-   //exposure_compensation_
-    alignas(16) float initExposure[] = { 1.0, 1.0 };
-    exposure_buf_->Upload(cmd_buffer, initExposure);
-
-    tonemap_buf_ = { 1.0f / hdr_render_target_->width(), 1.0f / hdr_render_target_->height(), 0.1f, 200.0f / 1000.0f, 1000.0f };
-
     auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kCopy);
     cmd_queue->ExecuteCommandBuffer(cmd_buffer);
     cmd_queue->Flush();
-
-    gtao_upsampling_mat_ = std::make_shared<PostProcessMaterial>("GTAOUpsampling", TEXT("GTAOUpsampling"));
-    gtao_upsampling_mat_->SetProperty("OcclusionTexture", ao_half_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    gtao_upsampling_mat_->SetProperty("_GtaoData", gtao_param_);
-
-    gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_x_mat_->SetProperty("filter_param", gtao_filter_x_param_);
-    gtao_filter_x_mat_->SetProperty("_GtaoData", gtao_param_);
-    gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_full_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-
-    gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
-    gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
-    gtao_filter_y_mat_->SetProperty("_GtaoData", gtao_param_);
-    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_spatial_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-
-    lumin_mat_ = std::make_shared<Material>("ExtractLumaCS", TEXT("ExtractLumaCS"));
-    lumin_mat_->SetProperty("SourceTexture", hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    lumin_mat_->SetProperty("LumaResult", lumin_texture_);
-    lumin_mat_->SetProperty("Exposure", exposure_buf_);
-    lumin_mat_->SetProperty("exposure_params", exposure_params_);
-
-    histogram_mat_ = std::make_shared<Material>("GenerateHistogramCS", TEXT("GenerateHistogramCS"));
-    histogram_mat_->SetProperty("LumaBuf", lumin_texture_);
-    histogram_mat_->SetProperty("Histogram", histogram_buf_);
-    histogram_mat_->SetProperty("exposure_params", exposure_params_);
-
-    exposure_mat_ = std::make_shared<Material>("AdaptExposureCS", TEXT("AdaptExposureCS"));
-    exposure_mat_->SetProperty("Histogram", histogram_buf_);
-    exposure_mat_->SetProperty("Exposure", exposure_buf_);
-    exposure_mat_->SetProperty("exposure_params", exposure_params_);
-
-    tonemapping_mat_->SetProperty("tonemap_params", tonemap_buf_);
-    tonemapping_mat_->SetProperty("Exposure", exposure_buf_);
-    tonemapping_mat_->SetProperty("SrcColor", hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    tonemapping_mat_->SetProperty("DstColor", ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 }
 
 void Renderer::InitRenderTarget() {
@@ -150,32 +97,7 @@ void Renderer::InitRenderTarget() {
     ldr_render_target_->AttachColor(AttachmentPoint::kColor0, ldr_colorframe);
     ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
 
-    auto ao_texture = RenderTexturePool::Get(width, height, TextureFormat::kR11G11B10_FLOAT);
-    ao_full_render_target_ = gfx_->CreateRenderTarget(width, height);
-    ao_full_render_target_->AttachColor(AttachmentPoint::kColor0, ao_texture);
-    ao_texture->SetName("ao texture");
-
-    auto ao_half_texture = RenderTexturePool::Get(width / 2, height / 2, TextureFormat::kR11G11B10_FLOAT);
-    ao_half_render_target_ = gfx_->CreateRenderTarget(width / 2, height / 2);
-    ao_half_render_target_->AttachColor(AttachmentPoint::kColor0, ao_half_texture);
-    ao_half_texture->SetName("ao half texture");
-
-    auto ao_tmp_texture = RenderTexturePool::Get(width, height, TextureFormat::kR11G11B10_FLOAT);
-    ao_spatial_render_target_ = gfx_->CreateRenderTarget(width, height);
-    ao_spatial_render_target_->AttachColor(AttachmentPoint::kColor0, ao_tmp_texture);
-    ao_tmp_texture->SetName("ao temp texture");
-
-    lumin_texture_ = RenderTexturePool::Get(width / 2, height / 2, TextureFormat::kR8_UINT, 
-        (CreateFlags)((uint32_t)CreateFlags::kUav | (uint32_t)CreateFlags::kShaderResource));
-    lumin_texture_->SetName("luminance texture");
-
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
-
-    auto lum_wdith = lumin_texture_->width();
-    auto lum_height = lumin_texture_->height();
-    exposure_params_.param().pixel_count = lum_wdith * lum_height;
-    exposure_params_.param().lum_size = {(float)lum_wdith, (float)lum_height, 1.0f / lum_wdith, 1.0f / lum_height};
-    exposure_params_.Update();
 }
 
 bool Renderer::OnResize(uint32_t width, uint32_t height) {
@@ -188,20 +110,13 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
 
     hdr_render_target_->Resize(width, height);
     ldr_render_target_->Resize(width, height);
-    ao_full_render_target_->Resize(width, height);
-    ao_half_render_target_->Resize(width / 2, height / 2);
 
     editor_.OnResize(width, height);
+    gtao_.OnResize(width, height);
+    exposure_.OnResize(width, height);
+    tonemapping_.OnResize(width, height);
 
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
-    tonemap_buf_ = { 1.0f / hdr_render_target_->width(), 1.0f / hdr_render_target_->height(), 0.1f, 200.0f / 1000.0f, 1000.0f };
-
-    auto lum_wdith = lumin_texture_->width();
-    auto lum_height = lumin_texture_->height();
-    exposure_params_.param().pixel_count = lum_wdith * lum_height;
-    exposure_params_.param().lum_size = { (float)lum_wdith, (float)lum_height, 1.0f / lum_wdith, 1.0f / lum_height};
-    exposure_params_.Update();
-
     return true;
 }
 
@@ -239,8 +154,6 @@ void Renderer::InitMaterial() {
     solid_mat->GetProgram()->SetInputLayout(InputLayoutDesc{ InputLayoutDesc::Position3D });
 
     MaterialManager::Instance()->Add(std::move(solid_mat));
-
-    tonemapping_mat_ = std::make_shared<Material>("ToneMapCS", TEXT("ToneMapCS"));
 }
 
 Camera* Renderer::GetMainCamera() const {
@@ -268,11 +181,7 @@ void Renderer::UpdatePerFrameData() {
     param._UnjitteredInverseProjection = projection.Inverted().value();
 
     if (anti_aliasing_ == AntiAliasingType::kTAA) {
-        uint64_t idx = frame_count_ % kTAASampleCount;
-        double jitter_x = halton_sequence_[idx].x * (double)param._ScreenParam.z;
-        double jitter_y = halton_sequence_[idx].y * (double)param._ScreenParam.w;
-        projection[0][2] += jitter_x;
-        projection[1][2] += jitter_y;
+        JitterProjection(projection);
     }
 
     auto inverse_view = view.Inverted();
@@ -343,9 +252,9 @@ void Renderer::Render(float delta_time) {
 
     HdrPostProcess(cmd_buffer);
 
-    DoToneMapping(cmd_buffer);
+    tonemapping_.Execute(this, cmd_buffer);
 
-    UpdateExposure(cmd_buffer);
+    exposure_.UpdateExposure(cmd_buffer);
 
     {
         PerfSample("Post Process");
@@ -367,36 +276,7 @@ void Renderer::Render(float delta_time) {
 }
 
 void Renderer::HdrPostProcess(CommandBuffer* cmd_buffer) {
-    //calc luminance
-    auto dst_width = lumin_texture_->width();
-    auto dst_height = lumin_texture_->height();
-
-    cmd_buffer->BindMaterial(lumin_mat_.get());
-    cmd_buffer->Dispatch(math::DivideByMultiple(dst_width, 8), math::DivideByMultiple(dst_height, 8), 1);
-    cmd_buffer->UavResource(lumin_texture_.get());
-}
-
-void Renderer::UpdateExposure(CommandBuffer* cmd_buffer) {
-    auto dst_width = lumin_texture_->width();
-    auto dst_height = lumin_texture_->height();
-
-    //calc histogram
-    cmd_buffer->UavResource(histogram_buf_.get());
-    cmd_buffer->ClearUAV(histogram_buf_.get());
-    cmd_buffer->BindMaterial(histogram_mat_.get());
-    cmd_buffer->Dispatch(math::DivideByMultiple(dst_width, 16), 1, 1);
-
-    //calc adapt exposure
-    cmd_buffer->BindMaterial(exposure_mat_.get());
-    cmd_buffer->Dispatch(1, 1, 1);
-}
-
-void Renderer::DoToneMapping(CommandBuffer* cmd_buffer) {
-    auto dst_width = hdr_render_target_->width();
-    auto dst_height = hdr_render_target_->height();
-
-    cmd_buffer->BindMaterial(tonemapping_mat_.get());
-    cmd_buffer->Dispatch(math::DivideByMultiple(dst_width, 8), math::DivideByMultiple(dst_height, 8), 1);
+    exposure_.GenerateLuminance(cmd_buffer);
 }
 
 void Renderer::PostRender(CommandBuffer* cmd_buffer) {
@@ -428,13 +308,7 @@ void Renderer::SetupBuiltinProperty(Material* mat) {
         mat->SetProperty("_PerObjectData", Renderable::GetPerObjectData());
     }
 
-    if (mat->HasParameter("_OcclusionTexture")) {
-        mat->SetProperty("_OcclusionTexture", ao_full_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
-    }
-
-    if (mat->HasParameter("_GtaoData")) {
-        mat->SetProperty("_GtaoData", gtao_param_);
-    }
+    gtao_.SetupBuiltinProperty(mat);
 
     csm_manager_->SetupMaterial(mat);
     LightManager::Instance()->SetupMaterial(mat);
@@ -490,38 +364,8 @@ void Renderer::AddGtaoPass() {
         [&](PassNode& pass) {
         },
         [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            PerfSample("GTAO Pass");
-
-            //constexpr float Rots[6] = { 60.0f, 300.0f, 180.0f, 240.0f, 120.0f, 0.0f };
-            //constexpr float Offsets[4] = { 0.1f, 0.6f, 0.35f, 0.85f };
-            //float TemporalAngle = Rots[frame_count_ % 6] * (math::k2PI / 360.0f);
-            //float SinAngle, CosAngle;
-            //math::FastSinCos(&SinAngle, &CosAngle, TemporalAngle);
-            // GtaoParam Params = { CosAngle, SinAngle, Offsets[(frame_count_ / 6) % 4] * 0.25, Offsets[frame_count_ % 4] };
-
-            auto camera = GetMainCamera();
-            auto& param = gtao_param_.param();
-            auto width = ao_full_render_target_->width();
-            auto height = ao_full_render_target_->width();
-            if (half_ao_res_) {
-                width /= 2;
-                height /= 2;
-            }
-
-            param.fov_scale = height / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
-            param.render_param = Vec4f{ (float)width, (float)height, 1.0f / width, 1.0f / height };
-            gtao_param_.Update();
-
-            if (half_ao_res_) {
-                PostProcess(cmd_buffer, ao_half_render_target_, gtao_mat_.get());
-                PostProcess(cmd_buffer, ao_full_render_target_, gtao_upsampling_mat_.get());
-            }
-            else {
-                PostProcess(cmd_buffer, ao_full_render_target_, gtao_mat_.get());
-            }
-
-            PostProcess(cmd_buffer, ao_spatial_render_target_, gtao_filter_x_mat_.get());
-            PostProcess(cmd_buffer, ao_full_render_target_, gtao_filter_y_mat_.get());
+            //PerfSample("GTAO Pass");
+            gtao_.Execute(this, cmd_buffer);
         });
 }
 
@@ -737,79 +581,8 @@ void Renderer::OptionWindow(bool* open) {
 
     DrawOptionWindow();
 
-    if (ImGui::CollapsingHeader("AO", ImGuiTreeNodeFlags_DefaultOpen)) {
-        auto& param = gtao_param_.param();
-
-        ImGui::Text("Radius");
-        ImGui::SameLine(80);
-        ImGui::SliderFloat("##GTAO Radius", &param.radius, 1.0f, 10.0f);
-
-        ImGui::Text("Fade Radius");
-        ImGui::SameLine(80);
-        ImGui::SliderFloat("##GTAO Fade Radius", &param.fade_to_radius, 1.0f, 2.0f);
-
-        if (param.fade_to_radius >= param.radius) {
-            param.fade_to_radius = param.radius - 0.01f;
-        }
-
-        ImGui::Text("Thickness");
-        ImGui::SameLine(80);
-        ImGui::SliderFloat("##GTAO Thickness", &param.thickness, 0.1f, 1.0f);
-
-        ImGui::Text("Intensity");
-        ImGui::SameLine(80);
-        ImGui::SliderFloat("##GTAO Intensity", &param.intensity, 1.0f, 5.0f);
-
-        ImGui::Text("Sharpness");
-        ImGui::SameLine(80);
-        ImGui::SliderFloat("##GTAO Sharpness", &param.sharpness, 0.0f, 2.0f);
-
-        ImGui::Checkbox("Half Resolution", &half_ao_res_);
-
-        if (ImGui::Checkbox("Debug AO", (bool*)&param.debug_ao)) {
-            if (param.debug_ro && param.debug_ao) param.debug_ro = 0;
-        }
-
-        if (ImGui::Checkbox("Debug RO", (bool*)&param.debug_ro)) {
-            if (param.debug_ro && param.debug_ao) param.debug_ao = 0;
-        }
-    }
-
-    if (ImGui::CollapsingHeader("Auto Exposure", ImGuiTreeNodeFlags_DefaultOpen)) {
-        bool updated = false;
-        auto& param = exposure_params_.param();
-        ImGui::Text("Exposure Compensation");
-        ImGui::SameLine(160);
-        if (ImGui::DragFloat("##Exposure Compensation", &param.exposure_compensation, 0.25f, -15, 15)) {
-            updated = true;
-        }
-
-        ImGui::Text("Exposure Range");
-        ImGui::SameLine(160);
-        if (ImGui::DragFloatRange2("##Exposure Range", &param.min_exposure,  &param.max_exposure,
-                0.25f, -5, 15))
-        {
-            param.rcp_exposure_range = 1.0f / std::max((param.max_exposure - param.min_exposure), 0.00001f);
-            updated = true;
-        }
-
-        ImGui::Text("Speed Dark To Light");
-        ImGui::SameLine(160);
-        if (ImGui::DragFloat("##Exposure SpeedToLight", &param.speed_to_light, 0.05f, 0.001, 100)) {
-            updated = true;
-        }
-
-        ImGui::Text("Speed Light To Dark");
-        ImGui::SameLine(160);
-        if (ImGui::DragFloat("##Exposure SpeedToDark", &param.speed_to_dark, 0.05f, 0.001, 100)) {
-            updated = true;
-        }
-
-        if (updated) {
-            exposure_params_.Update();
-        }
-    }
-
+    gtao_.DrawOptionWindow();
+    exposure_.DrawOptionWindow();
     csm_manager_->DrawOptionWindow();
 
     ImGui::End();

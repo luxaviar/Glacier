@@ -2,6 +2,8 @@
 
 #include <memory>
 #include "renderer.h"
+#include "Render/PostProcess/TAA.h"
+#include "Render/PostProcess/FXAA.h"
 
 namespace glacier {
 namespace render {
@@ -16,6 +18,7 @@ public:
     void Setup() override;
 
     std::shared_ptr<Material> CreateLightingMaterial(const char* name) override;
+    const std::shared_ptr<RenderTarget>& GetGBufferRenderTarget() const { return gbuffer_render_target_; }
 
     void PreRender(CommandBuffer* cmd_buffer) override;
 
@@ -24,19 +27,7 @@ public:
     void SetupBuiltinProperty(Material* mat) override;
 
 protected:
-    struct FXAAParam {
-        float contrast_threshold;
-        float relative_threshold;
-        float subpixel_blending;
-        float padding;
-    };
-
-    struct TAAParam {
-        float static_blending;
-        float dynamic_blending;
-        float motion_amplify;
-        float padding;
-    };
+    virtual void JitterProjection(Matrix4x4& projection);
 
     void DrawOptionWindow() override;
 
@@ -54,13 +45,8 @@ protected:
     std::shared_ptr<Program> gpass_program_;
     std::shared_ptr<Material> lighting_mat_;
 
-    std::shared_ptr<Material> fxaa_mat_;
-    ConstantParameter<FXAAParam> fxaa_param_;
-    ConstantParameter<TAAParam> taa_param_;
-
-    std::shared_ptr<Material> taa_mat_;
-    std::shared_ptr<Texture> temp_hdr_texture_;
-    std::shared_ptr<Texture> prev_hdr_texture_;
+    TAA taa_;
+    FXAA fxaa_;
 
     std::shared_ptr<RenderTarget> gbuffer_render_target_;
 };

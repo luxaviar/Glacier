@@ -38,14 +38,15 @@ public:
 
     template<typename Data=nullptr_t, typename Setup, typename Execute>
     PassNode& AddPass(const char* name, Setup setup, Execute&& execute) {
-        auto executor = new RenderPassExecutor<Data, Execute>(std::forward<Execute>(execute));
-        auto& pass = CreatePass(name, executor);
+        auto executor = std::make_unique<RenderPassExecutor<Data, Execute>>(std::forward<Execute>(execute));
+        auto& data = executor->data();
+        auto& pass = CreatePass(name, std::move(executor));
 
         if constexpr (std::is_same<Data, nullptr_t>::value) {
             setup(pass);
         }
         else {
-            setup(executor->data(), pass);
+            setup(data, pass);
         }
 
         return pass;
@@ -85,7 +86,7 @@ public:
     void Compile();
 
 protected:
-    PassNode& CreatePass(const char* name, PassExecutor* executor);
+    PassNode& CreatePass(const char* name, std::unique_ptr<PassExecutor>&& executor);
 
     bool baked = false;
     std::vector<PassNode> passes_;
