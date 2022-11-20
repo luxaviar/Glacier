@@ -56,6 +56,10 @@ public:
     virtual CommandQueue* GetCommandQueue(CommandBufferType type) = 0;
     virtual CommandBuffer* GetCommandBuffer(CommandBufferType type) = 0;
 
+    CommandQueue* LGetCommandQueue(CommandBufferType type) {
+        return GetCommandQueue(type);
+    }
+
     virtual std::shared_ptr<Buffer> CreateIndexBuffer(size_t size, IndexFormat type) = 0;
     virtual std::shared_ptr<Buffer> CreateVertexBuffer(size_t size, size_t stride) = 0;
 

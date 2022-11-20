@@ -32,9 +32,14 @@
 #include "Render/Base/CommandBuffer.h"
 #include "Render/Base/CommandQueue.h"
 #include "Render/Base/GfxDriver.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Renderer, Renderer)
+LUX_FUNC(Renderer, driver)
+LUX_IMPL_END
 
 void Renderer::PostProcess(CommandBuffer* cmd_buffer, const std::shared_ptr<RenderTarget>& dst, Material* mat, bool color_only)
 {

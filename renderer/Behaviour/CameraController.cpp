@@ -3,8 +3,13 @@
 #include "Render/Camera.h"
 #include "Input/Input.h"
 #include "Common/Log.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(CameraController, CameraController)
+LUX_CTOR(CameraController, render::Camera*)
+LUX_IMPL_END
 
 CameraController::CameraController(render::Camera* cam) noexcept :
     camera_(cam)

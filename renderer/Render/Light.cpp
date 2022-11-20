@@ -5,9 +5,15 @@
 #include "imgui/imgui.h"
 #include "LightManager.h"
 #include "render/base/Buffer.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Light, Light)
+//LUX_CTOR(Light, const std::string&)
+LUX_FUNC(Light, EnableShadow)
+LUX_IMPL_END
 
 Light::Light(LightType type, const Color& color, float intensity)
 {
@@ -70,6 +76,11 @@ void Light::DrawInspector() {
         }
     }
 }
+
+LUX_IMPL(DirectionalLight, DirectionalLight, Light)
+LUX_CTOR(DirectionalLight, const Color&, float)
+//LUX_FUNC(DirectionalLight, EnableShadow)
+LUX_IMPL_END
 
 DirectionalLight::DirectionalLight(const Color& color, float intensity) :
     Light(LightType::kDirectinal, color, intensity)

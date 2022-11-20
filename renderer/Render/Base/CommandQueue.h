@@ -36,6 +36,9 @@ public:
     virtual uint64_t ExecuteCommandBuffer(std::vector<CommandBuffer*>& cmd_buffers) = 0;
     //virtual void Wait(const CommandQueue& other) = 0;
 
+    void LFlush() { Flush(); }
+    uint64_t LExecuteCommandBuffer(CommandBuffer* cmd_buffer) { return ExecuteCommandBuffer(cmd_buffer); }
+
 protected:
     virtual std::unique_ptr<CommandBuffer> CreateCommandBuffer() = 0;
 

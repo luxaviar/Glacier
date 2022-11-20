@@ -6,9 +6,23 @@
 #include "imgui/imgui.h"
 #include "render/editor/gizmos.h"
 #include "Core/Scene.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Camera, Camera)
+LUX_CTOR(Camera, CameraType)
+LUX_FUNC(Camera, LookAt)
+LUX_PROP_FUNC(Camera, fov)
+LUX_PROP_FUNC(Camera, position)
+LUX_PROP_FUNC(Camera, rotation)
+LUX_IMPL_END
+
+LUX_CONSTANT_MULTI(CameraType, CameraType)
+LUX_CONST("kPersp", CameraType::kPersp)
+LUX_CONST("kOrtho", CameraType::kOrtho)
+LUX_CONSTANT_MULTI_END
 
 Camera* Camera::Create(CameraType type) {
     auto& go = GameObject::Create("Camera");

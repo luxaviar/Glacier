@@ -2,6 +2,7 @@
 
 #include "window.h"
 #include "Inspect/timer.h"
+#include "Lux/Vm.h"
 
 namespace glacier {
 
@@ -14,15 +15,21 @@ class App {
 public:
     static App* Self() { return self_; }
 
-    App(const std::string& commandLine = "");
+    App();
     ~App();
 
-    int Go();
+    void Setup(std::unique_ptr<Window>&& window,
+        render::GfxDriver* gfx, std::unique_ptr<render::Renderer>&& renderer);
+
+    void Init(const char*, const char* preload_script, const char* main_script);
+    int Run();
+    void Finalize();
 
     render::Renderer* GetRenderer() const { return renderer_.get(); }
+    LuaVM& VM() { return vm_; }
 
 private:
-    void OnStart();
+    //void OnStart();
     void DoFrame( float dt );
     bool HandleInput( float dt );
 
@@ -33,9 +40,10 @@ private:
     float time_scale_ = 1.0f;
     bool pause_ = false;
     Timer timer_;
-    //std::unique_ptr<render::GfxDriver> gfx_;
+    LuaVM vm_;
+
     std::unique_ptr<render::Renderer> renderer_;
-    Window wnd_; //make sure wnd_ destroyed first (due to WinMsgProc)
+    std::unique_ptr<Window> wnd_; //make sure wnd_ destroyed first (due to WinMsgProc)
 };
 
 }

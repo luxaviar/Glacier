@@ -21,30 +21,58 @@
 #include "Render/LightManager.h"
 #include "jobs/JobSystem.h"
 #include "Common/Log.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 
+LUX_IMPL(App, App)
+LUX_CTOR(App)
+LUX_FUNC(App, Self)
+LUX_FUNC(App, Setup)
+LUX_IMPL_END
+
 App* App::self_ = nullptr;
 
-App::App( const std::string& commandLine ) :
-    cmd_line_(commandLine),
-    wnd_(1280, 720, TEXT("Engine Renderer"))
+App::App()
 {
     self_ = this;
-    gfx_ = render::D3D12GfxDriver::Instance();
-    gfx_->Init(wnd_.handle(), wnd_.width(), wnd_.height(), render::TextureFormat::kR8G8B8A8_UNORM);
+}
 
-    renderer_ = std::make_unique<render::DeferredRenderer>(gfx_, render::AntiAliasingType::kTAA);
-    //renderer_ = std::make_unique<render::ForwardRenderer>(gfx_, render::MSAAType::k4x);
+void App::Init(const char* cmd_line, const char* preload_script, const char* main_script) {
+    cmd_line_ = cmd_line;
+    vm_.Init(cmd_line, preload_script, main_script);
+}
+
+void App::Setup(std::unique_ptr<Window>&& window,
+    render::GfxDriver* gfx, std::unique_ptr<render::Renderer>&& renderer) {
+    ASSERT(!wnd_);
+    ASSERT(!gfx_);
+    ASSERT(!renderer_);
+
+    wnd_ = std::move(window);
+    gfx_ = gfx;
+    renderer_ = std::move(renderer);
 
     renderer_->Setup();
 
-    wnd_.resize_signal().Connect([this] (uint32_t width, uint32_t height) {
+    wnd_->resize_signal().Connect([this](uint32_t width, uint32_t height) {
         renderer_->OnResize(width, height);
-    });
+        });
 
-    Input::Instance()->mouse().SetWindow(wnd_.handle());
+    Input::Instance()->mouse().SetWindow(wnd_->handle());
     Profiler::Instance();
+}
+
+void App::Finalize() {
+    Profiler::Instance()->PrintAll();
+    GameObjectManager::Instance()->OnExit();
+    SceneManager::Instance()->ClearAll();
+
+    if (gfx_) {
+        gfx_->OnDestroy();
+        gfx_ = nullptr;
+    }
+
 }
 
 bool App::HandleInput(float dt) {
@@ -71,7 +99,7 @@ bool App::HandleInput(float dt) {
     }
 
     if (keyboard.IsJustKeyDown(Keyboard::F11)) {
-        wnd_.ToogleFullScreen();
+        wnd_->ToogleFullScreen();
     }
     
     return false;
@@ -95,7 +123,6 @@ void App::DoFrame(float dt) {
     //        counter++;
     //    }
     //});
-
     SceneManager::Instance()->Update(renderer_.get());
     Input::Instance()->keyboard().Update();
 
@@ -129,22 +156,20 @@ void App::DoFrame(float dt) {
 
 App::~App()
 {
-    Profiler::Instance()->PrintAll();
-    GameObjectManager::Instance()->OnExit();
-    gfx_->OnDestroy();
+
 }
 
-void App::OnStart() {
-    auto physics_scene = std::make_unique<render::PhysicsDemo>("physics");
-    auto pbr_scene = std::make_unique<render::PbrScene>("pbr");
-    SceneManager::Instance()->Add(std::move(physics_scene));
-    SceneManager::Instance()->Add(std::move(pbr_scene));
+//void App::OnStart() {
+//    auto physics_scene = std::make_unique<render::PhysicsDemo>("physics");
+//    auto pbr_scene = std::make_unique<render::PbrScene>("pbr");
+//    SceneManager::Instance()->Add(std::move(physics_scene));
+//    SceneManager::Instance()->Add(std::move(pbr_scene));
+//
+//    SceneManager::Instance()->Load("pbr", SceneLoadMode::kSingle);
+//}
 
-    SceneManager::Instance()->Load("pbr", SceneLoadMode::kSingle);
-}
-
-int App::Go() {
-    OnStart();
+int App::Run() {
+    // OnStart();
 
     while(true) {
         // process all messages pending, but to not block for new messages

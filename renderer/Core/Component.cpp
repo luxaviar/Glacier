@@ -2,8 +2,14 @@
 #include "Math/Util.h"
 #include "transform.h"
 #include "gameobject.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(Component, Component)
+//LUX_CTOR(Component, const std::string&)
+//LUX_FUNC(Component, Setup)
+LUX_IMPL_END
 
 Transform& Component::transform() {
     return game_object_->transform();

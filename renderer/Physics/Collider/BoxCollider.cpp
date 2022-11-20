@@ -1,7 +1,12 @@
 #include "BoxCollider.h"
 #include "render/editor/gizmos.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(BoxCollider, BoxCollider)
+LUX_CTOR(BoxCollider, const Vec3f&)
+LUX_IMPL_END
 
 BoxCollider::BoxCollider(const Vec3f& extents) : 
     Collider(ShapeCategory::kOBB),

@@ -21,7 +21,7 @@ const Color Color::kGrey = { 0.5f, 0.5f, 0.5f, 1.0f };
 const Color Color::kMagenta = { 1.0f, 0.0f, 1.0f, 1.0f };
 const Color Color::kYellow = { 1.0f, 0.92f, 0.016f, 1.0f };
 const Color Color::kCyan = { 0.0f, 1.0f, 1.0f, 1.0f };
-const Color Color::kOrange = { 1.0f, 0.647058845f, 0.0f, 1.0f };
+const Color Color::kOrange = { 1.0f, 0.5f, 0.0f, 1.0f };
 const Color Color::kIndigo = { 0.294117659f, 0.0f, 0.509803951f, 1.0f };
 const Color Color::kViolet = { 0.933333397f, 0.509803951f, 0.933333397f, 1.0f };
 

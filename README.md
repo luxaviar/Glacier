@@ -14,11 +14,13 @@ A personal toy game engine project based on ~~D3D11 &~~ D3D12
 * HDR/linear lighting
 * Cascaded Shadow Map
 * MSAA & FXAA & TAA
+* GTAO
 * Rigidbody Physics
 * Component-Based Architecture
 * Fiber-based Job System
 * Editor & Gizmo
 * Input System
+* Lua Binding Framework
 
 ## Example
 

@@ -7,8 +7,21 @@
 #include "Scene.h"
 #include "Render/Camera.h"
 #include "Input/Input.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(Transform, Transform)
+LUX_CTOR(Transform, const Vector3&, const Quaternion&, const Vector3&)
+LUX_FUNC(Transform, ApplyTransform)
+LUX_FUNC(Transform, InverseTransform)
+LUX_FUNC(Transform, ApplyTransformVector)
+LUX_FUNC(Transform, InverseTransformVector)
+LUX_FUNC(Transform, SetPositionAndRotation)
+LUX_PROP_FUNC(Transform, position)
+LUX_PROP_FUNC(Transform, rotation)
+LUX_PROP_FUNC(Transform, forward)
+LUX_IMPL_END
 
 Transform::Transform(const Vec3f& pos, const Quaternion& rot, const Vec3f& scale) :
     noscale_(scale == Vec3f::one),

@@ -2,9 +2,14 @@
 #include "Render/Camera.h"
 #include "Render/Material.h"
 #include "Render/Base/Program.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(CommandBuffer, CommandBuffer)
+//LUX_CTOR(CommandBuffer, GfxDriver*, CommandBufferType)
+LUX_IMPL_END
 
 CommandBuffer::CommandBuffer(GfxDriver* driver, CommandBufferType type) :
     driver_(driver),

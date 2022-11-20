@@ -1,4 +1,4 @@
-#include "model.h"
+#include "Model.h"
 #include "Render/Graph/PassNode.h"
 #include "Common/Util.h"
 #include <assimp/scene.h>           // Output data structure
@@ -8,9 +8,15 @@
 #include <assimp/GltfMaterial.h>
 #include "App.h"
 #include "Render/Renderer.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Model, Model)
+LUX_CTOR(Model, CommandBuffer*, const char*, bool)
+LUX_FUNC(Model, GenerateGameObject)
+LUX_IMPL_END
 
 #define AI_MATKEY_DIFFUSE_STR "$clr.diffuse"
 #define AI_MATKEY_EMISSIVE_STR "$clr.emissive"
@@ -261,13 +267,13 @@ const std::shared_ptr<Material>& Model::GetMaterial(size_t idx) const {
     return {};
 }
 
-GameObject& Model::GenerateGameObject(float scale) {
+GameObject& Model::CreateGameObject(float scale) {
     return root_.GenerateGameObject(nullptr, scale);
 }
 
 GameObject& Model::GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv, float scale) {
     Model model(cmd_buffer, file, flip_uv);
-    return model.GenerateGameObject(scale);
+    return model.CreateGameObject(scale);
 }
 
 }

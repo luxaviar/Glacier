@@ -71,7 +71,7 @@ public:
         aiTextureType type, aiTextureType opt_type, const char* color_key, const Color& default_color,
         bool srgb, bool mips, TextureWarpMode& mode) const;
 
-    GameObject& GenerateGameObject(float scale = 1.0f);
+    GameObject& CreateGameObject(float scale = 1.0f);
     static GameObject& GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv = false, float scale = 1.0f);
 
 private:

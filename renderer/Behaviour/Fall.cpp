@@ -11,8 +11,13 @@
 #include "Physics/Collider/CylinderCollider.h"
 #include "Physics/Collider/SphereCollider.h"
 #include "Physics/Collider/CapsuleCollider.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(Fall, Fall)
+LUX_CTOR(Fall)
+LUX_IMPL_END
 
 void Fall::SpawnCube() {
     auto pbr_default = render::MaterialManager::Instance()->Get("pbr_default");

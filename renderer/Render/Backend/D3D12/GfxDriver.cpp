@@ -14,9 +14,20 @@
 #include "CommandBuffer.h"
 #include "MipsGenerator.h"
 #include "Inspect/Profiler.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(GfxDriver, GfxDriver)
+LUX_FUNC(GfxDriver, LGetCommandQueue)
+LUX_IMPL_END
+
+LUX_IMPL(D3D12GfxDriver, D3D12GfxDriver)
+LUX_CTOR(D3D12GfxDriver)
+LUX_FUNC(D3D12GfxDriver, Instance)
+LUX_FUNC(D3D12GfxDriver, Init)
+LUX_IMPL_END
 
 D3D12GfxDriver* D3D12GfxDriver::self_ = nullptr;
 

@@ -11,9 +11,14 @@
 #include "App.h"
 #include "Render/Renderer.h"
 #include "Inspect/Profiler.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Material, Material)
+LUX_CTOR(Material, const char*)
+LUX_IMPL_END
 
 Material::Material(const char* name) :
     Material(name, Program::Create(name, nullptr, nullptr))
@@ -254,6 +259,12 @@ PostProcessMaterial::PostProcessMaterial(const char* name, const TCHAR* ps) :
     program_->SetRasterState(rs);
     program_->SetInputLayout(desc);
 }
+
+LUX_IMPL(MaterialManager, MaterialManager)
+// LUX_CTOR(Material, const char*)
+LUX_FUNC(MaterialManager, Instance)
+LUX_FUNC(MaterialManager, Get)
+LUX_IMPL_END
 
 void MaterialManager::Add(std::shared_ptr<Material>&& mat) {
     auto& name = mat->name();

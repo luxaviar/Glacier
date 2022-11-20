@@ -1,9 +1,18 @@
 #include "primitive.h"
 #include "Core/GameObject.h"
 #include "MeshRenderer.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(Primitive, Primitive)
+// LUX_CTOR(Material, const char*)
+LUX_FUNC(Primitive, CreateCube)
+LUX_FUNC(Primitive, CreateSphere)
+LUX_FUNC(Primitive, CreateCylinder)
+LUX_FUNC(Primitive, CreateCapsule)
+LUX_IMPL_END
 
 GameObject& Primitive::CreateCube(const std::shared_ptr<Material>& material, const Vec3f size) {
     VertexCollection vertices;

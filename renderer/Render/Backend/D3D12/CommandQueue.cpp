@@ -5,9 +5,16 @@
 #include "Common/Log.h"
 #include "CommandBuffer.h"
 #include "Inspect/Profiler.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(D3D12CommandQueue, D3D12CommandQueue, CommandQueue)
+//LUX_CTOR(D3D12CommandQueue, const std::string&)
+LUX_FUNC_SPEC(D3D12CommandQueue, ExecuteCommandBuffer, ExecuteCommandBuffer, uint64_t, CommandBuffer*)
+LUX_FUNC(D3D12CommandQueue, Flush)
+LUX_IMPL_END
 
 D3D12CommandQueue::D3D12CommandQueue(D3D12GfxDriver* driver, CommandBufferType type) :
     CommandQueue(driver, type)

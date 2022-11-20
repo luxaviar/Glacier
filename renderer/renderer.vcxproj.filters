@@ -130,6 +130,30 @@
     <Filter Include="Source\Algorithm">
       <UniqueIdentifier>{1306f086-ce48-4bd5-9888-35fe856e37cc}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Lux">
+      <UniqueIdentifier>{2db63f31-ec7d-477d-acac-fafcaf67bb8f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\3rdParty\lua">
+      <UniqueIdentifier>{fcdd309b-0936-4d33-a959-45ac4e1621c1}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\3rdParty\lpeg">
+      <UniqueIdentifier>{cff5a1c1-be3a-47b9-8494-f0195a2986c3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Render\PostProcess">
+      <UniqueIdentifier>{1d5f8d98-b2ab-440d-84ab-317a8a6b86c9}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Script">
+      <UniqueIdentifier>{8ebcf753-f602-4b17-b510-0f828c310ead}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Script\core">
+      <UniqueIdentifier>{fc818ef8-5d95-4eda-a445-3476b9ab1e28}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Script\core\math">
+      <UniqueIdentifier>{d60f10ed-5908-43f8-b30d-0de27ef9b1cc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Script\core\extension">
+      <UniqueIdentifier>{1276c005-5333-43a9-af35-714d4a82097f}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <None Include="3rdparty\assimp\color4.inl">
@@ -201,6 +225,48 @@
     </None>
     <None Include="Assets\Shader\Common\Exposure.hlsli">
       <Filter>Shader\Common</Filter>
+    </None>
+    <None Include="Script\core\math\ray.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\math\vector2.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\math\vector3.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\math\quaternion.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\math\hitresult.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\math\aabb.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\core\extension\assert.lua">
+      <Filter>Source\Script\core\extension</Filter>
+    </None>
+    <None Include="Script\core\extension\error.lua">
+      <Filter>Source\Script\core\extension</Filter>
+    </None>
+    <None Include="Script\main.lua">
+      <Filter>Source\Script</Filter>
+    </None>
+    <None Include="Script\core\utils.lua">
+      <Filter>Source\Script\core</Filter>
+    </None>
+    <None Include="Script\preload.lua">
+      <Filter>Source\Script</Filter>
+    </None>
+    <None Include="Script\core\math\color.lua">
+      <Filter>Source\Script\core\math</Filter>
+    </None>
+    <None Include="Script\pbrscene.lua">
+      <Filter>Source\Script</Filter>
+    </None>
+    <None Include="Script\physcene.lua">
+      <Filter>Source\Script</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>
@@ -591,20 +657,191 @@
     <ClCompile Include="Render\Backend\D3D12\DynamicDescriptorHeap.cpp">
       <Filter>Source\Render\Backend\D3D12</Filter>
     </ClCompile>
-    <ClCompile Include="Render\Backend\D3D12\CommandBuffer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Base\CommandBuffer.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Base\CommandQueue.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
-    <ClCompile Include="Render\Base\Resource.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Concurrent\ThreadJobSystem.cpp">
       <Filter>Source\Concurrent</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Mesh\BezierMesh.cpp">
+      <Filter>Source\Render\Mesh</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\BezierSpline.cpp">
+      <Filter>Source\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\BezierPath.cpp">
+      <Filter>Source\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Bindings.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Callback.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Checker.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lapi.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lauxlib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lbaselib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lcode.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lcorolib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lctype.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ldblib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ldebug.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ldo.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ldump.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lfunc.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lgc.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\linit.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\liolib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\llex.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lmathlib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lmem.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\loadlib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lobject.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lopcodes.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\loslib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lparser.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lstate.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lstring.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lstrlib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ltable.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ltablib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\ltm.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lua.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\luac.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lundump.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lutf8lib.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lvm.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lua\lzio.c">
+      <Filter>Source\3rdParty\lua</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lpeg\lpcap.c">
+      <Filter>Source\3rdParty\lpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lpeg\lpcode.c">
+      <Filter>Source\3rdParty\lpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lpeg\lpprint.c">
+      <Filter>Source\3rdParty\lpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lpeg\lptree.c">
+      <Filter>Source\3rdParty\lpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="3rdParty\lpeg\lpvm.c">
+      <Filter>Source\3rdParty\lpeg</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\CommandBuffer.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Backend\D3D12\CommandBuffer.cpp">
+      <Filter>Source\Render\Backend\D3D12</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\CommandQueue.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\Exposure.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\FXAA.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\GTAO.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\MSAA.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\TAA.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\PostProcess\ToneMapping.cpp">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Wrapper.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Monitor.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\Polygon.cpp">
+      <Filter>Source\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Register.cpp">
+      <Filter>Source\Lux</Filter>
+    </ClCompile>
+    <ClCompile Include="Render\Base\Resource.cpp">
+      <Filter>Source\Render\Base</Filter>
+    </ClCompile>
+    <ClCompile Include="Geometry\Triangle2D.cpp">
+      <Filter>Source\Geometry</Filter>
+    </ClCompile>
+    <ClCompile Include="Lux\Vm.cpp">
+      <Filter>Source\Lux</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -1450,6 +1687,81 @@
     </ClInclude>
     <ClInclude Include="Concurrent\ThreadSafeQueue.h">
       <Filter>Source\Concurrent</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Wrapper.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Vm.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Stack.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Register.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Base.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Bindings.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Callback.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Checker.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Ctor.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Dtor.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Func.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Klass.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Lux.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Lux\Monitor.h">
+      <Filter>Source\Lux</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\BezierPath.h">
+      <Filter>Source\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\BezierSpline.h">
+      <Filter>Source\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\Mesh\BezierMesh.h">
+      <Filter>Source\Render\Mesh</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\Exposure.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\FXAA.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\GTAO.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\MSAA.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\TAA.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Render\PostProcess\ToneMapping.h">
+      <Filter>Source\Render\PostProcess</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\Polygon.h">
+      <Filter>Source\Geometry</Filter>
+    </ClInclude>
+    <ClInclude Include="Geometry\Triangle2D.h">
+      <Filter>Source\Geometry</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

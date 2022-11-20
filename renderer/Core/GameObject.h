@@ -41,6 +41,8 @@ public:
     static GameObject& Create(const char* name = nullptr, GameObject* parent = nullptr);
     static void Destroy(GameObject* go);
 
+    ~GameObject();
+
     template<typename T>
     T* GetComponent() {
         for (auto& com : components_) {
@@ -70,6 +72,18 @@ public:
             ret->OnEnable();
         }
         return ret;
+    }
+
+    void AddComponentPtr(Component* com) {
+        assert(com->game_object_ == nullptr);
+        com->game_object_ = this;
+        components_.emplace_back(std::move(com));
+
+        com->OnAwake();
+
+        if (IsActive()) {
+            com->OnEnable();
+        }
     }
 
     template<typename T>
@@ -146,7 +160,6 @@ public:
 
 private:
     GameObject(const char* name = nullptr, GameObject* parent = nullptr);
-    ~GameObject();
 
     void SetParent(GameObject* parent);
     void OnParentChagne();

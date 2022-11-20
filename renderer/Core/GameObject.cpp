@@ -4,8 +4,17 @@
 #include "Math/Util.h"
 #include "Transform.h"
 #include "Render/Mesh/MeshRenderer.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
+
+LUX_IMPL(GameObject, GameObject)
+//LUX_CTOR(GameObject, const char*, GameObject*)
+LUX_FUNC_SPEC(GameObject, transform, GetTransform, Transform&)
+LUX_FUNC(GameObject, AddComponentPtr)
+LUX_FUNC(GameObject, Create)
+LUX_PROP_FUNC(GameObject, name)
+LUX_IMPL_END
 
 GameObject& GameObject::Create(const char* name, GameObject* parent) {
     GameObject* go = new GameObject(name, parent);

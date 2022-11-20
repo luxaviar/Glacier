@@ -7,10 +7,18 @@
 #include "imgui/imgui.h"
 #include "Common/Util.h"
 #include "input/input.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 
 //extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+LUX_IMPL(Window, Window)
+LUX_CTOR(Window, uint32_t, uint32_t, const char*)
+LUX_FUNC(Window, width)
+LUX_FUNC(Window, height)
+LUX_FUNC(Window, handle)
+LUX_IMPL_END
 
 // Window Class Stuff
 Window::WindowClass Window::WindowClass::wndClass;
@@ -63,11 +71,21 @@ HINSTANCE Window::WindowClass::GetInstance() noexcept
     return wndClass.hInst;
 }
 
+Window::Window(uint32_t width, uint32_t height, const TCHAR* name) {
+    Init(width, height, name);
+}
+
+Window::Window(uint32_t width, uint32_t height, const char* name) {
+    auto wname = ToWide(name);
+    Init(width, height, wname.c_str());
+}
+
 // Window Stuff
-Window::Window(uint32_t width, uint32_t height,const TCHAR* name) :
-    width_(width),
-    height_(height)
+void Window::Init(uint32_t width, uint32_t height,const TCHAR* name)
 {
+    width_ = width;
+    height_ = height;
+
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGui::StyleColorsDark();

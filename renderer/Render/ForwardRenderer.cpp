@@ -25,9 +25,14 @@
 #include "Render/Base/Program.h"
 #include "Render/Base/CommandBuffer.h"
 #include "PostProcess/GTAO.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(ForwardRenderer, ForwardRenderer)
+LUX_CTOR(ForwardRenderer, GfxDriver*, MSAAType)
+LUX_IMPL_END
 
 ForwardRenderer::ForwardRenderer(GfxDriver* gfx, MSAAType msaa) :
     Renderer(gfx, msaa == MSAAType::kNone ? AntiAliasingType::kNone :AntiAliasingType::kMSAA),

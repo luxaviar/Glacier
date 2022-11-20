@@ -1,6 +1,8 @@
 
 #include "App.h"
+#include "Lux/VM.h"
 #include "Common/Util.h"
+#include "Common/Log.h"
 #include "Jobs/JobSystem.h"
 
 int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, 
@@ -8,20 +10,14 @@ int CALLBACK WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
 {
     using namespace glacier;
 
-    try {
-        jobs::JobSystem::Instance()->Initialize(4);
+    jobs::JobSystem::Instance()->Initialize(4);
+    App app{};
 
-        int ret = App{ lpCmdLine }.Go();
+    app.Init(lpCmdLine, "Script/preload.lua", "Script/main.lua");
+    int ret = app.Run();
+    app.Finalize();
 
-        jobs::JobSystem::Instance()->WaitUntilFinish();
+    jobs::JobSystem::Instance()->WaitUntilFinish();
 
-        return ret;
-    } catch( const BaseException& e ) {
-        MessageBox( nullptr, ToWide(e.what()).c_str(), e.type(),MB_OK | MB_ICONEXCLAMATION );
-    } catch( const std::exception& e ) {
-        MessageBox( nullptr, ToWide(e.what()).c_str(),TEXT("Standard Exception"),MB_OK | MB_ICONEXCLAMATION );
-    } catch( ... ) {
-        MessageBox( nullptr, TEXT("No details available"),TEXT("Unknown Exception"),MB_OK | MB_ICONEXCLAMATION );
-    }
-    return -1;
+    return 0;
 }

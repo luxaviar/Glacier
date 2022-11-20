@@ -1,7 +1,15 @@
 #include "CommandQueue.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(CommandQueue, CommandQueue)
+//LUX_CTOR(CommandQueue, GfxDriver*, CommandBufferType)
+LUX_FUNC(CommandQueue, GetCommandBuffer)
+LUX_FUNC(CommandQueue, LFlush)
+LUX_FUNC(CommandQueue, LExecuteCommandBuffer)
+LUX_IMPL_END
 
 CommandQueue::CommandQueue(GfxDriver* driver, CommandBufferType type) :
     driver_(driver),

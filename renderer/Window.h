@@ -29,6 +29,7 @@ private:
     };
 public:
     Window(uint32_t width, uint32_t height, const TCHAR* name);
+    Window(uint32_t width, uint32_t height, const char* name);
     ~Window();
     Window( const Window& ) = delete;
     Window& operator=( const Window& ) = delete;
@@ -45,6 +46,8 @@ public:
     //render::GfxDriver* graphics() { return gfx_.get(); }
 
 private:
+    void Init(uint32_t width, uint32_t height, const TCHAR* name);
+
     static LRESULT CALLBACK HandleMsgSetup( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noexcept;
     static LRESULT CALLBACK HandleMsgThunk( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noexcept;
     LRESULT HandleMsg( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noexcept;

@@ -26,9 +26,14 @@
 #include "Common/Log.h"
 #include "Render/Base/CommandBuffer.h"
 #include "PostProcess/Gtao.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_IMPL(DeferredRenderer, DeferredRenderer)
+LUX_CTOR(DeferredRenderer, GfxDriver*, AntiAliasingType)
+LUX_IMPL_END
 
 DeferredRenderer::DeferredRenderer(GfxDriver* gfx, AntiAliasingType aa) :
     Renderer(gfx, aa),

@@ -110,7 +110,7 @@ AABB RenderableManager::SceneBounds() {
         return root->bounds;
     }
     else {
-        AABB(Vector3::zero, Vector3::zero);
+        return AABB(Vector3::zero, Vector3::zero);
     }
 }
 

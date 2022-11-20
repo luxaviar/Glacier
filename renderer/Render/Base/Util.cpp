@@ -1,10 +1,46 @@
 #pragma once
 
-
 #include "Util.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
+
+LUX_CONSTANT_MULTI(AntiAliasingType, AntiAliasingType)
+LUX_CONST("kNone", AntiAliasingType::kNone)
+LUX_CONST("kMSAA", AntiAliasingType::kMSAA)
+LUX_CONST("kFXAA", AntiAliasingType::kFXAA)
+LUX_CONST("kTAA", AntiAliasingType::kTAA)
+LUX_CONSTANT_MULTI_END
+
+LUX_CONSTANT_MULTI(TextureFormat, TextureFormat)
+LUX_CONST("kUnkown", TextureFormat::kUnkown)
+LUX_CONST("kR8G8B8A8_UNORM", TextureFormat::kR8G8B8A8_UNORM)
+LUX_CONST("kR8G8B8A8_UNORM_SRGB", TextureFormat::kR8G8B8A8_UNORM_SRGB)
+LUX_CONST("kR24G8_TYPELESS", TextureFormat::kR24G8_TYPELESS)
+LUX_CONST("kR24X8_TYPELESS", TextureFormat::kR24X8_TYPELESS)
+LUX_CONST("kD24S8_UINT", TextureFormat::kD24S8_UINT)
+LUX_CONST("kR32_TYPELESS", TextureFormat::kR32_TYPELESS)
+LUX_CONST("kR32_FLOAT", TextureFormat::kR32_FLOAT)
+LUX_CONST("kD32_FLOAT", TextureFormat::kD32_FLOAT)
+LUX_CONST("kR32G32B32A32_FLOAT", TextureFormat::kR32G32B32A32_FLOAT)
+LUX_CONST("kR32G32B32A32_TYPELESS", TextureFormat::kR32G32B32A32_TYPELESS)
+LUX_CONST("kR16G16B16A16_FLOAT", TextureFormat::kR16G16B16A16_FLOAT)
+LUX_CONST("kR16G16B16A16_TYPELESS", TextureFormat::kR16G16B16A16_TYPELESS)
+LUX_CONST("kR16G16_FLOAT", TextureFormat::kR16G16_FLOAT)
+LUX_CONST("kR16G16_UNORM", TextureFormat::kR16G16_UNORM)
+LUX_CONST("kR16_UNORM", TextureFormat::kR16_UNORM)
+LUX_CONST("kR11G11B10_FLOAT", TextureFormat::kR11G11B10_FLOAT)
+LUX_CONST("kR8_UINT", TextureFormat::kR8_UINT)
+LUX_CONSTANT_MULTI_END
+
+
+LUX_CONSTANT_MULTI(CommandBufferType, CommandBufferType)
+LUX_CONST("kDirect", CommandBufferType::kDirect)
+LUX_CONST("kCompute", CommandBufferType::kCompute)
+LUX_CONST("kCopy", CommandBufferType::kCopy)
+LUX_CONST("kBundle", CommandBufferType::kBundle)
+LUX_CONSTANT_MULTI_END
 
 DXGI_FORMAT GetSRGBFormat(DXGI_FORMAT format) {
     switch (format) {
