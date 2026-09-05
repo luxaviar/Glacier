@@ -21,7 +21,7 @@ public:
     }
 
 private:
-    std::atomic_flag flag_ = { ATOMIC_FLAG_INIT };
+    std::atomic_flag flag_;
 };
 
 struct SpinLockGuard : private Uncopyable {

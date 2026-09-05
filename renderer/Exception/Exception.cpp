@@ -77,7 +77,7 @@ EngineString BaseException::GetDescription() const noexcept {
 
 const char* BaseException::what() const noexcept {
     std::ostringstream oss;
-    oss << type() << std::endl;
+    oss << ToNarrow(type()) << std::endl;
 
     if (hr_ != S_OK) {
         oss << "[Error Code] 0x" << std::hex << std::uppercase << hr_
@@ -106,7 +106,7 @@ GraphicsException::GraphicsException(int line, const TCHAR* file, std::string&& 
 
 const char* GraphicsException::what() const noexcept {
     std::ostringstream oss;
-    oss << type() << std::endl;
+    oss << ToNarrow(type()) << std::endl;
 
     if (hr_ != S_OK) {
         oss << "[Error Code] 0x" << std::hex << std::uppercase << hr_

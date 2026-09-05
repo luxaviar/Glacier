@@ -74,10 +74,11 @@ public:
     }
 
 protected:
-    template<typename... Args>
-    void VPrint(fmt::string_view format, Args&&... args) {
+    template<typename S, typename... Args>
+    void VPrint(const S& format, Args&&... args) {
+        auto format_view = fmt::string_view(format);
         auto result = fmt::vformat_to_n((char*)stream_.wbegin(), stream_.WritableBytes(),
-            format, fmt::make_args_checked<Args...>(format, args...));
+            format_view, fmt::make_format_args(args...));
         stream_.Fill(result.size);
     }
 

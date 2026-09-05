@@ -3,7 +3,7 @@
 A personal toy game engine project based on ~~D3D11 &~~ D3D12
 
 ## Prerequistes
-* Visual Studio 2022
+* Visual Studio 2026 with C++20 support
 * Windows 10
 
 ## Features
