@@ -2,7 +2,7 @@
 #include <stdexcept>
 #include "common/color.h"
 #include "Render/Base/Renderable.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 #include "Render/Graph/PassNode.h"
 #include "Render/Base/Buffer.h"
 #include "Render/Base/Texture.h"
@@ -102,7 +102,7 @@ void Material::SetProperty(const char* name, const std::shared_ptr<Buffer>& buf)
     prop.dirty = true;
 }
 
-void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color) 
+void Material::SetProperty(const char* name, const std::shared_ptr<Texture>& tex, const Color& default_color)
 {
     auto param = program_->FindParameter(name);
     if (!param) {

@@ -6,6 +6,8 @@
 *.lo
 *.o
 *.obj
+*.ilk
+*.pdb
 
 # Precompiled Headers
 *.gch
@@ -34,7 +36,10 @@
 .vs/
 x64/
 packages/
+vcpkg_installed/
 .vscode/
+.idea/
+build/
 game.log
 renderer/imgui.ini
 ScreenCaptured.png

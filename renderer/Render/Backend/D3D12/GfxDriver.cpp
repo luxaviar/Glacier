@@ -7,7 +7,7 @@
 #include "Query.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
-#include "imguizmo/ImGuizmo.h"
+#include <ImGuizmo.h>
 #include "Render/LightManager.h"
 #include "Render/Editor/Gizmos.h"
 #include "Sampler.h"
@@ -78,21 +78,64 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
 
     mips_generator_ = std::make_unique<MipsGenerator>(device_.Get());
 
-    D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc;
-    SrvHeapDesc.NumDescriptors = 1;
+    D3D12_DESCRIPTOR_HEAP_DESC SrvHeapDesc = {};
+    SrvHeapDesc.NumDescriptors = 64;
     SrvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV;
     SrvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
     SrvHeapDesc.NodeMask = 0;
     GfxThrowIfFailed(device_->CreateDescriptorHeap(
         &SrvHeapDesc, IID_PPV_ARGS(imgui_srv_heap_.GetAddressOf())));
+    imgui_srv_descriptor_size_ = device_->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    imgui_free_srv_descriptors_.reserve(SrvHeapDesc.NumDescriptors);
+    for (uint32_t i = SrvHeapDesc.NumDescriptors; i > 0; --i) {
+        imgui_free_srv_descriptors_.push_back(i - 1);
+    }
 
     // Init ImGui Win32 Impl
     ImGui_ImplWin32_Init(hWnd);
-    // init imgui d3d impl
-    ImGui_ImplDX12_Init(device_.Get(), kBufferCount,
-        DXGI_FORMAT_R8G8B8A8_UNORM, imgui_srv_heap_.Get(),
-        imgui_srv_heap_.Get()->GetCPUDescriptorHandleForHeapStart(),
-        imgui_srv_heap_.Get()->GetGPUDescriptorHandleForHeapStart());
+    ImGui_ImplDX12_InitInfo imgui_init_info;
+    imgui_init_info.Device = device_.Get();
+    imgui_init_info.CommandQueue = direct_command_queue_->GetNativeCommandQueue();
+    imgui_init_info.NumFramesInFlight = kBufferCount;
+    imgui_init_info.RTVFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+    imgui_init_info.SrvDescriptorHeap = imgui_srv_heap_.Get();
+    imgui_init_info.UserData = this;
+    imgui_init_info.SrvDescriptorAllocFn = &D3D12GfxDriver::ImGuiSrvDescriptorAlloc;
+    imgui_init_info.SrvDescriptorFreeFn = &D3D12GfxDriver::ImGuiSrvDescriptorFree;
+    GfxThrowIfFailed(ImGui_ImplDX12_Init(&imgui_init_info) ? S_OK : E_FAIL);
+}
+
+void D3D12GfxDriver::ImGuiSrvDescriptorAlloc(ImGui_ImplDX12_InitInfo* info,
+    D3D12_CPU_DESCRIPTOR_HANDLE* cpu_handle,
+    D3D12_GPU_DESCRIPTOR_HANDLE* gpu_handle)
+{
+    auto driver = static_cast<D3D12GfxDriver*>(info->UserData);
+    assert(driver != nullptr && !driver->imgui_free_srv_descriptors_.empty());
+
+    auto index = driver->imgui_free_srv_descriptors_.back();
+    driver->imgui_free_srv_descriptors_.pop_back();
+
+    auto cpu_start = driver->imgui_srv_heap_->GetCPUDescriptorHandleForHeapStart();
+    auto gpu_start = driver->imgui_srv_heap_->GetGPUDescriptorHandleForHeapStart();
+    cpu_handle->ptr = cpu_start.ptr + index * driver->imgui_srv_descriptor_size_;
+    gpu_handle->ptr = gpu_start.ptr + index * driver->imgui_srv_descriptor_size_;
+}
+
+void D3D12GfxDriver::ImGuiSrvDescriptorFree(ImGui_ImplDX12_InitInfo* info,
+    D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
+    D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle)
+{
+    auto driver = static_cast<D3D12GfxDriver*>(info->UserData);
+    assert(driver != nullptr);
+
+    auto cpu_start = driver->imgui_srv_heap_->GetCPUDescriptorHandleForHeapStart();
+    auto offset = cpu_handle.ptr - cpu_start.ptr;
+    assert(driver->imgui_srv_descriptor_size_ != 0 && offset % driver->imgui_srv_descriptor_size_ == 0);
+
+    auto index = static_cast<uint32_t>(offset / driver->imgui_srv_descriptor_size_);
+    assert(index < 64);
+    driver->imgui_free_srv_descriptors_.push_back(index);
+    (void)gpu_handle;
 }
 
 ComPtr<ID3D12Device2> D3D12GfxDriver::CreateDevice(ComPtr<IDXGIAdapter4>& adapter) {

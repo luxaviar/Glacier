@@ -91,7 +91,7 @@ float4 main_ps(VSOut IN) : SV_Target
         Light light = lights[i];
         if (light.enable)
         {
-            final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic);
+            final_color += DoPbrLighting(light, P, V, normal, albedo.rgb, f0, roughness, metallic);
         }
     }
 

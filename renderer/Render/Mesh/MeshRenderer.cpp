@@ -5,7 +5,7 @@
 #include <assimp/scene.h>           // Output data structure
 #include <assimp/postprocess.h>     // Post processing flags
 #include "render/editor/gizmos.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 
 namespace glacier {
 namespace render {

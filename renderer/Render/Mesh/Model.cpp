@@ -134,10 +134,10 @@ std::shared_ptr<Texture> Model::LoadTexture(CommandBuffer* cmd_buffer, const std
         if (type == aiTextureType_UNKNOWN) {
             color = Color{ 0.0f, 0.5f, 0.0f, 1.0f };
             if (float factor; mtl->Get(AI_MATKEY_METALLIC_FACTOR, factor) == aiReturn_SUCCESS) {
-                color.g = factor;
+                color.b = factor;
             }
             if (float factor; mtl->Get(AI_MATKEY_ROUGHNESS_FACTOR, factor) == aiReturn_SUCCESS) {
-                color.r = factor;
+                color.g = factor;
             }
         }
         else if (color_key) {
@@ -212,7 +212,7 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
             AI_MATKEY_AMBIENT_STR, Color::kWhite, false, true, ao_warp);
 
         TextureWarpMode metal_roughness_warp;
-        auto metal_roughness_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_UNKNOWN, aiTextureType_NONE,
+        auto metal_roughness_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_GLTF_METALLIC_ROUGHNESS, aiTextureType_NONE,
             nullptr, Color::kWhite, false, true, metal_roughness_warp);
 
         auto mat = renderer->CreateLightingMaterial(ai_mat->GetName().C_Str());

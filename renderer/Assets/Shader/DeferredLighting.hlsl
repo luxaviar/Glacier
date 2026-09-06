@@ -56,7 +56,7 @@ float4 main_ps(float4 position : SV_Position, float2 uv : Texcoord) : SV_TARGET
         Light light = lights[i];
         if (light.enable)
         {
-            final_color += DoPbrLighting(main_light, P, V, normal, albedo.rgb, f0, roughness, metallic);
+            final_color += DoPbrLighting(light, P, V, normal, albedo.rgb, f0, roughness, metallic);
         }
     }
     

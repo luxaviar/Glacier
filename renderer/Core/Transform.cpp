@@ -2,8 +2,8 @@
 #include <algorithm>
 #include <assert.h>
 #include "gameobject.h"
-#include "imgui/imgui.h"
-#include "imguizmo/ImGuizmo.h"
+#include <imgui.h>
+#include <ImGuizmo.h>
 #include "Scene.h"
 #include "Render/Camera.h"
 #include "Input/Input.h"

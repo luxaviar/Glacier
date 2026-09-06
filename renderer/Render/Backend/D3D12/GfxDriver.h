@@ -2,6 +2,7 @@
 
 #include <queue>
 #include <memory>
+#include <vector>
 #include <d3d12.h>
 #include <dxgi1_6.h>
 #include <queue>
@@ -15,6 +16,8 @@
 #include "Render/Base/GfxDriver.h"
 #include "Resource.h"
 #include "Texture.h"
+
+struct ImGui_ImplDX12_InitInfo;
 
 namespace glacier {
 namespace render {
@@ -97,6 +100,13 @@ private:
 
     void ProcessReadback();
 
+    static void ImGuiSrvDescriptorAlloc(ImGui_ImplDX12_InitInfo* info,
+        D3D12_CPU_DESCRIPTOR_HANDLE* cpu_handle,
+        D3D12_GPU_DESCRIPTOR_HANDLE* gpu_handle);
+    static void ImGuiSrvDescriptorFree(ImGui_ImplDX12_InitInfo* info,
+        D3D12_CPU_DESCRIPTOR_HANDLE cpu_handle,
+        D3D12_GPU_DESCRIPTOR_HANDLE gpu_handle);
+
     ComPtr<ID3D12Device2> CreateDevice(ComPtr<IDXGIAdapter4>& adapter);
     ComPtr<IDXGIAdapter4> CreateAdapter(bool use_warp);
 
@@ -107,6 +117,8 @@ private:
 
     ComPtr<ID3D12DescriptorHeap> imgui_srv_heap_;
     ComPtr<ID3D12GraphicsCommandList> imgui_command_list_;
+    UINT imgui_srv_descriptor_size_ = 0;
+    std::vector<uint32_t> imgui_free_srv_descriptors_;
 
     std::unique_ptr<D3D12DescriptorHeapAllocator> descriptor_allocators_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
 

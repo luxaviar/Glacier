@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <algorithm>
 #include "Render/Renderer.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 #include "Math/Util.h"
 #include "Math/Vec3.h"
 #include "Math/Mat4.h"

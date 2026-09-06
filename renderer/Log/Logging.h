@@ -3,8 +3,7 @@
 #include <string>
 #include <time.h>
 #include <chrono>
-#include "fmt/format.h"
-#include "fmt/chrono.h"
+#include <format>
 #include "Common/Singleton.h"
 #include "Concurrent/SpinLock.h"
 #include "Common/ByteStream.h"
@@ -32,15 +31,15 @@ public:
     virtual void Log(int8_t lvl, ByteStream& stream);
     virtual void Write(ByteStream& stream);
 
-    template <typename S, typename... Args>
-    void Write(const S& format, Args&&... args) {
+    template <typename... Args>
+    void Write(std::format_string<Args...> format, Args&&... args) {
         stream_.Reset();
         VPrint(format, std::forward<Args>(args)...);
         Write(stream_);
     }
 
-    template <typename S, typename... Args>
-    void Print(uint8_t lvl, const S& format, Args&&... args) {
+    template <typename... Args>
+    void Print(uint8_t lvl, std::format_string<Args...> format, Args&&... args) {
         auto now = std::chrono::system_clock::now();
         auto now_duration = now.time_since_epoch();
         auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now_duration);
@@ -56,8 +55,9 @@ public:
         Log(lvl, stream_);
     }
 
-    template <typename S, typename... Args>
-    void PrintMark(uint8_t lvl, const char* file, int line, const char* func, const S& format, Args&&... args) {
+    template <typename... Args>
+    void PrintMark(uint8_t lvl, const char* file, int line, const char* func,
+        std::format_string<Args...> format, Args&&... args) {
         auto now = std::chrono::system_clock::now();
         auto now_duration = now.time_since_epoch();
         auto seconds = std::chrono::duration_cast<std::chrono::seconds>(now_duration);
@@ -74,12 +74,13 @@ public:
     }
 
 protected:
-    template<typename S, typename... Args>
-    void VPrint(const S& format, Args&&... args) {
-        auto format_view = fmt::string_view(format);
-        auto result = fmt::vformat_to_n((char*)stream_.wbegin(), stream_.WritableBytes(),
-            format_view, fmt::make_format_args(args...));
-        stream_.Fill(result.size);
+    template<typename... Args>
+    void VPrint(std::format_string<Args...> format, Args&&... args) {
+        auto result = std::format_to_n(
+            static_cast<char*>(stream_.wbegin()), stream_.WritableBytes(),
+            format, std::forward<Args>(args)...);
+        stream_.Fill(std::min(static_cast<size_t>(result.size),
+            stream_.WritableBytes()));
     }
 
     uint32_t pid_;

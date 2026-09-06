@@ -2,7 +2,7 @@
 #include <assert.h>
 #include <algorithm>
 #include "Render/Renderer.h"
-#include "imgui/imgui.h"
+#include <imgui.h>
 #include "Math/Util.h"
 #include "Math/Vec3.h"
 #include "Math/Mat4.h"
@@ -66,7 +66,7 @@ void MSAA::Setup(Renderer* renderer)
     auto vert_shader = gfx->CreateShader(ShaderType::kVertex, TEXT("MSAAResolve"));
     for (int i = (int)MSAAType::k2x; i < (int)MSAAType::kMax; ++i) {
         auto sample_count = 1 << toUType(msaa_);
-        auto sample_count_str = fmt::format("{}", sample_count);
+        auto sample_count_str = std::format("{}", sample_count);
 
         auto pixel_shader = gfx->CreateShader(ShaderType::kPixel, TEXT("MSAAResolve"), "main_ps",
             { {"MSAASamples_", sample_count_str.c_str()}, {nullptr, nullptr}});

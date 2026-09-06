@@ -2,16 +2,16 @@
 #include "window.h"
 #include <sstream>
 #include <filesystem>
-#include "imgui/imgui_impl_dx11.h"
-#include "imgui/imgui_impl_win32.h"
-#include "imgui/imgui.h"
+#include <imgui_impl_dx11.h>
+#include <imgui_impl_win32.h>
+#include <imgui.h>
 #include "Common/Util.h"
 #include "input/input.h"
 #include "Lux/Lux.h"
 
-namespace glacier {
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
-//extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+namespace glacier {
 
 LUX_IMPL(Window, Window)
 LUX_CTOR(Window, uint32_t, uint32_t, const char*)
@@ -217,7 +217,7 @@ LRESULT CALLBACK Window::HandleMsgThunk( HWND hWnd,UINT msg,WPARAM wParam,LPARAM
 }
 
 LRESULT Window::HandleMsg( HWND hWnd,UINT msg,WPARAM wParam,LPARAM lParam ) noexcept {
-    if (ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) {
+    if (::ImGui_ImplWin32_WndProcHandler(hWnd, msg, wParam, lParam)) {
         return true;
     }
     //const auto& imio = ImGui::GetIO();
