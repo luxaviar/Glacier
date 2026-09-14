@@ -46,7 +46,19 @@ void CameraController::Translate(const Vec3f& translation) noexcept
 }
 
 void CameraController::Update(float dt) {
-    if (!Input::IsRelativeMode()) {
+    bool relative = Input::IsRelativeMode();
+    if (relative != relative_mode_) {
+        relative_mode_ = relative;
+        // Re-capture the camera orientation when relative mode is (re-)entered. The camera
+        // may have been rotated by other code (scene setup, scripts, editor) since the
+        // controller was constructed, and applying the first mouse delta to a stale
+        // yaw/pitch would snap the view to that stale orientation.
+        if (relative) {
+            Reset();
+        }
+    }
+
+    if (!relative) {
         float delta = Input::GetMouseWheelDelta();
         if (delta == 0.0f) return;
 

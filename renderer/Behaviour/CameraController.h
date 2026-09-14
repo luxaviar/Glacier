@@ -28,6 +28,7 @@ private:
     render::Camera* camera_;
     float pitch_;
     float yaw_;
+    bool relative_mode_ = false;
 };
 
 }
