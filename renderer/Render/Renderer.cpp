@@ -69,6 +69,7 @@ void Renderer::Setup() {
     LightManager::Instance()->Setup(gfx_);
     exposure_.Setup(this);
     tonemapping_.Setup(this, exposure_.GetExposureBuffer());
+    bloom_.Setup(this);
 
     auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kCopy);
 
@@ -120,6 +121,7 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
     gtao_.OnResize(width, height);
     exposure_.OnResize(width, height);
     tonemapping_.OnResize(width, height);
+    bloom_.OnResize(width, height);
 
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
     return true;
@@ -256,6 +258,11 @@ void Renderer::Render(float delta_time) {
     DoTAA(cmd_buffer);
 
     HdrPostProcess(cmd_buffer);
+
+    {
+        PerfSample("Bloom");
+        bloom_.Execute(this, cmd_buffer);
+    }
 
     tonemapping_.Execute(this, cmd_buffer);
 
@@ -586,6 +593,7 @@ void Renderer::OptionWindow(bool* open) {
 
     DrawOptionWindow();
 
+    bloom_.DrawOptionWindow();
     gtao_.DrawOptionWindow();
     exposure_.DrawOptionWindow();
     csm_manager_->DrawOptionWindow();

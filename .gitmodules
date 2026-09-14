@@ -1,3 +1,0 @@
-[submodule "renderer/3rdParty/fmt"]
-	path = renderer/3rdParty/fmt
-	url = git@github.com:fmtlib/fmt

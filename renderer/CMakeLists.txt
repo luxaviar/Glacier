@@ -31,9 +31,6 @@ file(GLOB_RECURSE RENDERER_HEADERS CONFIGURE_DEPENDS
     "${RENDERER_ROOT}/*.inl"
 )
 list(FILTER RENDERER_HEADERS EXCLUDE REGEX "[/\\\\]\\.vscode[/\\\\]")
-list(FILTER RENDERER_HEADERS EXCLUDE REGEX "[/\\\\]3rdParty[/\\\\]assimp[/\\\\]")
-list(FILTER RENDERER_HEADERS EXCLUDE REGEX "[/\\\\]3rdParty[/\\\\]fmt[/\\\\]")
-list(FILTER RENDERER_HEADERS EXCLUDE REGEX "[/\\\\]3rdParty[/\\\\]stb_image[/\\\\]")
 file(GLOB_RECURSE RENDERER_SHADERS CONFIGURE_DEPENDS
     "${RENDERER_ROOT}/Assets/*.hlsl"
     "${RENDERER_ROOT}/Assets/*.hlsli"

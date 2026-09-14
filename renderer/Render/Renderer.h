@@ -12,6 +12,7 @@
 #include "PostProcess/GTAO.h"
 #include "PostProcess/Exposure.h"
 #include "PostProcess/ToneMapping.h"
+#include "PostProcess/Bloom.h"
 
 namespace glacier {
 namespace render {
@@ -130,6 +131,7 @@ protected:
     Exposure exposure_;
     GTAO gtao_;
     ToneMapping tonemapping_;
+    Bloom bloom_;
 
     Editor editor_;
     PostProcessManager post_process_manager_;
