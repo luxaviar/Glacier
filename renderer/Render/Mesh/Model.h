@@ -4,6 +4,7 @@
 #include <filesystem>
 #include <assimp/Importer.hpp>      // C++ importer interface
 #include <assimp/material.h>
+#include "Animation/AnimationClip.h"
 #include "MeshRenderer.h"
 
 
@@ -65,6 +66,8 @@ public:
     const std::shared_ptr<Mesh>& GetMesh(size_t idx) const;
     const std::shared_ptr<Material>& GetMaterial(size_t idx) const;
 
+    const std::vector<std::shared_ptr<AnimationClip>>& animations() const { return animations_; }
+
     bool GetTexture(aiMaterial* mat, aiTextureType type, unsigned int index, aiString& value, aiTextureMapMode* mode) const;
 
     std::shared_ptr<Texture> LoadTexture(CommandBuffer* cmd_buffer, const std::filesystem::path& base_path, aiMaterial* mtl,
@@ -81,6 +84,7 @@ private:
     std::string name_;
     std::vector<std::shared_ptr<Mesh>> meshes_;
     std::vector<std::shared_ptr<Material>> materials_;
+    std::vector<std::shared_ptr<AnimationClip>> animations_;
 };
 
 }

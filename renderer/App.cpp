@@ -136,7 +136,7 @@ void App::DoFrame(float dt) {
             PerfSample("Behavior Update");
             BehaviourManager::Instance()->Update(dt);
         }
-        //animation update
+        //animation sampling happens here, in Animator::LateUpdate
         BehaviourManager::Instance()->LateUpdate(dt);
     }
 

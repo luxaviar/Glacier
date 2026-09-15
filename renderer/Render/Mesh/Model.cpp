@@ -8,6 +8,7 @@
 #include <assimp/GltfMaterial.h>
 #include "App.h"
 #include "Render/Renderer.h"
+#include "Animation/Animator.h"
 #include "Lux/Lux.h"
 
 namespace glacier {
@@ -21,6 +22,67 @@ LUX_IMPL_END
 #define AI_MATKEY_DIFFUSE_STR "$clr.diffuse"
 #define AI_MATKEY_EMISSIVE_STR "$clr.emissive"
 #define AI_MATKEY_AMBIENT_STR "$clr.ambient"
+
+namespace {
+
+//taken when the importer does not provide a tick rate (assimp documents 0 as "not time based")
+constexpr double kDefaultTicksPerSecond = 25.0;
+
+AnimationInterpolation ToInterpolation(aiAnimInterpolation v) {
+    //assimp's key structures carry no tangents, so cubic spline keys degrade to linear
+    return v == aiAnimInterpolation_Step ?
+        AnimationInterpolation::kStep : AnimationInterpolation::kLinear;
+}
+
+float ToSeconds(double time, double ticks_per_second) {
+    double ticks = ticks_per_second > 0.0 ? ticks_per_second : kDefaultTicksPerSecond;
+    return (float)(time / ticks);
+}
+
+//aiProcess_MakeLeftHanded converts node transforms and animation values together,
+//so the imported keys can be used as-is.
+std::shared_ptr<AnimationClip> ImportAnimation(const aiAnimation& anim, size_t index) {
+    std::string clip_name = anim.mName.C_Str();
+    if (clip_name.empty()) {
+        clip_name = "Animation" + std::to_string(index);
+    }
+
+    auto clip = std::make_shared<AnimationClip>(clip_name.c_str());
+    auto ticks_per_second = anim.mTicksPerSecond;
+
+    for (size_t i = 0; i < anim.mNumChannels; ++i) {
+        const auto& channel = *anim.mChannels[i];
+        auto& track = clip->AddTrack(channel.mNodeName.C_Str());
+
+        for (size_t k = 0; k < channel.mNumPositionKeys; ++k) {
+            const auto& key = channel.mPositionKeys[k];
+            track.AddPosition(Vec3Keyframe{
+                ToSeconds(key.mTime, ticks_per_second),
+                Vec3f{ (float)key.mValue.x, (float)key.mValue.y, (float)key.mValue.z },
+                ToInterpolation(key.mInterpolation) });
+        }
+
+        for (size_t k = 0; k < channel.mNumRotationKeys; ++k) {
+            const auto& key = channel.mRotationKeys[k];
+            track.AddRotation(QuatKeyframe{
+                ToSeconds(key.mTime, ticks_per_second),
+                Quaternion{ (float)key.mValue.x, (float)key.mValue.y, (float)key.mValue.z, (float)key.mValue.w },
+                ToInterpolation(key.mInterpolation) });
+        }
+
+        for (size_t k = 0; k < channel.mNumScalingKeys; ++k) {
+            const auto& key = channel.mScalingKeys[k];
+            track.AddScale(Vec3Keyframe{
+                ToSeconds(key.mTime, ticks_per_second),
+                Vec3f{ (float)key.mValue.x, (float)key.mValue.y, (float)key.mValue.z },
+                ToInterpolation(key.mInterpolation) });
+        }
+    }
+
+    return clip;
+}
+
+}
 
 Model::Node::Node(Transform* tx, Node* parent, const aiNode& self, const Model* model) :
     model_(model),
@@ -249,6 +311,13 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
     }
 
     root_ = Node(nullptr, nullptr, *scene_->mRootNode, this);
+
+    animations_.reserve(scene_->mNumAnimations);
+    for (size_t i = 0; i < scene_->mNumAnimations; ++i) {
+        animations_.emplace_back(ImportAnimation(*scene_->mAnimations[i], i));
+        LOG_LOG("animation {0}: {1} tracks, {2}s",
+            animations_.back()->name(), animations_.back()->track_count(), animations_.back()->duration());
+    }
 }
 
 const std::shared_ptr<Mesh>& Model::GetMesh(size_t idx) const {
@@ -268,7 +337,15 @@ const std::shared_ptr<Material>& Model::GetMaterial(size_t idx) const {
 }
 
 GameObject& Model::CreateGameObject(float scale) {
-    return root_.GenerateGameObject(nullptr, scale);
+    auto& go = root_.GenerateGameObject(nullptr, scale);
+
+    if (!animations_.empty()) {
+        auto* animator = go.AddComponent<Animator>();
+        animator->SetClips(animations_);
+        animator->BindNodes(go.transform());
+    }
+
+    return go;
 }
 
 GameObject& Model::GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv, float scale) {

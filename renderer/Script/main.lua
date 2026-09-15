@@ -32,11 +32,14 @@ function main.create_scene()
     local SceneLoadMode = require("Glacier.SceneLoadMode")
     local pbr_scene = require("pbrscene")
     local phy_scene = require("physcene")
+    local anim_scene = require("animscene")
 
     local sm = SceneManager.Instance()
     sm:Add(pbr_scene)
     sm:Add(phy_scene)
-    sm:Load("pbr", SceneLoadMode.kSingle)
+    sm:Add(anim_scene)
+    --sm:Load("pbr", SceneLoadMode.kSingle)
+    sm:Load("anim", SceneLoadMode.kSingle)
     --sm:Load("physics", SceneLoadMode.kSingle)
 end
 
