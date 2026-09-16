@@ -42,7 +42,7 @@ std::shared_ptr<Texture> D3D12CommandBuffer::CreateTextureFromFile(const TCHAR* 
     bool gen_mips, TextureType type)
 {
     const Image image(file, srgb);
-    auto tex = std::make_shared<D3D12Texture>(this, image, gen_mips, type);
+    auto tex = std::make_shared<D3D12Texture>(this, image, gen_mips, type, true);
     tex->SetName(ToNarrow(file).c_str());
 
     return tex;

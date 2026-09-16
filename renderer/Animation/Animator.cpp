@@ -4,6 +4,7 @@
 #include <imgui.h>
 #include "Core/Transform.h"
 #include "Core/GameObject.h"
+#include "Animation/NodeLookup.h"
 #include "Common/Log.h"
 #include "Lux/Lux.h"
 
@@ -45,7 +46,18 @@ void Animator::SetClips(std::vector<std::shared_ptr<AnimationClip>> clips) {
 
 void Animator::BindNodes(Transform& root) {
     UnbindNodes();
-    CollectNodes(root);
+    CollectNodeTransforms(root, nodes_);
+
+    //remember the bind pose so that Stop() can restore it
+    bind_pose_.reserve(nodes_.size());
+    for (const auto& [name, transform] : nodes_) {
+        BindPose pose;
+        pose.transform = transform;
+        pose.position = transform->local_position();
+        pose.rotation = transform->local_rotation();
+        pose.scale = transform->local_scale();
+        bind_pose_.push_back(pose);
+    }
 
     if (nodes_.empty()) {
         LOG_WARN("Animator on '{}' bound no node", game_object() ? game_object()->name() : "<none>");
@@ -55,21 +67,6 @@ void Animator::BindNodes(Transform& root) {
 void Animator::UnbindNodes() {
     nodes_.clear();
     bind_pose_.clear();
-}
-
-void Animator::CollectNodes(Transform& transform) {
-    BindPose pose;
-    pose.transform = &transform;
-    pose.position = transform.local_position();
-    pose.rotation = transform.local_rotation();
-    pose.scale = transform.local_scale();
-
-    bind_pose_.push_back(pose);
-    nodes_.emplace(transform.game_object()->name(), &transform);
-
-    for (auto* child : transform.children()) {
-        CollectNodes(*child);
-    }
 }
 
 const char* Animator::clip_name(size_t index) const {

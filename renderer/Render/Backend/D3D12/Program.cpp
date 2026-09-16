@@ -319,7 +319,10 @@ void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialPr
                 prop.resource = gfx->CreateConstantBuffer<Matrix4x4>(prop.matrix, UsageType::kDefault);
             }
         }
-        else if (prop.dirty) {
+        else if (prop.dirty && prop.prop_type != ConstantPropertyType::kNone) {
+            //only properties that carry their value in the union may be updated from
+            //it; buffers are owned and updated by whoever created them, and pushing
+            //the (uninitialized) union would corrupt them
             static_cast<Buffer*>(prop.resource.get())->Update(&prop.matrix); //also works for color & float4
         }
 

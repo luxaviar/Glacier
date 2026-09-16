@@ -10,11 +10,13 @@ namespace glacier {
 namespace render {
 
 std::shared_ptr<Buffer> Renderable::per_object_data_;
+std::shared_ptr<Buffer> Renderable::bone_data_;
 
 int32_t Renderable::id_counter_ = 0;
 
 void Renderable::Setup() {
     per_object_data_ = GfxDriver::Get()->CreateConstantBuffer<PerObjectData>();
+    bone_data_ = GfxDriver::Get()->CreateConstantBuffer<BoneMatrices>();
 }
 
 Renderable::Renderable() :
@@ -87,6 +89,10 @@ void Renderable::SetPickable(bool on) {
 
 std::shared_ptr<Buffer>& Renderable::GetPerObjectData() {
     return per_object_data_;
+}
+
+const std::shared_ptr<Buffer>& Renderable::GetBoneData() {
+    return bone_data_;
 }
 
 void Renderable::DrawInspectorBasic() {

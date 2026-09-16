@@ -13,6 +13,8 @@ namespace glacier {
 namespace render {
 
 InputLayoutDesc Mesh::kDefaultLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent };
+InputLayoutDesc Mesh::kSkinnedLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent,
+    InputLayoutDesc::BoneWeights, InputLayoutDesc::BoneIndices };
 
 Mesh::Mesh() : name_("unnamed") {}
 
@@ -62,7 +64,72 @@ Mesh::Mesh(const aiMesh& mesh) {
         }
     }
 
+    ImportBones(mesh);
+
     Setup();
+}
+
+void Mesh::ImportBones(const aiMesh& mesh) {
+    if (mesh.mNumBones == 0) return;
+
+    bones_.reserve(mesh.mNumBones);
+    for (size_t i = 0; i < mesh.mNumBones; ++i) {
+        const auto& bone = *mesh.mBones[i];
+        bones_.push_back(Bone{ bone.mName.C_Str(), *(Matrix4x4*)&bone.mOffsetMatrix });
+    }
+
+    //keep the four strongest influences of every vertex, then normalize them
+    constexpr size_t kMaxInfluence = 4;
+
+    struct Influence {
+        float weight = 0.0f;
+        uint32_t bone = 0;
+    };
+
+    std::vector<std::array<Influence, kMaxInfluence>> influences(vertices_.size());
+
+    for (size_t b = 0; b < bones_.size(); ++b) {
+        const auto& bone = *mesh.mBones[b];
+        for (size_t w = 0; w < bone.mNumWeights; ++w) {
+            const auto& weight = bone.mWeights[w];
+            if (weight.mVertexId >= vertices_.size()) continue;
+            if (b >= kMaxBones) continue; //beyond the shader limit, drop the influence
+
+            auto& slots = influences[weight.mVertexId];
+            size_t weakest = 0;
+            for (size_t s = 1; s < kMaxInfluence; ++s) {
+                if (slots[s].weight < slots[weakest].weight) {
+                    weakest = s;
+                }
+            }
+
+            if (weight.mWeight > slots[weakest].weight) {
+                slots[weakest] = Influence{ weight.mWeight, (uint32_t)b };
+            }
+        }
+    }
+
+    for (size_t v = 0; v < vertices_.size(); ++v) {
+        auto& slots = influences[v];
+
+        float total = 0.0f;
+        for (auto& slot : slots) {
+            total += slot.weight;
+        }
+
+        if (total <= 0.0f) {
+            //unweighted vertices are bound to the first bone so that they cannot collapse
+            vertices_[v].bone_indices = Vec4u(0u, 0u, 0u, 0u);
+            vertices_[v].bone_weights = Vec4f(1.0f, 0.0f, 0.0f, 0.0f);
+            continue;
+        }
+
+        float inv_total = 1.0f / total;
+        vertices_[v].bone_indices = Vec4u(slots[0].bone, slots[1].bone, slots[2].bone, slots[3].bone);
+        vertices_[v].bone_weights = Vec4f(
+            slots[0].weight * inv_total, slots[1].weight * inv_total,
+            slots[2].weight * inv_total, slots[3].weight * inv_total);
+    }
 }
 
 Mesh::Mesh(const std::shared_ptr<Buffer>& vertex_buffer, const std::shared_ptr<Buffer>& index_buffer) :
@@ -73,14 +140,21 @@ Mesh::Mesh(const std::shared_ptr<Buffer>& vertex_buffer, const std::shared_ptr<B
 }
 
 void Mesh::Setup() {
-    VertexData data(kDefaultLayout);
+    bool skinned = IsSkinned();
+    VertexData data(skinned ? kSkinnedLayout : kDefaultLayout);
     data.Reserve(vertices_.size());
 
     Vec3f min{ std::numeric_limits<float>::max(), std::numeric_limits<float>::max() , std::numeric_limits<float>::max() };
     Vec3f max{ std::numeric_limits<float>::lowest(), std::numeric_limits<float>::lowest() , std::numeric_limits<float>::lowest() };
 
     for (auto& v : vertices_) {
-        data.EmplaceBack(v.position, v.normal, v.texcoord, v.tangent);
+        if (skinned) {
+            data.EmplaceBack(v.position, v.normal, v.texcoord, v.tangent, v.bone_weights, v.bone_indices);
+        }
+        else {
+            data.EmplaceBack(v.position, v.normal, v.texcoord, v.tangent);
+        }
+
         min = Vec3f::Min(min, v.position);
         max = Vec3f::Max(max, v.position);
     }

@@ -29,7 +29,8 @@ public:
         return mip_slice + array_slice * mip_levels;
     }
 
-    D3D12Texture(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips, TextureType type = TextureType::kTexture2D);
+    D3D12Texture(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips, TextureType type = TextureType::kTexture2D,
+        bool from_file = false);
     D3D12Texture(const ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STATES state = D3D12_RESOURCE_STATE_COMMON);
     D3D12Texture(const TextureDescription& desc, const D3D12_CLEAR_VALUE* clear_value = nullptr);
 

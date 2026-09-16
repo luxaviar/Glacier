@@ -3,6 +3,7 @@
 #include "Common/BasicTexture.hlsli"
 #include "Common/Lighting.hlsli"
 #include "Common/Ao.hlsli"
+#include "Common/Skinning.hlsli"
 
 struct PbrMaterial
 {
@@ -26,12 +27,22 @@ Texture2D EmissiveTexture : register(t8);
 VSOut main_vs(AppData IN)
 {
     VSOut vso;
-    vso.world_position = (float3) mul(float4(IN.position, 1.0f), _Model);
-    vso.view_position = (float3) mul(float4(IN.position, 1.0f), _ModelView);
-    vso.view_normal = mul(IN.normal, (float3x3) _ModelView);
-    vso.view_tangent = mul(IN.tangent, (float3x3) _ModelView);
+
+    float3 position = IN.position;
+    float3 normal = IN.normal;
+    float3 tangent = IN.tangent;
+#ifdef GLACIER_SKINNING
+    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
+    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, false);
+    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, false);
+#endif
+
+    vso.world_position = (float3) mul(float4(position, 1.0f), _Model);
+    vso.view_position = (float3) mul(float4(position, 1.0f), _ModelView);
+    vso.view_normal = mul(normal, (float3x3) _ModelView);
+    vso.view_tangent = mul(tangent, (float3x3) _ModelView);
     //vso.view_binormal = mul(IN.binormal, (float3x3) _ModelView);
-    vso.position = mul(float4(IN.position, 1.0f), _ModelViewProjection);
+    vso.position = mul(float4(position, 1.0f), _ModelViewProjection);
     vso.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
     
     //vso.shadowHomoPos = ToShadowHomoSpace(pos, _Model);

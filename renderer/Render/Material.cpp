@@ -50,6 +50,61 @@ void Material::SetupBuiltinProperty() {
     renderer->SetupBuiltinProperty(this);
 }
 
+std::shared_ptr<Material> Material::GetSkinnedVariant(const InputLayoutDesc& layout) const {
+    if (skinned_variant_) {
+        return skinned_variant_;
+    }
+
+    //permutation of the same shader files with skinning enabled; the macro list
+    //must be null terminated because it is handed to D3DCompile as-is
+    std::vector<ShaderMacroEntry> macros = { { "GLACIER_SKINNING", "1" }, { nullptr, nullptr } };
+
+    auto gfx = GfxDriver::Get();
+    auto variant_name = name_ + "_skinned";
+    auto program = gfx->CreateProgram(variant_name.c_str());
+
+    bool has_shader = false;
+    for (uint32_t i = 0; i < (uint32_t)ShaderType::kUnknown; ++i) {
+        auto type = (ShaderType)i;
+        auto shader = program_->GetShader(type);
+        if (!shader) continue;
+
+        program->SetShader(gfx->CreateShader(type, shader->file_name().c_str(), nullptr, macros));
+        has_shader = true;
+    }
+
+    if (!has_shader) {
+        return nullptr;
+    }
+
+    program->SetInputLayout(layout);
+
+    //a permutation takes part in the same render passes as the material it derives from
+    for (const auto& pass : program_->passes()) {
+        program->AddPass(pass.c_str());
+    }
+
+    auto variant = std::make_shared<Material>(variant_name.c_str(), program);
+    variant->tex_ts_ = tex_ts_;
+
+    //copy the property values over and re-link them to the new program, whose
+    //parameters live at the same names but different addresses
+    for (const auto& [key, prop] : properties_) {
+        auto param = program->FindParameter(key);
+        if (!param) continue;
+
+        MaterialProperty copy = prop;
+        copy.shader_param = param;
+        copy.dirty = true;
+        variant->properties_.emplace(key, copy);
+    }
+
+    //setup_builtin_props_ is deliberately left false: binding the variant must
+    //still install the builtin properties it did not inherit (_BoneData)
+    skinned_variant_ = variant;
+    return skinned_variant_;
+}
+
 void Material::Bind(CommandBuffer* cmd_buffer) {
     PerfSample("Material Binding");
 

@@ -69,7 +69,6 @@ private:
         Vec3f scale;
     };
 
-    void CollectNodes(Transform& transform);
     void ApplyPose(const NodeTrack& track, const NodePose& pose) const;
     void Apply(float time) const;
     void RestoreBindPose() const;

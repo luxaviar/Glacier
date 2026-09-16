@@ -9,6 +9,7 @@
 #include "App.h"
 #include "Render/Renderer.h"
 #include "Animation/Animator.h"
+#include "Render/Mesh/SkinnedMeshRenderer.h"
 #include "Lux/Lux.h"
 
 namespace glacier {
@@ -37,6 +38,15 @@ AnimationInterpolation ToInterpolation(aiAnimInterpolation v) {
 float ToSeconds(double time, double ticks_per_second) {
     double ticks = ticks_per_second > 0.0 ? ticks_per_second : kDefaultTicksPerSecond;
     return (float)(time / ticks);
+}
+
+void AddMeshComponent(GameObject& go, const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material) {
+    if (mesh->IsSkinned()) {
+        go.AddComponent<SkinnedMeshRenderer>(mesh, material);
+    }
+    else {
+        go.AddComponent<MeshRenderer>(mesh, material);
+    }
 }
 
 //aiProcess_MakeLeftHanded converts node transforms and animation values together,
@@ -134,7 +144,7 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
             auto mtl = model_->GetMaterial(mat_index);
             mesh_go.transform().SetParent(&tx);
 
-            auto* mr = mesh_go.AddComponent<MeshRenderer>(mesh, mtl);
+            AddMeshComponent(mesh_go, mesh, mtl);
         }
     }
     else if (meshes_.size() == 1) {
@@ -142,7 +152,7 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
         auto mat_index = meshes_[0].material;
         auto mesh = model_->GetMesh(mesh_index);
         auto mtl = model_->GetMaterial(mat_index);
-        auto* mr = go.AddComponent<MeshRenderer>(mesh, mtl);
+        AddMeshComponent(go, mesh, mtl);
     }
     
     for (auto& child : children_) {
@@ -192,7 +202,7 @@ std::shared_ptr<Texture> Model::LoadTexture(CommandBuffer* cmd_buffer, const std
     }
     else
     {
-        Color color;
+        Color color = default_color;
         if (type == aiTextureType_UNKNOWN) {
             color = Color{ 0.0f, 0.5f, 0.0f, 1.0f };
             if (float factor; mtl->Get(AI_MATKEY_METALLIC_FACTOR, factor) == aiReturn_SUCCESS) {
@@ -224,6 +234,7 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
         aiProcess_JoinIdenticalVertices |
         aiProcess_GenNormals |
         aiProcess_GenUVCoords |
+        aiProcess_LimitBoneWeights |
         aiProcess_SortByPType |
         aiProcess_OptimizeMeshes |
         aiProcess_RemoveRedundantMaterials |
@@ -275,7 +286,7 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
 
         TextureWarpMode metal_roughness_warp;
         auto metal_roughness_tex = LoadTexture(cmd_buffer, base_path, ai_mat, aiTextureType_GLTF_METALLIC_ROUGHNESS, aiTextureType_NONE,
-            nullptr, Color::kWhite, false, true, metal_roughness_warp);
+            nullptr, Color{ 0.0f, 1.0f, 0.0f, 1.0f }, false, true, metal_roughness_warp);
 
         auto mat = renderer->CreateLightingMaterial(ai_mat->GetName().C_Str());
         LOG_LOG("material {}:", ai_mat->GetName().C_Str());

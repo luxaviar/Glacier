@@ -320,6 +320,10 @@ void Renderer::SetupBuiltinProperty(Material* mat) {
         mat->SetProperty("_PerObjectData", Renderable::GetPerObjectData());
     }
 
+    if (mat->HasParameter("_BoneData")) {
+        mat->SetProperty("_BoneData", Renderable::GetBoneData());
+    }
+
     gtao_.SetupBuiltinProperty(mat);
 
     csm_manager_->SetupMaterial(mat);
@@ -329,7 +333,8 @@ void Renderer::SetupBuiltinProperty(Material* mat) {
 void Renderer::CaptureScreen() {
     auto width = ldr_render_target_->width();
     auto height = ldr_render_target_->height();
-    auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kDirect);
+    auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kDirect);
+    auto cmd_buffer = cmd_queue->GetCommandBuffer();
 
     auto& tex = ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
     tex->ReadBackImage(cmd_buffer, 0, 0, width, height, 0, 0,
@@ -349,6 +354,9 @@ void Renderer::CaptureScreen() {
 
             image.Save(TEXT("ScreenCaptured.png"), false);
         });
+
+    //the copy recorded above is only queued, it still has to be submitted
+    cmd_queue->ExecuteCommandBuffer(cmd_buffer);
 }
 
 void Renderer::AddShadowPass() {

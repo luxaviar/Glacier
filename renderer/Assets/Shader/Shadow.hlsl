@@ -1,4 +1,5 @@
 #include "Common/BasicBuffer.hlsli"
+#include "Common/Skinning.hlsli"
 
 struct Output
 {
@@ -6,6 +7,24 @@ struct Output
     float4 pos : SV_Position;
 };
 
+#ifdef GLACIER_SKINNING
+struct Input
+{
+    float3 position : POSITION;
+    float4 bone_weights : BlendWeight;
+    uint4 bone_indices : BlendIndex;
+};
+
+Output main_vs(Input IN)
+{
+    float3 position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
+
+    Output output;
+    output.pos = mul(float4(position, 1.0f), _ModelViewProjection);
+    output.viewPos = mul(float4(position, 1.0f), _ModelView).xyz;
+    return output;
+}
+#else
 Output main_vs(float3 pos : Position)
 {
     Output output;
@@ -13,6 +32,7 @@ Output main_vs(float3 pos : Position)
     output.viewPos = mul(float4(pos, 1.0f), _ModelView).xyz;
     return output;
 }
+#endif
 
 float4 main_ps(float3 viewPos : Position) : SV_TARGET
 {

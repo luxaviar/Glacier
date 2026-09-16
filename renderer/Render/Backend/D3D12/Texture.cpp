@@ -38,9 +38,10 @@ D3D12Texture::D3D12Texture(const ComPtr<ID3D12Resource>& res, D3D12_RESOURCE_STA
     CreateViews();
 }
 
-D3D12Texture::D3D12Texture(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips, TextureType type)
+D3D12Texture::D3D12Texture(CommandBuffer* cmd_buffer, const Image& image, bool gen_mips, TextureType type, bool from_file)
 {
-    file_image_ = true;
+    //textures created from a solid color are placeholders, not file images
+    file_image_ = from_file;
 
     if (type == TextureType::kTextureCube) {
         CreateCubeMapFromImage(cmd_buffer, image, gen_mips);

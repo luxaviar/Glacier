@@ -58,6 +58,10 @@ struct AppData
     float2 tex_coord : TEXCOORD;
     float3 tangent : TANGENT;
     //float3 binormal : BINORMAL;
+#ifdef GLACIER_SKINNING
+    float4 bone_weights : BlendWeight;
+    uint4 bone_indices : BlendIndex;
+#endif
 };
 
 struct VSOut

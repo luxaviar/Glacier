@@ -39,6 +39,15 @@ struct PerObjectData
     Vec4f uv_st = { 1.0f, 1.0f, 0.0f, 0.0f };
 };
 
+//must match the layout of _BoneData in Assets/Shader/Common/Skinning.hlsli
+constexpr uint32_t kMaxBones = 128;
+
+struct BoneMatrices
+{
+    Matrix4x4 bones[kMaxBones];
+    Matrix4x4 prev_bones[kMaxBones];
+};
+
 class Renderable;
 using RenderableTree = BvhTree<Renderable*>;
 using RenderableTreeNode = RenderableTree::NodeType;
@@ -80,11 +89,13 @@ public:
     void DrawInspectorBasic();
 
     static std::shared_ptr<Buffer>& GetPerObjectData();
+    static const std::shared_ptr<Buffer>& GetBoneData();
 
 protected:
     void UpdateWorldBounds() const;
 
     static std::shared_ptr<Buffer> per_object_data_; //shared by all material
+    static std::shared_ptr<Buffer> bone_data_; //shared by all skinned material
     static int32_t id_counter_;
 
     uint32_t mask_ = 0;

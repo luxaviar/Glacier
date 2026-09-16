@@ -11,6 +11,7 @@ namespace render {
 class PassNode;
 class Program;
 class CommandBuffer;
+class InputLayoutDesc;
 
 struct PbrParam {
     Vec3f f0 = Vec3f(0.04f);
@@ -56,6 +57,11 @@ public:
 
     void DrawInspector();
 
+    //Returns a cached copy of this material whose shaders are compiled with
+    //GLACIER_SKINNING defined and that uses the given input layout.
+    //Returns null when this material has no shaders to permute.
+    std::shared_ptr<Material> GetSkinnedVariant(const InputLayoutDesc& layout) const;
+
 protected:
     void SetupBuiltinProperty();
 
@@ -67,6 +73,8 @@ protected:
 
     std::shared_ptr<Program> program_;
     std::unordered_map<std::string, MaterialProperty> properties_;
+
+    mutable std::shared_ptr<Material> skinned_variant_;
 };
 
 class PostProcessMaterial : public Material {

@@ -11,12 +11,15 @@ namespace render {
 
 struct CommonVertex {
     CommonVertex(const Vec3f& iposition, const Vec3f& inormal = { 0, 0, 1 }, const Vec2f& itexcoord = Vec2f::zero,
-        const Vec3f& tangent = Vec3f::zero, const Vec3f& bitangent = Vec3f::zero) noexcept :
+        const Vec3f& tangent = Vec3f::zero, const Vec3f& bitangent = Vec3f::zero,
+        const Vec4f& ibone_weights = Vec4f(0.0f), const Vec4u& ibone_indices = Vec4u(0u)) noexcept :
         position(iposition),
         normal(inormal),
         texcoord(itexcoord),
         tangent(tangent),
-        bitangent(bitangent)
+        bitangent(bitangent),
+        bone_weights(ibone_weights),
+        bone_indices(ibone_indices)
     {
     }
 
@@ -25,6 +28,9 @@ struct CommonVertex {
     Vec2f texcoord;
     Vec3f tangent;
     Vec3f bitangent;
+    //only used by skinned meshes, see Mesh::kSkinnedLayout
+    Vec4f bone_weights;
+    Vec4u bone_indices;
 };
 
 using VertexCollection = std::vector<CommonVertex>;

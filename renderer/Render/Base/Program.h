@@ -56,6 +56,7 @@ public:
 
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;
+    const std::vector<std::string>& passes() const { return passes_; }
 
     const ShaderParameter* FindParameter(const std::string& name) const;
     const ShaderParameter* FindParameter(const char* name) const;

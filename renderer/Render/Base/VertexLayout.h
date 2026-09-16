@@ -20,6 +20,8 @@
     X( Bitangent ) \
     X( Float3Color ) \
     X( Float4Color ) \
+    X( BoneWeights ) \
+    X( BoneIndices ) \
 
 #define LAYOUT_ELEMENT_META(el, semantic, code, systy, hwtype, hwtypename) \
 struct Meta##el \
@@ -66,6 +68,8 @@ public:
     LAYOUT_ELEMENT_META(Bitangent, Bitangent, B, Vec3f, DXGI_FORMAT_R32G32B32_FLOAT, float3)
     LAYOUT_ELEMENT_META(Float3Color, Color, C3, Vec3f, DXGI_FORMAT_R32G32B32_FLOAT, float3)
     LAYOUT_ELEMENT_META(Float4Color, Color, C4, Vec4f, DXGI_FORMAT_R32G32B32A32_FLOAT, float4)
+    LAYOUT_ELEMENT_META(BoneWeights, BlendWeight, BW4, Vec4f, DXGI_FORMAT_R32G32B32A32_FLOAT, float4)
+    LAYOUT_ELEMENT_META(BoneIndices, BlendIndex, BI4, Vec4u, DXGI_FORMAT_R32G32B32A32_UINT, uint4)
 
     static constexpr std::array<MetaDesc, (int)ElementType::Count> kMetaDescArray = {{
     #define X(el) { \

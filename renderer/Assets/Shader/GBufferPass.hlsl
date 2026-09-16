@@ -2,6 +2,7 @@
 #include "Common/BasicSampler.hlsli"
 #include "Common/Lighting.hlsli"
 #include "Common/Utils.hlsli"
+#include "Common/Skinning.hlsli"
 
 struct VertexOut
 {
@@ -44,12 +45,27 @@ Texture2D EmissiveTexture;// : register(t8);
 VertexOut main_vs(AppData IN)
 {
     VertexOut Out = (VertexOut)0.0f;
-    float4 wpos = mul(float4(IN.position, 1.0f), _Model);
-    Out.view_normal = mul(IN.normal, (float3x3)_ModelView);
-    Out.view_tangent = mul(IN.tangent, (float3x3)_ModelView);
+
+    float3 position = IN.position;
+    float3 normal = IN.normal;
+    float3 tangent = IN.tangent;
+
+#ifdef GLACIER_SKINNING
+    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
+    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, false);
+    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, false);
+
+    float3 prev_position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, true);
+#else
+    float3 prev_position = position;
+#endif
+
+    float4 wpos = mul(float4(position, 1.0f), _Model);
+    Out.view_normal = mul(normal, (float3x3)_ModelView);
+    Out.view_tangent = mul(tangent, (float3x3)_ModelView);
     Out.position = mul(wpos, _ViewProjection);
     Out.cur_position = mul(wpos, _UnjitteredViewProjection);
-    Out.prev_position = mul(mul(float4(IN.position, 1.0f), _PrevModel), _PrevViewProjection);
+    Out.prev_position = mul(mul(float4(prev_position, 1.0f), _PrevModel), _PrevViewProjection);
 
     Out.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
 
