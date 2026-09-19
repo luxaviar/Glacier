@@ -8,6 +8,7 @@
 
 namespace glacier {
 
+class Animator;
 class Transform;
 
 namespace render {
@@ -31,6 +32,8 @@ public:
     //the node table of the instance the mesh belongs to; the bones of the mesh
     //address it by index, so nodes that share a name cannot be confused
     void SetNodeTable(std::shared_ptr<const NodeTransformTable> nodes);
+    //index of the node of the instance this mesh hangs off, see Model::Node
+    void SetNodeIndex(uint32_t index) { node_index_ = index; }
     size_t bone_count() const;
 
 private:
@@ -40,10 +43,15 @@ private:
 
     mutable bool resolved_ = false;
     mutable std::shared_ptr<const NodeTransformTable> node_table_;
+    //the animator this mesh is skinned by, when it drives the pose directly
+    mutable Animator* animator_ = nullptr;
+    uint32_t node_index_ = 0;
     mutable std::vector<Transform*> bone_transforms_;
     mutable std::vector<Matrix4x4> prev_bone_world_;
     mutable Matrix4x4 prev_world_to_local_ = Matrix4x4::identity;
     mutable bool has_prev_ = false;
+    //whether the previous frame was skinned from the pose or from the transforms
+    mutable bool prev_pose_based_ = false;
     //object space skinning matrices of this frame, refreshed once per frame so
     //that every pass uploads the same values (and the same previous ones)
     mutable BoneMatrices bone_matrices_;

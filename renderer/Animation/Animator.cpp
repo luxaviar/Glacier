@@ -7,6 +7,7 @@
 #include "Animation/NodeLookup.h"
 #include "Common/MoveWrapper.h"
 #include "Common/Log.h"
+#include "Inspect/Profiler.h"
 #include "App.h"
 #include "Lux/Lux.h"
 
@@ -52,10 +53,12 @@ LUX_FUNC(Animator, duration)
 LUX_FUNC(Animator, SetTime)
 LUX_FUNC(Animator, SetSpeed)
 LUX_FUNC(Animator, SetLoop)
+LUX_FUNC(Animator, SetWriteTransforms)
 LUX_PROP_FUNC_GET(Animator, time, time)
 LUX_PROP_FUNC_GET(Animator, speed, speed)
 LUX_PROP_FUNC_GET(Animator, loop, loop)
 LUX_PROP_FUNC_GET(Animator, playing, IsPlaying)
+LUX_PROP_FUNC_GET(Animator, write_transforms, write_transforms)
 LUX_IMPL_END
 
 Animator::Animator(std::vector<std::shared_ptr<AnimationClip>> clips) :
@@ -741,6 +744,33 @@ float Animator::duration() const {
     return current_ ? current_->duration() : 0.0f;
 }
 
+void Animator::SetWriteTransforms(bool v) {
+    write_transforms_ = v;
+
+    //the other path has to be forgotten, so the matrices cannot be used while
+    //the transforms are written again
+    bone_matrices_.clear();
+}
+
+bool Animator::bone_animated(size_t bone) const {
+    if (bone >= animated_position_.size()) {
+        return false;
+    }
+
+    return animated_position_[bone] || animated_rotation_[bone] || animated_scale_[bone];
+}
+
+bool Animator::bone_pose(size_t bone, Vec3f& position, Quaternion& rotation, Vec3f& scale) const {
+    if (bone >= pose_.bone_count()) {
+        return false;
+    }
+
+    position = pose_.positions[bone];
+    rotation = pose_.rotations[bone];
+    scale = pose_.scales[bone];
+    return true;
+}
+
 void Animator::LateUpdate(float dt) {
     if (!playing_ || actions_.empty()) {
         return;
@@ -795,6 +825,7 @@ void Animator::LateUpdate(float dt) {
     if (!fading && !running) {
         playing_ = false;
     }
+
 }
 
 Animator::TimeStep Animator::AdvanceTime(Action& action, float dt) {
@@ -968,7 +999,26 @@ void Animator::Evaluate() {
         MarkAnimated(*action.clip);
     }
 
+    if (!write_transforms_) {
+        EvaluateBoneMatrices();
+    }
+
     Apply(pose_);
+}
+
+void Animator::EvaluateBoneMatrices() {
+    const size_t count = pose_.bone_count();
+    bone_matrices_.resize(count);
+
+    PerfSample("Evaluate flat pose");
+
+    //the skeleton keeps its bones parents first, so one pass evaluates the pose
+    for (size_t i = 0; i < count; ++i) {
+        Matrix4x4 local = Matrix4x4::TRS(pose_.positions[i], pose_.rotations[i], pose_.scales[i]);
+
+        int32_t parent = skeleton_->bone(i).parent;
+        bone_matrices_[i] = parent >= 0 ? bone_matrices_[(size_t)parent] * local : local;
+    }
 }
 
 void Animator::Apply(const SkeletonPose& pose) {
@@ -990,6 +1040,17 @@ void Animator::Apply(const SkeletonPose& pose) {
     }
 
     root_wrapped_ = false;
+
+    if (!write_transforms_) {
+        //the pose drives the skinning, and the tree keeps whatever the game or
+        //the bind pose put into it
+        std::fill(written_position_.begin(), written_position_.end(), false);
+        std::fill(written_rotation_.begin(), written_rotation_.end(), false);
+        std::fill(written_scale_.begin(), written_scale_.end(), false);
+        return;
+    }
+
+    PerfSample("Write bone transforms");
 
     for (size_t i = 0; i < count; ++i) {
         auto* transform = bone_transforms_[i];

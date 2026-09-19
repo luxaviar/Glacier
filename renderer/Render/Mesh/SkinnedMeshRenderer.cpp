@@ -2,7 +2,9 @@
 #include <algorithm>
 #include <imgui.h>
 #include "Animation/NodeLookup.h"
+#include "Animation/Animator.h"
 #include "Core/Transform.h"
+#include "Core/GameObject.h"
 #include "Render/Graph/PassNode.h"
 #include "Render/Material.h"
 #include "Render/Base/CommandBuffer.h"
@@ -139,27 +141,79 @@ void SkinnedMeshRenderer::UpdateBoneMatrices() const {
     PerfSample("Update bone matrices");
 
     const auto& bones = mesh->bones();
-    const auto& world_to_local = transform().WorldToLocalMatrix();
-
     size_t count = std::min(bones.size(), (size_t)kMaxBones);
-    bool has_prev = has_prev_ && prev_bone_world_.size() == bones.size();
+
+    //the animator of the instance can hand over the pose as a flat set of bone
+    //matrices, which keeps the Transform tree out of the loop entirely
+    if (!animator_ && game_object()) {
+        animator_ = const_cast<GameObject*>(game_object())->GetComponentInParent<Animator>();
+    }
+
+    const std::vector<Matrix4x4>* pose = animator_ ? animator_->bone_matrices() : nullptr;
+    if (pose && pose->size() != animator_->bone_count()) {
+        pose = nullptr;
+    }
+
+    const bool pose_based = pose != nullptr && node_index_ < pose->size();
+    if (pose_based && animator_->bone_animated(node_index_)) {
+        //the shader places the skinned vertices with the transform of this node,
+        //so it has to follow the pose when the clip drives the node itself
+        Vec3f position;
+        Quaternion rotation;
+        Vec3f scale;
+        if (animator_->bone_pose(node_index_, position, rotation, scale)) {
+            auto& tx = const_cast<Transform&>(transform());
+            tx.local_position(position);
+            tx.local_rotation(rotation);
+            tx.local_scale(scale);
+        }
+    }
+
+    //bone matrices are built in the object space of the mesh, so the skinning
+    //matrices live in the same space the vertex shader expects
+    Matrix4x4 space_to_mesh;
+    if (pose_based) {
+        auto mesh_to_space = (*pose)[node_index_].Inverted();
+        space_to_mesh = mesh_to_space ? *mesh_to_space : Matrix4x4::identity;
+    }
+    else {
+        space_to_mesh = transform().WorldToLocalMatrix();
+    }
+
+    bool has_prev = has_prev_ && prev_bone_world_.size() == bones.size() && prev_pose_based_ == pose_based;
+    const Matrix4x4& prev_space_to_mesh = prev_world_to_local_;
 
     for (size_t i = 0; i < count; ++i) {
-        auto* bone = bone_transforms_[i];
-        Matrix4x4 world = bone ? bone->LocalToWorldMatrix() : Matrix4x4::identity;
+        Matrix4x4 pose_matrix = Matrix4x4::identity;
+        if (pose_based) {
+            int32_t node = bones[i].node;
+            if (node >= 0 && (size_t)node < pose->size()) {
+                pose_matrix = (*pose)[(size_t)node];
+            }
+        }
+        else if (auto* bone = bone_transforms_[i]) {
+            pose_matrix = bone->LocalToWorldMatrix();
+        }
 
         //the mesh transform cancels out again in the vertex shader, so the
         //matrices are expressed in mesh space
-        bone_matrices_.bones[i] = world_to_local * world * bones[i].offset_matrix;
-        bone_matrices_.prev_bones[i] = prev_world_to_local_ * (has_prev ? prev_bone_world_[i] : world) * bones[i].offset_matrix;
+        bone_matrices_.bones[i] = space_to_mesh * pose_matrix * bones[i].offset_matrix;
+        bone_matrices_.prev_bones[i] = prev_space_to_mesh * (has_prev ? prev_bone_world_[i] : pose_matrix) * bones[i].offset_matrix;
     }
 
     for (size_t i = 0; i < count; ++i) {
-        auto* bone = bone_transforms_[i];
-        prev_bone_world_[i] = bone ? bone->LocalToWorldMatrix() : Matrix4x4::identity;
+        if (pose_based) {
+            int32_t node = bones[i].node;
+            prev_bone_world_[i] = node >= 0 && (size_t)node < pose->size() ? (*pose)[(size_t)node] : Matrix4x4::identity;
+        }
+        else {
+            auto* bone = bone_transforms_[i];
+            prev_bone_world_[i] = bone ? bone->LocalToWorldMatrix() : Matrix4x4::identity;
+        }
     }
 
-    prev_world_to_local_ = world_to_local;
+    prev_world_to_local_ = space_to_mesh;
+    prev_pose_based_ = pose_based;
     has_prev_ = true;
     bone_matrices_cached_ = true;
 }

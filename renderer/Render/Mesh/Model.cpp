@@ -63,11 +63,13 @@ float ToSeconds(double time, double ticks_per_second) {
 }
 
 void AddMeshComponent(GameObject& go, const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material,
-    const std::shared_ptr<NodeTransformTable>& nodes) {
+    const std::shared_ptr<NodeTransformTable>& nodes, uint32_t node_index) {
     if (mesh->IsSkinned()) {
-        //the bones of the mesh address the node table by index
+        //the bones of the mesh address the node table by index, and the node the
+        //mesh hangs off is where the skinned renderer finds its own place in the pose
         auto* renderer = go.AddComponent<SkinnedMeshRenderer>(mesh, material);
         renderer->SetNodeTable(nodes);
+        renderer->SetNodeIndex(node_index);
     }
     else {
         go.AddComponent<MeshRenderer>(mesh, material);
@@ -302,7 +304,7 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale, c
             auto mtl = model_->GetMaterial(mat_index);
             mesh_go.transform().SetParent(&tx);
 
-            AddMeshComponent(mesh_go, mesh, mtl, nodes);
+            AddMeshComponent(mesh_go, mesh, mtl, nodes, index_);
         }
     }
     else if (meshes_.size() == 1) {
@@ -310,7 +312,7 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale, c
         auto mat_index = meshes_[0].material;
         auto mesh = model_->GetMesh(mesh_index);
         auto mtl = model_->GetMaterial(mat_index);
-        AddMeshComponent(go, mesh, mtl, nodes);
+        AddMeshComponent(go, mesh, mtl, nodes, index_);
     }
     
     for (auto& child : children_) {

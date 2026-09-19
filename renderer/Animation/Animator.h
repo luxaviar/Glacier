@@ -116,6 +116,19 @@ public:
     //Also applies the pose, so the inspector can scrub while paused.
     void SetTime(float t);
 
+    //The pose can drive the skinning directly: every bone is evaluated into a
+    //flat array of root relative matrices and the Transform tree is left alone,
+    //so an animated rig no longer marks its nodes dirty every frame. Gameplay
+    //code that reads bone transforms has to keep them written instead.
+    void SetWriteTransforms(bool v);
+    bool write_transforms() const { return write_transforms_; }
+    //root relative matrix of every bone, null while the transforms are written
+    const std::vector<Matrix4x4>* bone_matrices() const { return bone_matrices_.empty() ? nullptr : &bone_matrices_; }
+    //was the bone driven by a clip in the last evaluation
+    bool bone_animated(size_t bone) const;
+    //value of a bone in the last evaluation
+    bool bone_pose(size_t bone, Vec3f& position, Quaternion& rotation, Vec3f& scale) const;
+
     float speed() const { return speed_; }
     void SetSpeed(float v);
 
@@ -185,6 +198,8 @@ private:
     void Sample(const AnimationClip& clip, float time, SkeletonPose& pose) const;
     void MarkAnimated(const AnimationClip& clip);
     void Evaluate();
+    //forward kinematics over the flat pose, parents first
+    void EvaluateBoneMatrices();
     void Apply(const SkeletonPose& pose);
     TimeStep AdvanceTime(Action& action, float dt);
     void FireEvents(const Action& action, const TimeStep& step) const;
@@ -231,6 +246,10 @@ private:
     bool root_pose_valid_ = false;
     //a looping action jumped back to its start in this frame
     bool root_wrapped_ = false;
+
+    bool write_transforms_ = true;
+    //root relative matrices of the bones, filled while the transforms are not written
+    std::vector<Matrix4x4> bone_matrices_;
 
     SkeletonPose pose_;
     SkeletonPose scratch_;
