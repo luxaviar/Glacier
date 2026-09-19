@@ -10,8 +10,10 @@ local Model = require("Glacier.Model")
 local MaterialManager = require("Glacier.MaterialManager")
 local Primitive = require("Glacier.Primitive")
 
--- node transform animation demo: loads Assets/Model/anim/DemoAnim.gltf and plays
--- its first clip through the Animator component attached by Model
+-- animation demo:
+--   DemoAnim.gltf  - a clip plus an additive layer on one node skeleton
+--   DemoSkin.gltf  - crossfade from one clip into another, the ribbon bends
+--                    through poses neither clip reaches on its own
 local anim_scene = Scene("anim")
 
 anim_scene:OnLoad(function(renderer)
@@ -39,29 +41,37 @@ anim_scene:OnLoad(function(renderer)
     local cmd_queue = gfx:LGetCommandQueue(CommandBufferType.kDirect)
     local cmd_buffer = cmd_queue:GetCommandBuffer()
 
-    -- node transform animation
+    -- node transform animation: both clips are sampled every frame, the tilt is
+    -- layered on top of the spin as a delta from the rest pose
     local animated_go = Model.GenerateGameObject(cmd_buffer, "assets\\model\\anim\\DemoAnim.gltf", false, 1.0):gc_disable()
     animated_go:GetTransform().position = { -1.2, 0.0, 0.0 }
 
     local animator = animated_go:GetAnimator()
     if animator then
+        INFO("[Lua] '%s': %d clips, %d bones", animated_go.name, animator:clip_count(), animator:bone_count())
         animator:SetLoop(true)
         animator:SetSpeed(1.0)
         animator:PlayClip("DemoSpin")
-        INFO("[Lua] playing '%s' (%d clips, %.2fs), time %.2fs",
-            animator:clip_name(0), animator:clip_count(), animator:duration(), animator.time)
+        animator:SetWeight("DemoTilt", 1.0, true)
+
+        for i = 0, animator:active_clip_count() - 1 do
+            INFO("[Lua]   mixing '%s' at %.2f", animator:active_clip_name(i), animator:active_clip_weight(i))
+        end
     end
 
-    -- skinned mesh: the same clip system drives the joint transforms
+    -- skinned mesh: the same clip system drives the joint transforms, and the
+    -- crossfade blends the sampled poses instead of snapping between them
     local skinned_go = Model.GenerateGameObject(cmd_buffer, "assets\\model\\anim\\DemoSkin.gltf", false, 1.0):gc_disable()
     skinned_go:GetTransform().position = { 1.2, 0.0, 0.0 }
 
     local skinned_animator = skinned_go:GetAnimator()
     if skinned_animator then
+        INFO("[Lua] '%s': %d clips, %d bones", skinned_go.name, skinned_animator:clip_count(), skinned_animator:bone_count())
         skinned_animator:SetLoop(true)
         skinned_animator:PlayClip("SkinWave")
-        INFO("[Lua] playing '%s' (%d clips, %.2fs)",
-            skinned_animator:clip_name(0), skinned_animator:clip_count(), skinned_animator:duration())
+        skinned_animator:CrossFade("SkinCoil", 4.0)
+        INFO("[Lua] crossfading '%s' -> '%s' over 4.00s",
+            skinned_animator:active_clip_name(0), skinned_animator:active_clip_name(1))
     end
 
     local pbr_floor = MaterialManager.Instance():Get("pbr_floor");

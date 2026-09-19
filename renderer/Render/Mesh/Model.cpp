@@ -1,4 +1,7 @@
 #include "Model.h"
+#include <algorithm>
+#include <cstring>
+#include <unordered_map>
 #include "Render/Graph/PassNode.h"
 #include "Common/Util.h"
 #include <assimp/scene.h>           // Output data structure
@@ -47,6 +50,51 @@ void AddMeshComponent(GameObject& go, const std::shared_ptr<Mesh>& mesh, const s
     else {
         go.AddComponent<MeshRenderer>(mesh, material);
     }
+}
+
+//Builds the flat skeleton of the imported node tree: every node is stored with
+//the index of its parent, the rest pose comes from the node transform and the
+//inverse bind matrix from the skin of the meshes. Nodes that are not joints are
+//kept as well, so clips can address them by name like any other bone.
+void AddSkeletonNode(const aiNode& node, int32_t parent,
+    const std::unordered_map<std::string, Matrix4x4>& inverse_bind, Skeleton& skeleton) {
+    Matrix4x4 local;
+    std::memcpy(&local, &node.mTransformation, sizeof(local));
+
+    Vec3f position;
+    Quaternion rotation;
+    Vec3f scale;
+    local.Decompose(position, rotation, scale);
+
+    auto it = inverse_bind.find(node.mName.C_Str());
+    int32_t index = skeleton.AddBone(node.mName.C_Str(), parent, position, rotation, scale,
+        it != inverse_bind.end() ? it->second : Matrix4x4::identity);
+
+    for (size_t i = 0; i < node.mNumChildren; ++i) {
+        AddSkeletonNode(*node.mChildren[i], index, inverse_bind, skeleton);
+    }
+}
+
+std::shared_ptr<Skeleton> BuildSkeleton(const aiScene& scene) {
+    std::unordered_map<std::string, Matrix4x4> inverse_bind;
+    for (size_t i = 0; i < scene.mNumMeshes; ++i) {
+        const auto& mesh = *scene.mMeshes[i];
+        for (size_t b = 0; b < mesh.mNumBones; ++b) {
+            const auto& bone = *mesh.mBones[b];
+
+            Matrix4x4 offset;
+            std::memcpy(&offset, &bone.mOffsetMatrix, sizeof(offset));
+            inverse_bind.emplace(bone.mName.C_Str(), offset);
+        }
+    }
+
+    auto skeleton = std::make_shared<Skeleton>();
+    if (scene.mRootNode) {
+        AddSkeletonNode(*scene.mRootNode, kInvalidBoneIndex, inverse_bind, *skeleton);
+    }
+
+    skeleton->Build();
+    return skeleton;
 }
 
 //aiProcess_MakeLeftHanded converts node transforms and animation values together,
@@ -329,6 +377,14 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
         LOG_LOG("animation {0}: {1} tracks, {2}s",
             animations_.back()->name(), animations_.back()->track_count(), animations_.back()->duration());
     }
+
+    bool skinned = std::any_of(meshes_.begin(), meshes_.end(),
+        [](const std::shared_ptr<Mesh>& mesh) { return mesh && mesh->IsSkinned(); });
+
+    if (skinned || !animations_.empty()) {
+        skeleton_ = BuildSkeleton(*scene_);
+        LOG_LOG("skeleton: {} bones", skeleton_->bone_count());
+    }
 }
 
 const std::shared_ptr<Mesh>& Model::GetMesh(size_t idx) const {
@@ -353,6 +409,7 @@ GameObject& Model::CreateGameObject(float scale) {
     if (!animations_.empty()) {
         auto* animator = go.AddComponent<Animator>();
         animator->SetClips(animations_);
+        animator->SetSkeleton(skeleton_);
         animator->BindNodes(go.transform());
     }
 

@@ -5,6 +5,7 @@
 #include <assimp/Importer.hpp>      // C++ importer interface
 #include <assimp/material.h>
 #include "Animation/AnimationClip.h"
+#include "Animation/Skeleton.h"
 #include "MeshRenderer.h"
 
 
@@ -67,6 +68,8 @@ public:
     const std::shared_ptr<Material>& GetMaterial(size_t idx) const;
 
     const std::vector<std::shared_ptr<AnimationClip>>& animations() const { return animations_; }
+    //flat view of the imported node tree, with the skinning data of the meshes
+    const std::shared_ptr<Skeleton>& skeleton() const { return skeleton_; }
 
     bool GetTexture(aiMaterial* mat, aiTextureType type, unsigned int index, aiString& value, aiTextureMapMode* mode) const;
 
@@ -85,6 +88,7 @@ private:
     std::vector<std::shared_ptr<Mesh>> meshes_;
     std::vector<std::shared_ptr<Material>> materials_;
     std::vector<std::shared_ptr<AnimationClip>> animations_;
+    std::shared_ptr<Skeleton> skeleton_;
 };
 
 }
