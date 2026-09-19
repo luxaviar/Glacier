@@ -5,7 +5,9 @@
 #include "Core/Transform.h"
 #include "Core/GameObject.h"
 #include "Animation/NodeLookup.h"
+#include "Common/MoveWrapper.h"
 #include "Common/Log.h"
+#include "App.h"
 #include "Lux/Lux.h"
 
 namespace glacier {
@@ -29,6 +31,23 @@ LUX_FUNC(Animator, bone_count)
 LUX_FUNC(Animator, active_clip_count)
 LUX_FUNC(Animator, active_clip_name)
 LUX_FUNC(Animator, active_clip_weight)
+LUX_FUNC(Animator, AddEvent)
+LUX_FUNC_SPEC(Animator, SetEventCallback, SetEventCallback, void, const lux::function&)
+LUX_FUNC_SPEC(Animator, SetRootMotion, SetRootMotion, void, bool)
+LUX_FUNC_SPEC(Animator, SetRootMotion, SetRootMotionAtBone, void, bool, size_t)
+LUX_FUNC_SPEC(Animator, SetRootMotionBone, SetRootMotionBone, bool, const char*)
+LUX_FUNC_SPEC(Animator, SetRootMotionBone, SetRootMotionBoneIndex, void, size_t)
+LUX_PROP_FUNC_GET(Animator, root_motion, root_motion)
+LUX_PROP_FUNC_GET(Animator, root_motion_bone, root_motion_bone)
+LUX_PROP_FUNC_GET(Animator, root_motion_position, root_motion_position)
+LUX_PROP_FUNC_GET(Animator, root_motion_rotation, root_motion_rotation)
+LUX_FUNC(Animator, ClearBlendClips)
+LUX_FUNC(Animator, AddBlendClip)
+LUX_FUNC(Animator, SetBlendParameter)
+LUX_FUNC(Animator, blend_clip_count)
+LUX_FUNC(Animator, blend_clip_name)
+LUX_FUNC(Animator, blend_clip_threshold)
+LUX_PROP_FUNC_GET(Animator, blend_parameter, blend_parameter)
 LUX_FUNC(Animator, duration)
 LUX_FUNC(Animator, SetTime)
 LUX_FUNC(Animator, SetSpeed)
@@ -310,6 +329,170 @@ float Animator::active_clip_weight(size_t index) const {
     return index < actions_.size() ? actions_[index].weight : 0.0f;
 }
 
+bool Animator::AddEvent(const char* clip_name, float time, const char* event_name) {
+    auto clip = GetClip(clip_name);
+    if (!clip) {
+        LOG_WARN("Animator::AddEvent failed, unknown clip '{}'", clip_name ? clip_name : "<none>");
+        return false;
+    }
+
+    clip->AddEvent(time, event_name);
+    return true;
+}
+
+void Animator::SetEventCallback(EventCallback&& callback) {
+    event_callback_ = std::move(callback);
+}
+
+void Animator::SetEventCallback(const lux::function& fn) {
+    auto callback = move_wrapper(lux::refable(fn));
+    event_callback_ = [callback](const char* clip_name, const char* event_name) {
+        if (auto* app = App::Self()) {
+            app->VM().CallRef(*callback, clip_name, event_name);
+        }
+    };
+}
+
+void Animator::SetRootMotion(bool enabled, size_t bone) {
+    SetRootMotionBone(bone);
+
+    root_motion_ = enabled;
+
+    //the pose of the next frame becomes the reference, so switching cannot jump
+    root_pose_valid_ = false;
+    root_motion_position_ = Vec3f::zero;
+    root_motion_rotation_ = Quaternion::identity;
+
+    LOG_DEBUG("Animator '{0}': root motion {1}, bone {2}",
+        game_object() ? game_object()->name() : "<none>", enabled ? "on" : "off", root_motion_bone_);
+}
+
+void Animator::SetRootMotionBone(size_t bone) {
+    if (skeleton_ && bone >= skeleton_->bone_count()) {
+        LOG_WARN("Animator '{}': bone {} is not part of the skeleton, keeping bone {}",
+            game_object() ? game_object()->name() : "<none>", bone, root_motion_bone_);
+        return;
+    }
+
+    root_motion_bone_ = bone;
+
+    //the reference frame belongs to the bone that was used before
+    root_pose_valid_ = false;
+}
+
+bool Animator::SetRootMotionBone(const char* name) {
+    if (!skeleton_ || !name) {
+        LOG_WARN("Animator::SetRootMotionBone failed, no skeleton to look '{}' up in", name ? name : "<none>");
+        return false;
+    }
+
+    int32_t index = skeleton_->IndexOf(name);
+    if (index == kInvalidBoneIndex) {
+        LOG_WARN("Animator '{}': the skeleton has no bone '{}'", game_object() ? game_object()->name() : "<none>", name);
+        return false;
+    }
+
+    SetRootMotionBone((size_t)index);
+    return true;
+}
+
+void Animator::ClearBlendClips() {
+    blend_clips_.clear();
+}
+
+bool Animator::AddBlendClip(const char* clip_name, float threshold) {
+    auto clip = GetClip(clip_name);
+    if (!clip) {
+        LOG_WARN("Animator::AddBlendClip failed, unknown clip '{}'", clip_name ? clip_name : "<none>");
+        return false;
+    }
+
+    //adding the same clip again moves it to the new threshold
+    for (auto& entry : blend_clips_) {
+        if (entry.clip == clip) {
+            entry.threshold = threshold;
+
+            std::sort(blend_clips_.begin(), blend_clips_.end(),
+                [](const BlendClip& a, const BlendClip& b) { return a.threshold < b.threshold; });
+            return true;
+        }
+    }
+
+    blend_clips_.push_back(BlendClip{ clip, threshold });
+    std::sort(blend_clips_.begin(), blend_clips_.end(),
+        [](const BlendClip& a, const BlendClip& b) { return a.threshold < b.threshold; });
+
+    return true;
+}
+
+const char* Animator::blend_clip_name(size_t index) const {
+    if (index >= blend_clips_.size() || !blend_clips_[index].clip) {
+        return "";
+    }
+
+    return blend_clips_[index].clip->name().c_str();
+}
+
+float Animator::blend_clip_threshold(size_t index) const {
+    return index < blend_clips_.size() ? blend_clips_[index].threshold : 0.0f;
+}
+
+void Animator::BlendNeighbours(size_t& first, float& first_weight) const {
+    first = 0;
+    first_weight = 1.0f;
+
+    if (blend_clips_.size() < 2 || blend_parameter_ <= blend_clips_.front().threshold) {
+        return;
+    }
+
+    if (blend_parameter_ >= blend_clips_.back().threshold) {
+        first = blend_clips_.size() - 1;
+        return;
+    }
+
+    for (size_t i = 0; i + 1 < blend_clips_.size(); ++i) {
+        float low = blend_clips_[i].threshold;
+        float high = blend_clips_[i + 1].threshold;
+        if (blend_parameter_ <= high) {
+            float span = high - low;
+            first_weight = span > math::kEpsilon ? (high - blend_parameter_) / span : 1.0f;
+            first = i;
+            return;
+        }
+    }
+
+    first = blend_clips_.size() - 1;
+}
+
+void Animator::SetBlendParameter(float value) {
+    blend_parameter_ = value;
+
+    if (blend_clips_.empty()) {
+        return;
+    }
+
+    size_t first = 0;
+    float first_weight = 1.0f;
+    BlendNeighbours(first, first_weight);
+
+    for (size_t i = 0; i < blend_clips_.size(); ++i) {
+        float weight = 0.0f;
+        if (i == first) {
+            weight = first_weight;
+        }
+        else if (i == first + 1) {
+            weight = 1.0f - first_weight;
+        }
+
+        auto& clip = blend_clips_[i].clip;
+        if (!clip) {
+            continue;
+        }
+
+        SetWeight(IndexOfClip(clip.get()), weight);
+    }
+}
+
 bool Animator::Play(size_t index) {
     return Play(index, loop_);
 }
@@ -336,6 +519,7 @@ bool Animator::Play(size_t index, bool loop) {
     current_ = clip;
     loop_ = loop;
     playing_ = true;
+    root_pose_valid_ = false;
 
     Evaluate();
     return true;
@@ -494,6 +678,7 @@ float Animator::GetWeight(const char* name) const {
 void Animator::Stop() {
     playing_ = false;
     actions_.clear();
+    root_pose_valid_ = false;
 
     RestoreBindPose();
 }
@@ -561,8 +746,17 @@ void Animator::LateUpdate(float dt) {
         return;
     }
 
+    root_wrapped_ = false;
+
     for (auto& action : actions_) {
-        AdvanceTime(action, dt);
+        TimeStep step = AdvanceTime(action, dt);
+        if (step.moved) {
+            FireEvents(action, step);
+        }
+
+        if (step.wrapped && action.weight > 0.0f && action.clip && RootMotionAnimatedBy(*action.clip)) {
+            root_wrapped_ = true;
+        }
 
         if (action.fade_duration > 0.0f) {
             action.fade_elapsed = std::min(action.fade_elapsed + dt, action.fade_duration);
@@ -603,16 +797,23 @@ void Animator::LateUpdate(float dt) {
     }
 }
 
-void Animator::AdvanceTime(Action& action, float dt) {
+Animator::TimeStep Animator::AdvanceTime(Action& action, float dt) {
+    TimeStep step;
+    step.first = action.first_step;
+    action.first_step = false;
+
     if (!action.playing || !action.clip) {
-        return;
+        return step;
     }
 
     float clip_duration = action.clip->duration();
     if (clip_duration <= 0.0f) {
         action.time = 0.0f;
-        return;
+        return step;
     }
+
+    step.from = action.time;
+    step.moved = dt * action.speed != 0.0f;
 
     action.time += dt * action.speed;
 
@@ -621,6 +822,9 @@ void Animator::AdvanceTime(Action& action, float dt) {
         if (action.time < 0.0f) {
             action.time += clip_duration;
         }
+
+        //the clip went back to its start (or to its end, playing backwards)
+        step.wrapped = action.speed >= 0.0f ? action.time < step.from : action.time > step.from;
     }
     else {
         action.time = std::clamp(action.time, 0.0f, clip_duration);
@@ -628,6 +832,50 @@ void Animator::AdvanceTime(Action& action, float dt) {
             action.playing = false;
         }
     }
+
+    step.to = action.time;
+    return step;
+}
+
+void Animator::FireEvents(const Action& action, const TimeStep& step) const {
+    if (!event_callback_ || !action.clip || action.clip->events().empty() || action.weight <= 0.0f) {
+        return;
+    }
+
+    const bool forward = action.speed >= 0.0f;
+
+    for (const auto& event : action.clip->events()) {
+        bool hit = false;
+
+        if (forward) {
+            //the crossed span is (from, to], and from the start of the clip the
+            //events sitting exactly on it count as well
+            hit = step.wrapped
+                ? (event.time > step.from || event.time <= step.to)
+                : (event.time > step.from || (step.first && event.time == step.from)) && event.time <= step.to;
+        }
+        else {
+            hit = step.wrapped
+                ? (event.time < step.from || event.time >= step.to)
+                : (event.time < step.from || (step.first && event.time == step.from)) && event.time >= step.to;
+        }
+
+        if (hit) {
+            LOG_DEBUG("Animator '{0}': event '{1}' of clip '{2}' at {3:.2f}s",
+                game_object() ? game_object()->name() : "<none>", event.name, action.clip->name(), event.time);
+
+            event_callback_(action.clip->name().c_str(), event.name.c_str());
+        }
+    }
+}
+
+bool Animator::RootMotionAnimatedBy(const AnimationClip& clip) const {
+    if (!root_motion_ || !skeleton_ || root_motion_bone_ >= skeleton_->bone_count()) {
+        return false;
+    }
+
+    const auto* track = clip.FindTrack(skeleton_->bone(root_motion_bone_).name.c_str());
+    return track != nullptr && (!track->positions().empty() || !track->rotations().empty());
 }
 
 int32_t Animator::BoneIndexOf(const AnimationClip& clip, const NodeTrack& track) const {
@@ -681,6 +929,10 @@ void Animator::Evaluate() {
         return;
     }
 
+    //the motion of this pose is what the game consumes for the frame
+    root_motion_position_ = Vec3f::zero;
+    root_motion_rotation_ = Quaternion::identity;
+
     pose_.Clear();
     std::fill(animated_position_.begin(), animated_position_.end(), false);
     std::fill(animated_rotation_.begin(), animated_rotation_.end(), false);
@@ -722,9 +974,34 @@ void Animator::Evaluate() {
 void Animator::Apply(const SkeletonPose& pose) {
     size_t count = std::min(bone_transforms_.size(), pose.bone_count());
 
+    //the root of the rig reports the motion it sampled instead of moving the node
+    //it drives, so the game decides where the entity goes
+    if (root_motion_ && root_motion_bone_ < pose.bone_count()) {
+        if (root_pose_valid_ && !root_wrapped_) {
+            root_motion_position_ = pose.positions[root_motion_bone_] - root_position_;
+            root_motion_rotation_ = pose.rotations[root_motion_bone_] * root_rotation_.Inverted();
+        }
+
+        //a looping clip jumped back to its start, and that jump is not motion the
+        //game should apply; the reference follows the jump instead
+        root_position_ = pose.positions[root_motion_bone_];
+        root_rotation_ = pose.rotations[root_motion_bone_];
+        root_pose_valid_ = true;
+    }
+
+    root_wrapped_ = false;
+
     for (size_t i = 0; i < count; ++i) {
         auto* transform = bone_transforms_[i];
         if (!transform) {
+            continue;
+        }
+
+        if (root_motion_ && i == root_motion_bone_) {
+            //the game owns the root transform, so the clip does not write it
+            written_position_[i] = false;
+            written_rotation_[i] = false;
+            written_scale_[i] = false;
             continue;
         }
 
@@ -826,6 +1103,47 @@ void Animator::DrawInspector() {
 
     ImGui::Checkbox("loop", &loop_);
     ImGui::InputFloat("speed", &speed_);
+
+    bool root_motion = root_motion_;
+    if (ImGui::Checkbox("root motion", &root_motion)) {
+        SetRootMotion(root_motion);
+    }
+
+    if (root_motion_) {
+        int bone = (int)root_motion_bone_;
+        if (ImGui::InputInt("root bone", &bone) && bone >= 0) {
+            SetRootMotionBone((size_t)bone);
+        }
+
+        ImGui::Text("moved (%.3f %.3f %.3f)", root_motion_position_.x, root_motion_position_.y, root_motion_position_.z);
+    }
+
+    if (selected_clip_ < clips_.size() && clips_[selected_clip_]) {
+        const auto& events = clips_[selected_clip_]->events();
+        ImGui::Text("events: %d", (int)events.size());
+
+        for (const auto& event : events) {
+            ImGui::Bullet();
+            ImGui::Text("%.2fs %s", event.time, event.name.c_str());
+        }
+    }
+
+    if (!blend_clips_.empty()) {
+        ImGui::Text("blend 1D");
+
+        float low = blend_clips_.front().threshold;
+        float high = blend_clips_.back().threshold;
+        float parameter = blend_parameter_;
+        if (ImGui::SliderFloat("##blend", &parameter, low, high)) {
+            SetBlendParameter(parameter);
+        }
+
+        for (const auto& entry : blend_clips_) {
+            ImGui::Bullet();
+            ImGui::Text("%.2f  %s  (%.2f)", entry.threshold,
+                entry.clip ? entry.clip->name().c_str() : "<none>", GetWeight(entry.clip ? entry.clip->name().c_str() : ""));
+        }
+    }
 
     if (actions_.size() > 1) {
         ImGui::Text("blend");

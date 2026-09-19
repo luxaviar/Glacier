@@ -38,6 +38,25 @@ bool ReadString(ByteStream& stream, std::string& value) {
     return stream.Read(value) > 0;
 }
 
+bool ReadEvents(ByteStream& stream, std::vector<AnimationClip::Event>& events) {
+    uint32_t count = 0;
+    if (!ReadCount(stream, count) || count > stream.ReadableBytes() / (sizeof(float) + 1)) {
+        return false;
+    }
+
+    events.reserve(count);
+    for (uint32_t i = 0; i < count; ++i) {
+        AnimationClip::Event event;
+        if (!ReadValue(stream, event.time) || !ReadString(stream, event.name)) {
+            return false;
+        }
+
+        events.push_back(std::move(event));
+    }
+
+    return true;
+}
+
 bool ReadVec3Keys(ByteStream& stream, std::vector<Vec3Keyframe>& keys) {
     uint32_t count = 0;
     if (!ReadCount(stream, count) || count > stream.ReadableBytes() / kVec3KeySize) {
@@ -85,6 +104,14 @@ void WriteVec3Keys(ByteStream& stream, const std::vector<Vec3Keyframe>& keys) {
 
     for (const auto& key : keys) {
         stream << key.time << key.value << (uint8_t)key.interpolation;
+    }
+}
+
+void WriteEvents(ByteStream& stream, const std::vector<AnimationClip::Event>& events) {
+    stream.WriteVint((uint32_t)events.size());
+
+    for (const auto& event : events) {
+        stream << event.time << event.name;
     }
 }
 
@@ -147,13 +174,22 @@ bool AnimationClipCache::Load(const std::filesystem::path& source,
 
     for (uint32_t c = 0; c < clip_count; ++c) {
         std::string clip_name;
-        uint32_t track_count = 0;
-        if (!ReadString(stream, clip_name) || !ReadCount(stream, track_count)) {
+        std::vector<AnimationClip::Event> events;
+        if (!ReadString(stream, clip_name) || !ReadEvents(stream, events)) {
             clips.clear();
             return false;
         }
 
         auto clip = std::make_shared<AnimationClip>(clip_name.c_str());
+        for (const auto& event : events) {
+            clip->AddEvent(event.time, event.name.c_str());
+        }
+
+        uint32_t track_count = 0;
+        if (!ReadCount(stream, track_count)) {
+            clips.clear();
+            return false;
+        }
 
         for (uint32_t t = 0; t < track_count; ++t) {
             std::string node_name;
@@ -198,6 +234,7 @@ void AnimationClipCache::Save(const std::filesystem::path& source,
         }
 
         stream << clip->name();
+        WriteEvents(stream, clip->events());
         stream.WriteVint((uint32_t)clip->track_count());
 
         for (const auto& track : clip->tracks()) {

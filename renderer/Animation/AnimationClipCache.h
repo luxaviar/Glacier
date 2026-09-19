@@ -21,9 +21,9 @@ class Skeleton;
 //behaves exactly like an imported one.
 //
 //The file is a plain ByteStream (little endian, the floats are written as they
-//are in memory): header, then a clip count and the clips, each with a track
-//count, the track's node name and the keys of its three channels. Counts and
-//string lengths are variable length integers.
+//are in memory): header, then a clip count and the clips, each with its events,
+//a track count, the track's node name and the keys of its three channels. Counts
+//and string lengths are variable length integers.
 class AnimationClipCache {
 public:
     //"<source>.gclip"
@@ -40,9 +40,8 @@ public:
 
 private:
     static constexpr uint32_t kMagic = 0x43414C47; //"GLAC"
-    //2: counts and string lengths are varints, and the keys are written through
-    //ByteStream instead of by hand
-    static constexpr uint32_t kVersion = 2;
+    //3: the clips carry their animation events
+    static constexpr uint32_t kVersion = 3;
 };
 
 }

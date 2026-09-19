@@ -10,6 +10,7 @@
 #include "Animation/NodeLookup.h"
 #include "Animation/Skeleton.h"
 #include "Animation/SkeletonPose.h"
+#include "Lux/Wrapper.h"
 
 namespace glacier {
 
@@ -21,6 +22,9 @@ class Transform;
 //skeleton; sampling runs in LateUpdate so gameplay code can drive it first.
 class Animator : public Behaviour {
 public:
+    //called while playing, once per event a clip crossed since the last frame
+    using EventCallback = std::function<void(const char* clip_name, const char* event_name)>;
+
     Animator() = default;
     explicit Animator(std::vector<std::shared_ptr<AnimationClip>> clips);
     ~Animator() override = default;
@@ -69,6 +73,38 @@ public:
     const char* active_clip_name(size_t index) const;
     float active_clip_weight(size_t index) const;
 
+    //Adds a named moment to a clip, so the game can be told when the animation
+    //passes it, e.g. to play a footstep sound.
+    bool AddEvent(const char* clip_name, float time, const char* event_name);
+    void SetEventCallback(EventCallback&& callback);
+    void SetEventCallback(const lux::function& fn);
+
+    //Root motion: the root bone no longer moves the node it drives, the motion it
+    //sampled for the current frame is handed to the game instead, e.g. so a
+    //character controller can move the entity itself. The root is bone 0, the
+    //node the model is built from, unless another bone is chosen.
+    void SetRootMotion(bool enabled) { SetRootMotion(enabled, root_motion_bone_); }
+    void SetRootMotion(bool enabled, size_t bone);
+    //a rig usually keeps its motion on a joint below the model root, e.g.
+    //"Root/Armature/Hips", so the bone that carries it can be chosen
+    void SetRootMotionBone(size_t bone);
+    bool SetRootMotionBone(const char* name);
+    bool root_motion() const { return root_motion_; }
+    size_t root_motion_bone() const { return root_motion_bone_; }
+    const Vec3f& root_motion_position() const { return root_motion_position_; }
+    const Quaternion& root_motion_rotation() const { return root_motion_rotation_; }
+
+    //A 1D blend tree: clips placed at thresholds, SetBlendParameter picks a
+    //position between them and blends the two neighbours. It replaces the clips
+    //that are playing, so use it instead of Play/CrossFade while it drives.
+    void ClearBlendClips();
+    bool AddBlendClip(const char* clip_name, float threshold);
+    size_t blend_clip_count() const { return blend_clips_.size(); }
+    const char* blend_clip_name(size_t index) const;
+    float blend_clip_threshold(size_t index) const;
+    float blend_parameter() const { return blend_parameter_; }
+    void SetBlendParameter(float value);
+
     //Stops playback and restores the bind pose.
     void Stop();
     void Pause();
@@ -109,6 +145,23 @@ private:
         float fade_to = 1.0f;
         float fade_elapsed = 0.0f;
         float fade_duration = 0.0f;
+        //events sitting exactly at the time a clip starts still fire, once
+        bool first_step = true;
+    };
+
+    //one clip of the 1D blend tree
+    struct BlendClip {
+        std::shared_ptr<AnimationClip> clip;
+        float threshold = 0.0f;
+    };
+
+    //what one playback step did with the time of an action
+    struct TimeStep {
+        float from = 0.0f;
+        float to = 0.0f;
+        bool moved = false;
+        bool wrapped = false;
+        bool first = false;
     };
 
     struct BindPose {
@@ -133,7 +186,12 @@ private:
     void MarkAnimated(const AnimationClip& clip);
     void Evaluate();
     void Apply(const SkeletonPose& pose);
-    void AdvanceTime(Action& action, float dt);
+    TimeStep AdvanceTime(Action& action, float dt);
+    void FireEvents(const Action& action, const TimeStep& step) const;
+    //does the clip drive the bone root motion is taken from
+    bool RootMotionAnimatedBy(const AnimationClip& clip) const;
+    //the two clips the blend parameter sits between, and the weight of the first
+    void BlendNeighbours(size_t& first, float& first_weight) const;
     void RestoreBindPose() const;
 
     std::vector<std::shared_ptr<AnimationClip>> clips_;
@@ -159,6 +217,21 @@ private:
     std::vector<bool> written_scale_;
 
     std::vector<Action> actions_;
+    EventCallback event_callback_;
+
+    std::vector<BlendClip> blend_clips_;
+    float blend_parameter_ = 0.0f;
+
+    bool root_motion_ = false;
+    size_t root_motion_bone_ = 0;
+    Vec3f root_motion_position_;
+    Quaternion root_motion_rotation_;
+    Vec3f root_position_;
+    Quaternion root_rotation_;
+    bool root_pose_valid_ = false;
+    //a looping action jumped back to its start in this frame
+    bool root_wrapped_ = false;
+
     SkeletonPose pose_;
     SkeletonPose scratch_;
     SkeletonPose rest_;

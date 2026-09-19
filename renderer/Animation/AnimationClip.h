@@ -2,6 +2,7 @@
 
 #include <deque>
 #include <string>
+#include <vector>
 #include "Animation/NodeTrack.h"
 
 namespace glacier {
@@ -11,6 +12,13 @@ class Skeleton;
 //a named set of node tracks; clips are immutable once imported and can be shared
 class AnimationClip {
 public:
+    //a named moment of the clip; the animator reports every event it crosses
+    //while the clip is playing, see Animator::SetEventCallback
+    struct Event {
+        float time = 0.0f; //seconds
+        std::string name;
+    };
+
     explicit AnimationClip(const char* name = "Animation");
 
     const std::string& name() const { return name_; }
@@ -29,6 +37,11 @@ public:
     NodeTrack& AddTrack(const char* node_name);
     const NodeTrack* FindTrack(const char* node_name) const;
 
+    //events are kept sorted by time; the same event is only added once, so a
+    //script can add them to a shared clip every time a scene loads
+    void AddEvent(float time, const char* name);
+    const std::vector<Event>& events() const { return events_; }
+
     //Resolves the node of every track to a bone of `skeleton`, so sampling does
     //not have to look the names up again. The signature it stores says which
     //skeleton the tracks were bound to; another skeleton (a retarget) has to fall
@@ -39,6 +52,7 @@ public:
 private:
     std::string name_;
     std::deque<NodeTrack> tracks_;
+    std::vector<Event> events_;
     uint64_t skeleton_signature_ = 0;
 };
 

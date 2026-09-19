@@ -32,6 +32,22 @@ NodeTrack& AnimationClip::AddTrack(const char* node_name) {
     return tracks_.back();
 }
 
+void AnimationClip::AddEvent(float time, const char* name) {
+    Event event;
+    event.time = std::max(time, 0.0f);
+    event.name = name ? name : "";
+
+    for (const auto& existing : events_) {
+        if (existing.time == event.time && existing.name == event.name) {
+            return;
+        }
+    }
+
+    auto it = std::upper_bound(events_.begin(), events_.end(), event.time,
+        [](float time, const Event& other) { return time < other.time; });
+    events_.insert(it, std::move(event));
+}
+
 const NodeTrack* AnimationClip::FindTrack(const char* node_name) const {
     if (!node_name) return nullptr;
 
