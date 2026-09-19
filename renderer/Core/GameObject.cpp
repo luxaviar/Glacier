@@ -5,6 +5,7 @@
 #include "Transform.h"
 #include "Animation/Animator.h"
 #include "Render/Mesh/MeshRenderer.h"
+#include "Render/Mesh/SkinnedMeshRenderer.h"
 #include "Lux/Lux.h"
 
 namespace glacier {
@@ -13,6 +14,7 @@ LUX_IMPL(GameObject, GameObject)
 //LUX_CTOR(GameObject, const char*, GameObject*)
 LUX_FUNC_SPEC(GameObject, transform, GetTransform, Transform&)
 LUX_FUNC_SPEC(GameObject, GetComponent<Animator>, GetAnimator, Animator*)
+LUX_FUNC_SPEC(GameObject, GetComponentInChildren<render::SkinnedMeshRenderer>, GetSkinnedMeshRenderer, render::SkinnedMeshRenderer*)
 LUX_FUNC(GameObject, AddComponentPtr)
 LUX_FUNC(GameObject, Create)
 LUX_PROP_FUNC(GameObject, name)

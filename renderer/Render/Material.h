@@ -57,10 +57,11 @@ public:
 
     void DrawInspector();
 
-    //Returns a cached copy of this material whose shaders are compiled with
-    //GLACIER_SKINNING defined and that uses the given input layout.
+    //Returns a cached copy of this material whose shaders are compiled with the
+    //given macros defined (skinning, instancing, ...) and that uses the given
+    //input layout.
     //Returns null when this material has no shaders to permute.
-    std::shared_ptr<Material> GetSkinnedVariant(const InputLayoutDesc& layout) const;
+    std::shared_ptr<Material> GetVariant(const std::vector<const char*>& macros, const InputLayoutDesc& layout) const;
 
 protected:
     void SetupBuiltinProperty();
@@ -74,7 +75,9 @@ protected:
     std::shared_ptr<Program> program_;
     std::unordered_map<std::string, MaterialProperty> properties_;
 
-    mutable std::shared_ptr<Material> skinned_variant_;
+    //one variant per (macro, input layout); the layout signature identifies the
+    //vertex format the variant was compiled for, see VertexLayout.h
+    mutable std::unordered_map<std::string, std::shared_ptr<Material>> variants_;
 };
 
 class PostProcessMaterial : public Material {

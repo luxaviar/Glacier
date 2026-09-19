@@ -234,6 +234,10 @@ void Renderer::PreRender(CommandBuffer* cmd_buffer) {
     BindLightingTarget(cmd_buffer);
     BindMainCamera(cmd_buffer);
     FilterVisibles();
+
+    //the passes draw the deformed vertices, so the skinning of the frame has to
+    //be dispatched before the render graph runs
+    RenderableManager::Instance()->UpdateSkinning(cmd_buffer);
 }
 
 void Renderer::Render(float delta_time) {
@@ -318,10 +322,6 @@ void Renderer::SetupBuiltinProperty(Material* mat) {
 
     if (mat->HasParameter("_PerObjectData")) {
         mat->SetProperty("_PerObjectData", Renderable::GetPerObjectData());
-    }
-
-    if (mat->HasParameter("_BoneData")) {
-        mat->SetProperty("_BoneData", Renderable::GetBoneData());
     }
 
     gtao_.SetupBuiltinProperty(mat);

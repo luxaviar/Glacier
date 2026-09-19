@@ -25,6 +25,13 @@ cbuffer _PerObjectData
     matrix _ModelViewProjection;
     matrix _PrevModel;
     float4 _TextureTileScale;
+    //where the bones of this object are in the shared bone matrix pool
+    //(Render/Skinning/BoneMatrixPool.h); kInvalidBoneOffset when it is not skinned
+    uint _BoneOffset;
+    uint _PrevBoneOffset;
+    //first record of this draw in the instance buffer of a batched draw
+    uint _InstanceOffset;
+    uint _SkinPadding;
 };
 
 #endif

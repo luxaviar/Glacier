@@ -1,6 +1,7 @@
 #include "renderable.h"
 #include "exception/exception.h"
 #include "Render/Graph/PassNode.h"
+#include "Render/Skinning/InstanceBuffer.h"
 #include "Common/Util.h"
 #include <imgui.h>
 #include "Buffer.h"
@@ -10,13 +11,12 @@ namespace glacier {
 namespace render {
 
 std::shared_ptr<Buffer> Renderable::per_object_data_;
-std::shared_ptr<Buffer> Renderable::bone_data_;
 
 int32_t Renderable::id_counter_ = 0;
 
 void Renderable::Setup() {
     per_object_data_ = GfxDriver::Get()->CreateConstantBuffer<PerObjectData>();
-    bone_data_ = GfxDriver::Get()->CreateConstantBuffer<BoneMatrices>();
+    BoneMatrixPool::Instance()->Setup();
 }
 
 Renderable::Renderable() :
@@ -46,6 +46,10 @@ void Renderable::CaptureFrameModel() const {
 }
 
 void Renderable::UpdatePerObjectData(CommandBuffer* cmd_buffer) const {
+    UpdateBatchData(cmd_buffer, 0);
+}
+
+void Renderable::UpdateBatchData(CommandBuffer* cmd_buffer, uint32_t instance_offset) const {
     //a renderable created after the per frame pass has no snapshot yet
     if (!frame_model_valid_) {
         CaptureFrameModel();
@@ -60,7 +64,11 @@ void Renderable::UpdatePerObjectData(CommandBuffer* cmd_buffer) const {
         mv,
         mvp,
         prev_model_,
-        material_ ? material_->GetTexTilingOffset() : Vec4f{1.0f, 1.0f, 0.0f, 0.0f}
+        material_ ? material_->GetTexTilingOffset() : Vec4f{1.0f, 1.0f, 0.0f, 0.0f},
+        bone_offset(),
+        prev_bone_offset(),
+        instance_offset,
+        0
     };
 
     per_object_data_->Update(&data);
@@ -107,10 +115,6 @@ void Renderable::SetPickable(bool on) {
 
 std::shared_ptr<Buffer>& Renderable::GetPerObjectData() {
     return per_object_data_;
-}
-
-const std::shared_ptr<Buffer>& Renderable::GetBoneData() {
-    return bone_data_;
 }
 
 void Renderable::DrawInspectorBasic() {
@@ -168,8 +172,19 @@ void RenderableManager::UpdateBvhNode(Renderable* o) {
 }
 
 void RenderableManager::UpdateRenderData() {
+    //the bones of this frame go into the region that was last presented, so
+    //switch before anything uploads or draws
+    BoneMatrixPool::Instance()->BeginFrame();
+    InstanceBuffer::Instance()->BeginFrame();
+
     for (auto it = objects_.begin(); it != objects_.end(); ++it) {
         it->data->UpdateRenderData();
+    }
+}
+
+void RenderableManager::UpdateSkinning(CommandBuffer* cmd_buffer) {
+    for (auto it = objects_.begin(); it != objects_.end(); ++it) {
+        it->data->DispatchSkinning(cmd_buffer);
     }
 }
 

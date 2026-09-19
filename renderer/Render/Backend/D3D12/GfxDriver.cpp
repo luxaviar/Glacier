@@ -11,6 +11,7 @@
 #include "Render/LightManager.h"
 #include "Render/Editor/Gizmos.h"
 #include "Render/Mesh/Model.h"
+#include "Render/Skinning/BoneMatrixPool.h"
 #include "Sampler.h"
 #include "CommandBuffer.h"
 #include "MipsGenerator.h"
@@ -226,6 +227,7 @@ void D3D12GfxDriver::OnDestroy() {
     render::MaterialManager::Instance()->Clear();
     render::LightManager::Instance()->Clear();
     render::Gizmos::Instance()->OnDestroy();
+    render::BoneMatrixPool::Instance()->Release();
     D3D12Sampler::Clear();
     D3D12CommandBuffer::ClearTextureCache();
 }
@@ -403,8 +405,8 @@ std::shared_ptr<Buffer> D3D12GfxDriver::CreateIndexBuffer(size_t size, IndexForm
     return std::make_shared<D3D12IndexBuffer>(size, type);
 }
 
-std::shared_ptr<Buffer> D3D12GfxDriver::CreateVertexBuffer(size_t size, size_t stride) {
-    return std::make_shared<D3D12VertexBuffer>(size, stride);
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateVertexBuffer(size_t size, size_t stride, CreateFlags flags) {
+    return std::make_shared<D3D12VertexBuffer>(size, stride, flags);
 }
 
 std::shared_ptr<Buffer> D3D12GfxDriver::CreateConstantBuffer(const void* data, size_t size, UsageType usage) {
@@ -418,6 +420,10 @@ std::shared_ptr<Buffer> D3D12GfxDriver::CreateStructuredBuffer(size_t element_si
     else {
         return std::make_shared<D3D12StructuredBuffer>(element_size, element_count);
     }
+}
+
+std::shared_ptr<Buffer> D3D12GfxDriver::CreateDynamicStructuredBuffer(size_t element_size, size_t element_count) {
+    return std::make_shared<D3D12DynamicStructuredBuffer>(element_size, element_count);
 }
 
 std::shared_ptr<Buffer> D3D12GfxDriver::CreateByteAddressBuffer(size_t size, bool uav) {

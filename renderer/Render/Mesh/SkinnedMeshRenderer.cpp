@@ -9,15 +9,94 @@
 #include "Render/Material.h"
 #include "Render/Base/CommandBuffer.h"
 #include "Render/Base/Buffer.h"
+#include "Render/Base/Program.h"
+#include "Render/Skinning/GpuSkinning.h"
+#include "Render/Skinning/InstanceBuffer.h"
 #include "Common/Log.h"
 #include "Inspect/Profiler.h"
+#include "Lux/Lux.h"
 
 namespace glacier {
 namespace render {
 
+LUX_IMPL(SkinnedMeshRenderer, SkinnedMeshRenderer)
+LUX_FUNC(SkinnedMeshRenderer, SetGpuSkinning)
+LUX_FUNC(SkinnedMeshRenderer, SetInstancing)
+LUX_PROP_FUNC_GET(SkinnedMeshRenderer, gpu_skinning, gpu_skinning)
+LUX_PROP_FUNC_GET(SkinnedMeshRenderer, instancing, instancing)
+LUX_IMPL_END
+
 SkinnedMeshRenderer::SkinnedMeshRenderer(const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material) :
     MeshRenderer(mesh, material)
 {
+}
+
+SkinnedMeshRenderer::~SkinnedMeshRenderer() {
+    ReleaseBoneSlot();
+    ReleaseSkinnedVertices();
+}
+
+void SkinnedMeshRenderer::SetGpuSkinning(bool on) {
+    if (gpu_skinning_ == on) {
+        return;
+    }
+
+    gpu_skinning_ = on;
+    ReleaseSkinnedVertices();
+    //the next update asks the pool for a region again when it is switched on
+    resolved_ = false;
+}
+
+void SkinnedMeshRenderer::SetInstancing(bool on) {
+    instancing_ = on;
+    if (on) {
+        //a batch draws the bind pose of the mesh and lets the vertex shader of
+        //every pass skin its instances with their own bones, which is the
+        //opposite of what the compute pass does
+        SetGpuSkinning(false);
+    }
+}
+
+bool SkinnedMeshRenderer::skinned_vertex_buffer() const {
+    return gpu_skinning_ && skinned_vertex_offset_ != GpuSkinning::kInvalidOffset;
+}
+
+void SkinnedMeshRenderer::ReleaseSkinnedVertices() const {
+    if (skinned_vertex_offset_ == GpuSkinning::kInvalidOffset) {
+        return;
+    }
+
+    GpuSkinning::Instance()->Free(skinned_vertex_offset_);
+    skinned_vertex_offset_ = GpuSkinning::kInvalidOffset;
+}
+
+uint32_t SkinnedMeshRenderer::bone_offset() const {
+    auto pool = BoneMatrixPool::Instance();
+    if (bone_slot_ == kInvalidBoneOffset) {
+        //no room in the pool: draw the mesh in its bind pose
+        return pool->IdentityBoneOffset();
+    }
+
+    return pool->FrameOffset(bone_slot_);
+}
+
+uint32_t SkinnedMeshRenderer::prev_bone_offset() const {
+    auto pool = BoneMatrixPool::Instance();
+    if (bone_slot_ == kInvalidBoneOffset) {
+        return pool->IdentityBoneOffset();
+    }
+
+    return pool->PrevFrameOffset(bone_slot_, bone_slot_bones_);
+}
+
+void SkinnedMeshRenderer::ReleaseBoneSlot() const {
+    if (bone_slot_ == kInvalidBoneOffset) {
+        return;
+    }
+
+    BoneMatrixPool::Instance()->Free(bone_slot_, bone_slot_bones_);
+    bone_slot_ = kInvalidBoneOffset;
+    bone_slot_bones_ = 0;
 }
 
 std::shared_ptr<Mesh> SkinnedMeshRenderer::skinned_mesh() const {
@@ -55,8 +134,29 @@ void SkinnedMeshRenderer::ResolveBones() const {
 
     const auto& bones = mesh->bones();
     bone_transforms_.assign(bones.size(), nullptr);
-    prev_bone_world_.assign(bones.size(), Matrix4x4::identity);
     has_prev_ = false;
+
+    //the pool is handed the bone count of this mesh, not the worst case, and
+    //the slot is kept for as long as the mesh is skinned
+    size_t count = std::min(bones.size(), (size_t)kMaxBones);
+    if (bone_slot_ == kInvalidBoneOffset || bone_slot_bones_ != count) {
+        auto pool = BoneMatrixPool::Instance();
+        pool->Free(bone_slot_, bone_slot_bones_);
+
+        bone_slot_ = pool->Allocate((uint32_t)count);
+        bone_slot_bones_ = bone_slot_ == kInvalidBoneOffset ? 0 : (uint32_t)count;
+    }
+
+    bone_matrices_.assign(count, Matrix4x4::identity);
+    prev_bone_matrices_.assign(count, Matrix4x4::identity);
+    prev_bone_world_.assign(count, Matrix4x4::identity);
+
+    //the compute skinning pass writes the deformed vertices into a region of a
+    //shared pool; a mesh the pool has no room for is skinned by the vertex
+    //shader of every pass instead
+    if (gpu_skinning_ && skinned_vertex_offset_ == GpuSkinning::kInvalidOffset) {
+        skinned_vertex_offset_ = GpuSkinning::Instance()->Allocate(mesh.get());
+    }
 
     if (!node_table_) {
         LOG_WARN("SkinnedMeshRenderer '{}': {} joints without a node table keep the bind pose",
@@ -101,7 +201,15 @@ void SkinnedMeshRenderer::Render(CommandBuffer* cmd_buffer, Material* mat) const
     //the pass may hand us its own material (shadows, prepass, ...), so the
     //skinned variant is derived from whatever material is being bound
     auto* base = mat ? mat : GetMaterial().get();
-    auto variant = base ? base->GetSkinnedVariant(Mesh::kSkinnedLayout) : nullptr;
+    if (!base) {
+        MeshRenderer::Render(cmd_buffer, mat);
+        return;
+    }
+
+    const bool skinned_vertices = skinned_vertex_buffer();
+    auto variant = skinned_vertices ?
+        base->GetVariant({ "GLACIER_GPU_SKINNED" }, Mesh::kSkinnedVertexLayout) :
+        base->GetVariant({ "GLACIER_SKINNING" }, Mesh::kSkinnedLayout);
     if (!variant) {
         MeshRenderer::Render(cmd_buffer, mat);
         return;
@@ -113,13 +221,24 @@ void SkinnedMeshRenderer::Render(CommandBuffer* cmd_buffer, Material* mat) const
         UpdateBoneMatrices();
     }
 
-    //the constant buffer is transient and shared by every skinned mesh, so each
-    //draw still uploads the matrices it needs
-    GetBoneData()->Update(&bone_matrices_);
     UpdatePerObjectData(cmd_buffer);
 
     cmd_buffer->BindMaterial(variant.get());
-    mesh->Draw(cmd_buffer);
+
+    //The bones belong to this object while the material is shared, so they are
+    //bound for this draw instead of living in the material: binding a material
+    //that did not change does not bind its properties again, and the matrices
+    //of the pool are rewritten every frame. A program of the compute skinning
+    //path has no such parameter, and binding one that is not there does nothing.
+    variant->GetProgram()->BindBuffer(cmd_buffer, "_BoneMatrices", BoneMatrixPool::Instance()->buffer().get());
+
+    if (skinned_vertices) {
+        //the compute pass already deformed the vertices this pass draws
+        mesh->Draw(cmd_buffer, GpuSkinning::Instance()->vertex_buffer().get(), skinned_vertex_offset_);
+    }
+    else {
+        mesh->Draw(cmd_buffer);
+    }
 }
 
 void SkinnedMeshRenderer::UpdateRenderData() const {
@@ -130,6 +249,91 @@ void SkinnedMeshRenderer::UpdateRenderData() const {
     }
 
     UpdateBoneMatrices();
+}
+
+void SkinnedMeshRenderer::DispatchSkinning(CommandBuffer* cmd_buffer) const {
+    if (!skinned_vertex_buffer()) {
+        return;
+    }
+
+    auto mesh = skinned_mesh();
+    if (!mesh || !mesh->IsSkinned()) {
+        return;
+    }
+
+    GpuSkinning::Instance()->Dispatch(cmd_buffer, mesh.get(), skinned_vertex_offset_,
+        bone_offset(), prev_bone_offset());
+}
+
+bool SkinnedMeshRenderer::CanBatchWith(const Renderable* other, Material* mat) const {
+    if (!instancing_) {
+        return false;
+    }
+
+    auto* skinned = dynamic_cast<const SkinnedMeshRenderer*>(other);
+    if (!skinned || !skinned->instancing_) {
+        return false;
+    }
+
+    //one draw call binds the vertex and index buffer of one mesh
+    auto mesh = skinned_mesh();
+    if (!mesh || mesh != skinned->skinned_mesh()) {
+        return false;
+    }
+
+    //a batch draws the bind pose and lets the vertex shader of every pass skin
+    //it with the bones of the instance, so a mesh the compute pass deformed
+    //cannot take part in one
+    return !skinned_vertex_buffer() && !skinned->skinned_vertex_buffer();
+}
+
+void SkinnedMeshRenderer::RenderBatch(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat) const {
+    auto mesh = skinned_mesh();
+    auto variant = mat ? mat->GetVariant({ "GLACIER_SKINNING", "GLACIER_INSTANCING" }, Mesh::kSkinnedLayout) : nullptr;
+    if (!mesh || !variant) {
+        for (auto o : objs) {
+            o->Render(cmd_buffer, mat);
+        }
+        return;
+    }
+
+    //one record per instance: everything of an object that the shared per object
+    //constant buffer cannot carry for a whole batch
+    std::vector<InstanceData> instances(objs.size());
+    for (size_t i = 0; i < objs.size(); ++i) {
+        auto* renderer = static_cast<const SkinnedMeshRenderer*>(objs[i]);
+        auto& instance = instances[i];
+
+        instance.model = renderer->transform().LocalToWorldMatrix();
+        instance.prev_model = renderer->prev_model_;
+        instance.tex_tile_scale = mat->GetTexTilingOffset();
+        instance.bone_offset = renderer->bone_offset();
+        instance.prev_bone_offset = renderer->prev_bone_offset();
+    }
+
+    uint32_t offset = InstanceBuffer::Instance()->Upload(instances.data(), (uint32_t)instances.size());
+    if (offset == InstanceBuffer::kInvalidOffset) {
+        for (auto o : objs) {
+            o->Render(cmd_buffer, mat);
+        }
+        return;
+    }
+
+    if (batch_size_ != instances.size()) {
+        batch_size_ = instances.size();
+        LOG_LOG("instanced draw: {0} instances of mesh '{1}'", instances.size(), mesh->name());
+    }
+
+    //the batch is drawn from the shared bind pose of the mesh, and the pass
+    //reads the object data and the bones of every instance from the pool
+    objs.front()->UpdateBatchData(cmd_buffer, offset);
+    cmd_buffer->BindMaterial(variant.get());
+
+    auto* program = variant->GetProgram().get();
+    program->BindBuffer(cmd_buffer, "_BoneMatrices", BoneMatrixPool::Instance()->buffer().get());
+    program->BindBuffer(cmd_buffer, "_Instances", InstanceBuffer::Instance()->buffer().get());
+
+    mesh->DrawInstanced(cmd_buffer, (uint32_t)objs.size());
 }
 
 void SkinnedMeshRenderer::UpdateBoneMatrices() const {
@@ -197,8 +401,8 @@ void SkinnedMeshRenderer::UpdateBoneMatrices() const {
 
         //the mesh transform cancels out again in the vertex shader, so the
         //matrices are expressed in mesh space
-        bone_matrices_.bones[i] = space_to_mesh * pose_matrix * bones[i].offset_matrix;
-        bone_matrices_.prev_bones[i] = prev_space_to_mesh * (has_prev ? prev_bone_world_[i] : pose_matrix) * bones[i].offset_matrix;
+        bone_matrices_[i] = space_to_mesh * pose_matrix * bones[i].offset_matrix;
+        prev_bone_matrices_[i] = prev_space_to_mesh * (has_prev ? prev_bone_world_[i] : pose_matrix) * bones[i].offset_matrix;
     }
 
     for (size_t i = 0; i < count; ++i) {
@@ -216,6 +420,10 @@ void SkinnedMeshRenderer::UpdateBoneMatrices() const {
     prev_pose_based_ = pose_based;
     has_prev_ = true;
     bone_matrices_cached_ = true;
+
+    //hand the pose of this frame to the pool: every pass draws from it instead
+    //of uploading the matrices again
+    BoneMatrixPool::Instance()->Update(bone_slot_, bone_matrices_, prev_bone_matrices_);
 }
 
 void SkinnedMeshRenderer::DrawInspector() {
@@ -233,6 +441,15 @@ void SkinnedMeshRenderer::DrawInspector() {
     ImGui::Text("bones: %d", (int)bone_transforms_.size());
     if (missing > 0) {
         ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "unresolved: %d", missing);
+    }
+
+    bool gpu_skinning = gpu_skinning_;
+    if (ImGui::Checkbox("GPU skinning", &gpu_skinning)) {
+        SetGpuSkinning(gpu_skinning);
+    }
+
+    if (!skinned_vertex_buffer()) {
+        ImGui::TextColored(ImVec4(1.0f, 0.6f, 0.2f, 1.0f), "skinned by the vertex shader");
     }
 }
 

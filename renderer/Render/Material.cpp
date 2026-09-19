@@ -50,17 +50,32 @@ void Material::SetupBuiltinProperty() {
     renderer->SetupBuiltinProperty(this);
 }
 
-std::shared_ptr<Material> Material::GetSkinnedVariant(const InputLayoutDesc& layout) const {
-    if (skinned_variant_) {
-        return skinned_variant_;
+std::shared_ptr<Material> Material::GetVariant(const std::vector<const char*>& macro_list, const InputLayoutDesc& layout) const {
+    std::string macros_name;
+    for (const char* macro : macro_list) {
+        macros_name += "_";
+        macros_name += macro;
+    }
+
+    auto variant_name = name_ + macros_name;
+    auto key = variant_name + "#" + std::to_string(layout.signature());
+
+    auto cached = variants_.find(key);
+    if (cached != variants_.end()) {
+        return cached->second;
     }
 
     //permutation of the same shader files with skinning enabled; the macro list
     //must be null terminated because it is handed to D3DCompile as-is
-    std::vector<ShaderMacroEntry> macros = { { "GLACIER_SKINNING", "1" }, { nullptr, nullptr } };
+    //the macro list handed to D3DCompile has to be null terminated
+    std::vector<ShaderMacroEntry> macros;
+    macros.reserve(macro_list.size() + 1);
+    for (const char* macro : macro_list) {
+        macros.push_back({ macro, "1" });
+    }
+    macros.push_back({ nullptr, nullptr });
 
     auto gfx = GfxDriver::Get();
-    auto variant_name = name_ + "_skinned";
     auto program = gfx->CreateProgram(variant_name.c_str());
 
     bool has_shader = false;
@@ -100,9 +115,9 @@ std::shared_ptr<Material> Material::GetSkinnedVariant(const InputLayoutDesc& lay
     }
 
     //setup_builtin_props_ is deliberately left false: binding the variant must
-    //still install the builtin properties it did not inherit (_BoneData)
-    skinned_variant_ = variant;
-    return skinned_variant_;
+    //still install the builtin properties it did not inherit (_PerFrameData)
+    variants_.emplace(key, variant);
+    return variant;
 }
 
 void Material::Bind(CommandBuffer* cmd_buffer) {

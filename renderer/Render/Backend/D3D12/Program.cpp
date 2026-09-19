@@ -203,6 +203,16 @@ ResourceAccessBit D3D12Program::GetShaderResourceTargetState(bool uav) {
     }
 }
 
+D3D12_SHADER_VISIBILITY D3D12Program::GetTableVisibility(const DescriptorTableParam& table) const {
+    for (auto& param : table.params) {
+        if (GetShaderVisibility(param.shader_type) != D3D12_SHADER_VISIBILITY_PIXEL) {
+            return D3D12_SHADER_VISIBILITY_ALL;
+        }
+    }
+
+    return D3D12_SHADER_VISIBILITY_PIXEL;
+}
+
 void D3D12Program::BindParameter(D3D12CommandBuffer* cmd_buffer, const std::string& name, D3D12ConstantBuffer* cbuffer) {
     auto& params = cbv_table_.params;
     for (uint32_t i = 0; i < params.size(); ++i) {
@@ -276,6 +286,14 @@ void D3D12Program::Bind(CommandBuffer* cmd_buffer, Material* mat) {
     for (auto& [_, prop] : properties) {
         BindProperty(cmd_list, prop);
     }
+}
+
+void D3D12Program::BindBuffer(CommandBuffer* cmd_buffer, const char* name, Buffer* buffer, bool uav) {
+    if (!buffer) {
+        return;
+    }
+
+    BindParameter(static_cast<D3D12CommandBuffer*>(cmd_buffer), name, static_cast<D3D12Buffer*>(buffer), uav);
 }
 
 void D3D12Program::BindProperty(D3D12CommandBuffer* cmd_buffer, const MaterialProperty& prop) {
@@ -417,8 +435,7 @@ void D3D12Program::CreateRootSignature() {
         }
 
         CD3DX12_ROOT_PARAMETER RootParam;
-        D3D12_SHADER_VISIBILITY ShaderVisibility = is_compute_ ? D3D12_SHADER_VISIBILITY_ALL : D3D12_SHADER_VISIBILITY_PIXEL;
-        RootParam.InitAsDescriptorTable((uint32_t)srv_table.size(), srv_table.data(), ShaderVisibility);
+        RootParam.InitAsDescriptorTable((uint32_t)srv_table.size(), srv_table.data(), GetTableVisibility(srv_table_));
         root_params.push_back(RootParam);
 
         num_descriptor_per_table_[root_index] = num_descriptor;
@@ -440,8 +457,7 @@ void D3D12Program::CreateRootSignature() {
         }
 
         CD3DX12_ROOT_PARAMETER RootParam;
-        D3D12_SHADER_VISIBILITY ShaderVisibility = is_compute_ ? D3D12_SHADER_VISIBILITY_ALL : D3D12_SHADER_VISIBILITY_PIXEL;
-        RootParam.InitAsDescriptorTable((uint32_t)uav_table.size(), uav_table.data(), ShaderVisibility);
+        RootParam.InitAsDescriptorTable((uint32_t)uav_table.size(), uav_table.data(), GetTableVisibility(uav_table_));
         root_params.push_back(RootParam);
 
         num_descriptor_per_table_[root_index] = num_descriptor;
@@ -463,8 +479,7 @@ void D3D12Program::CreateRootSignature() {
         }
 
         CD3DX12_ROOT_PARAMETER RootParam;
-        D3D12_SHADER_VISIBILITY ShaderVisibility = is_compute_ ? D3D12_SHADER_VISIBILITY_ALL : D3D12_SHADER_VISIBILITY_PIXEL;
-        RootParam.InitAsDescriptorTable((uint32_t)sampler_table.size(), sampler_table.data(), ShaderVisibility);
+        RootParam.InitAsDescriptorTable((uint32_t)sampler_table.size(), sampler_table.data(), GetTableVisibility(sampler_table_));
         root_params.push_back(RootParam);
 
         num_descriptor_per_table_[root_index] = num_descriptor;

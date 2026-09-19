@@ -25,6 +25,13 @@ void D3D12Buffer::Update(const void* data, size_t size) {
     memcpy(location_.GetMappedAddress(), data, size);
 }
 
+void D3D12Buffer::Update(size_t offset, const void* data, size_t size) {
+    void* mapped_address = location_.GetMappedAddress();
+    assert(mapped_address && offset + size <= size_);
+
+    memcpy((uint8_t*)mapped_address + offset, data, size);
+}
+
 void D3D12Buffer::UploadResource(CommandBuffer* cmd_buffer, const void* data, size_t size) {
     if (!data) return;
 
@@ -44,24 +51,67 @@ void D3D12Buffer::UploadResource(CommandBuffer* cmd_buffer, const void* data, si
     command_list->AddInflightResource(std::move(upload_location));
 }
 
-D3D12VertexBuffer::D3D12VertexBuffer(size_t size, size_t stride) :
+D3D12VertexBuffer::D3D12VertexBuffer(size_t size, size_t stride, CreateFlags flags) :
     D3D12Buffer(BufferType::kVertexBuffer, size, stride)
 {
     auto default_allocator = D3D12GfxDriver::Instance()->GetDefaultBufferAllocator();
-    location_ = default_allocator->CreateVertexOrIndexBuffer(size, DEFAULT_RESOURCE_ALIGNMENT);
+
+    bool uav = ((uint32_t)flags & (uint32_t)CreateFlags::kUav) != 0;
+    if (uav) {
+        //a vertex buffer a compute shader writes needs the unordered access flag
+        //and, unlike the pool of vertex buffers, cannot be placed in the heap
+        //reserved for them
+        CD3DX12_RESOURCE_DESC desc = CD3DX12_RESOURCE_DESC::Buffer(size, D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS);
+        location_ = default_allocator->CreateResource(desc, DEFAULT_RESOURCE_ALIGNMENT);
+    }
+    else {
+        location_ = default_allocator->CreateVertexOrIndexBuffer(size, DEFAULT_RESOURCE_ALIGNMENT);
+    }
+
     gpu_address_ = location_.GetGpuAddress();
 
     SetResourceState((ResourceAccessBit)location_.GetState());
+
+    auto gfx = D3D12GfxDriver::Instance();
+    auto device = gfx->GetDevice();
+    auto descriptor_allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+
+    //the views are raw views, so the compute pass can read and write the
+    //attributes of a vertex at any offset a vertex layout puts them at
+    if (((uint32_t)flags & (uint32_t)CreateFlags::kShaderResource) != 0) {
+        srv_slot_ = descriptor_allocator->Allocate();
+
+        D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+        srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+        srv_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+        srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+        srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_RAW;
+        srv_desc.Buffer.NumElements = (UINT)(size_ / 4);
+
+        device->CreateShaderResourceView(location_.GetResource().Get(), &srv_desc, srv_slot_.GetDescriptorHandle());
+    }
+
+    if (uav) {
+        uav_slot_ = descriptor_allocator->Allocate();
+
+        D3D12_UNORDERED_ACCESS_VIEW_DESC uav_desc = {};
+        uav_desc.Format = DXGI_FORMAT_R32_TYPELESS;
+        uav_desc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+        uav_desc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+        uav_desc.Buffer.NumElements = (UINT)(size_ / 4);
+
+        device->CreateUnorderedAccessView(location_.GetResource().Get(), nullptr, &uav_desc, uav_slot_.GetDescriptorHandle());
+    }
 }
 
-void D3D12VertexBuffer::Bind(CommandBuffer* cmd_buffer) {
+void D3D12VertexBuffer::Bind(CommandBuffer* cmd_buffer, size_t offset) {
     auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     constexpr auto target_state = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
 
     D3D12_VERTEX_BUFFER_VIEW VBV;
-    VBV.BufferLocation = gpu_address_;
+    VBV.BufferLocation = gpu_address_ + offset;
     VBV.StrideInBytes = stride_;
-    VBV.SizeInBytes = size_;
+    VBV.SizeInBytes = size_ - offset;
 
     cmd_list->TransitionBarrier(this, (ResourceAccessBit)target_state);
     cmd_list->IASetVertexBuffers(0, 1, &VBV);
@@ -80,7 +130,7 @@ D3D12IndexBuffer::D3D12IndexBuffer(size_t size, IndexFormat format) :
     SetResourceState((ResourceAccessBit)location_.GetState());
 }
 
-void D3D12IndexBuffer::Bind(CommandBuffer* cmd_buffer) {
+void D3D12IndexBuffer::Bind(CommandBuffer* cmd_buffer, size_t offset) {
     auto cmd_list = static_cast<D3D12CommandBuffer*>(cmd_buffer);
     constexpr auto target_state = D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER | D3D12_RESOURCE_STATE_INDEX_BUFFER;
 
@@ -125,6 +175,13 @@ void D3D12ConstantBuffer::Update(const void* data, size_t size) {
     else {
         memcpy(location_.GetMappedAddress(), data, size);
     }
+}
+
+void D3D12ConstantBuffer::Update(size_t offset, const void* data, size_t size) {
+    //the dynamic constant buffer of a frame points into the upload ring, so a
+    //range of it cannot be written back to
+    assert(usage_ != UsageType::kDynamic);
+    D3D12Buffer::Update(offset, data, size);
 }
 
 void D3D12ConstantBuffer::UpdateDynamic(const void* data, size_t size) {
@@ -239,6 +296,38 @@ D3D12StructuredBuffer::D3D12StructuredBuffer(size_t element_size, size_t element
     //srv_desc.Buffer.FirstElement = 0;
 
     device->CreateShaderResourceView(location_.GetResource().Get(), &srv_desc, srv_slot_.GetDescriptorHandle());
+}
+
+D3D12DynamicStructuredBuffer::D3D12DynamicStructuredBuffer(size_t element_size, size_t element_count) :
+    D3D12Buffer(BufferType::kStructuredBuffer, element_count * element_size, element_size)
+{
+    count_ = element_count;
+
+    auto gfx = D3D12GfxDriver::Instance();
+    auto upload_allocator = gfx->GetUploadBufferAllocator();
+    location_ = upload_allocator->CreateResource(size_, DEFAULT_RESOURCE_ALIGNMENT);
+    gpu_address_ = location_.GetGpuAddress();
+
+    SetResourceState((ResourceAccessBit)location_.GetState());
+    //an upload heap resource is only allowed to be in GENERIC_READ
+    SetFixedState();
+
+    auto descriptor_allocator = gfx->GetDescriptorAllocator(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
+    srv_slot_ = descriptor_allocator->Allocate();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srv_desc = {};
+    srv_desc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srv_desc.Format = DXGI_FORMAT_UNKNOWN;
+    srv_desc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
+    srv_desc.Buffer.Flags = D3D12_BUFFER_SRV_FLAG_NONE;
+    srv_desc.Buffer.StructureByteStride = element_size;
+    srv_desc.Buffer.NumElements = (UINT)element_count;
+
+    gfx->GetDevice()->CreateShaderResourceView(location_.GetResource().Get(), &srv_desc, srv_slot_.GetDescriptorHandle());
+}
+
+void D3D12DynamicStructuredBuffer::Upload(CommandBuffer* cmd_buffer, const void* data, size_t size) {
+    Update(0, data, size == (size_t)-1 ? size_ : size);
 }
 
 D3D12RWStructuredBuffer::D3D12RWStructuredBuffer(size_t element_size, size_t element_count) :

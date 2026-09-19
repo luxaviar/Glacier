@@ -3,6 +3,7 @@
 #include "Common/Lighting.hlsli"
 #include "Common/Utils.hlsli"
 #include "Common/Skinning.hlsli"
+#include "Common/Instance.hlsli"
 
 struct VertexOut
 {
@@ -42,32 +43,40 @@ Texture2D MetalRoughnessTexture;// : register(t6);
 Texture2D AoTexture;// : register(t7);
 Texture2D EmissiveTexture;// : register(t8);
 
-VertexOut main_vs(AppData IN)
+VertexOut main_vs(AppData IN, uint instance_id : SV_InstanceID)
 {
     VertexOut Out = (VertexOut)0.0f;
 
     float3 position = IN.position;
     float3 normal = IN.normal;
     float3 tangent = IN.tangent;
+    float3 prev_position = position;
 
 #ifdef GLACIER_SKINNING
-    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
-    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, false);
-    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, false);
+    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, instance_id, false);
+    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, instance_id, false);
+    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, instance_id, false);
 
-    float3 prev_position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, true);
-#else
-    float3 prev_position = position;
+    prev_position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, instance_id, true);
+#elif defined(GLACIER_GPU_SKINNED)
+    //the vertices were skinned by the compute pass, together with the position
+    //of the frame before, so this shader only has to transform them
+    prev_position = IN.prev_position;
 #endif
 
-    float4 wpos = mul(float4(position, 1.0f), _Model);
-    Out.view_normal = mul(normal, (float3x3)_ModelView);
-    Out.view_tangent = mul(tangent, (float3x3)_ModelView);
+    float4x4 model = ObjectModel(instance_id);
+    float4x4 prev_model = ObjectPrevModel(instance_id);
+
+    float4 wpos = mul(float4(position, 1.0f), model);
+    float4x4 model_view = ObjectModelView(instance_id);
+    Out.view_normal = mul(normal, (float3x3)model_view);
+    Out.view_tangent = mul(tangent, (float3x3)model_view);
     Out.position = mul(wpos, _ViewProjection);
     Out.cur_position = mul(wpos, _UnjitteredViewProjection);
-    Out.prev_position = mul(mul(float4(prev_position, 1.0f), _PrevModel), _PrevViewProjection);
+    Out.prev_position = mul(mul(float4(prev_position, 1.0f), prev_model), _PrevViewProjection);
 
-    Out.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
+    float4 tile_scale = ObjectTexTileScale(instance_id);
+    Out.tex_coord = IN.tex_coord * tile_scale.xy + tile_scale.zw;
 
     return Out;
 }

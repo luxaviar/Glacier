@@ -4,6 +4,7 @@
 #include "Math/Util.h"
 #include "Common/Color.h"
 #include "Render/Material.h"
+#include "Render/Graph/PassNode.h"
 #include "Render/Base/Renderable.h"
 #include "Render/Base/RenderTarget.h"
 #include "Render/Base/Buffer.h"
@@ -131,9 +132,8 @@ void CascadedShadowManager::Render(CommandBuffer* cmd_buffer, const Camera* came
         cmd_buffer->BindCamera(shadow_position_, shadow_view_, data.projection);
         RenderTargetGuard guard(cmd_buffer, data.render_target.get());
 
-        for (auto o : casters) {
-            o->Render(cmd_buffer, material_.get());
-        }
+        //the objects that share a mesh and a material are drawn as one batch
+        PassNode::RenderList(cmd_buffer, casters, material_.get());
     }
 }
 

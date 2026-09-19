@@ -17,7 +17,12 @@ class CommandBuffer;
 class Mesh {
 public:
     static InputLayoutDesc kDefaultLayout;
+    //the bind pose of a skinned mesh: the joints and their weights of every
+    //vertex, which is what the GPU skinning pass reads
     static InputLayoutDesc kSkinnedLayout;
+    //a skinned mesh the GPU skinning pass wrote: the deformed vertex and the
+    //position it had in the frame before, which is all a pass needs to draw it
+    static InputLayoutDesc kSkinnedVertexLayout;
 
     //bone binding of a skinned mesh: the node it drives in the model's node
     //table; offset_matrix is the inverse bind matrix that maps a mesh space
@@ -48,10 +53,18 @@ public:
     bool IsSkinned() const { return !bones_.empty(); }
     const std::vector<Bone>& bones() const { return bones_; }
 
-    Buffer* vertex_buffer() const { return vertex_buffer_.get(); }
+    //the bind pose buffer of the mesh; the GPU skinning pass reads it and the
+    //passes draw it when a mesh is not skinned by the GPU
+    const std::shared_ptr<Buffer>& vertex_buffer() const { return vertex_buffer_; }
     Buffer* index_buffer() const { return index_buffer_.get(); }
 
     void Draw(CommandBuffer* cmd_buffer) const;
+    //draws the mesh from a vertex buffer someone else filled (the skinned
+    //vertices of a mesh, or the instances of a batched draw)
+    void Draw(CommandBuffer* cmd_buffer, Buffer* vertex_buffer, size_t vertex_offset = 0) const;
+    //draws the mesh once per instance of a batch, whose object data the vertex
+    //shader reads from the instance buffer
+    void DrawInstanced(CommandBuffer* cmd_buffer, uint32_t instance_count) const;
 
     void RecalculateNormals();
 

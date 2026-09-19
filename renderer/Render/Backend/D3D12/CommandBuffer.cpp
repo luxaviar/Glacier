@@ -245,6 +245,12 @@ void D3D12CommandBuffer::UavResource(Resource* resource) {
 }
 
 void D3D12CommandBuffer::TransitionBarrier(Resource* resource, ResourceAccessBit after_state, uint32_t subresource) {
+    //a buffer the CPU writes every frame stays readable for every stage, and
+    //the runtime rejects any other state for it
+    if (resource->has_fixed_state()) {
+        return;
+    }
+
     resource_state_tracker_.TransitionResource(resource, (D3D12_RESOURCE_STATES)after_state, subresource);
 }
 

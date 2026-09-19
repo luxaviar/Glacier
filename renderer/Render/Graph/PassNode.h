@@ -34,6 +34,10 @@ public:
     void Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat = nullptr) const;
     void Render(CommandBuffer* cmd_buffer, const Renderable* obj = nullptr, Material* mat = nullptr) const;
 
+    //Draws a list of objects that all use `mat`, batching the ones that share a
+    //mesh and a material into one instanced draw (see Renderable::CanBatchWith).
+    static void RenderList(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat);
+
     void Reset();
     void Finalize() const;
 

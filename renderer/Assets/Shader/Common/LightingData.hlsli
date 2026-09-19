@@ -62,6 +62,11 @@ struct AppData
     float4 bone_weights : BlendWeight;
     uint4 bone_indices : BlendIndex;
 #endif
+#ifdef GLACIER_GPU_SKINNED
+    //vertices the compute skinning pass already deformed carry the position
+    //they had in the frame before, which is what the velocity buffer needs
+    float3 prev_position : PrevPosition;
+#endif
 };
 
 struct VSOut

@@ -4,6 +4,7 @@
 #include <vector>
 #include "Render/Mesh/MeshRenderer.h"
 #include "Animation/NodeLookup.h"
+#include "Render/Skinning/GpuSkinning.h"
 #include "Math/Mat4.h"
 
 namespace glacier {
@@ -20,12 +21,35 @@ class SkinnedMeshRenderer : public MeshRenderer {
 public:
     SkinnedMeshRenderer() {}
     SkinnedMeshRenderer(const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material = {});
+    ~SkinnedMeshRenderer();
 
     void Render(CommandBuffer* cmd_buffer, Material* mat = nullptr) const override;
+    //draws one batch of skinned meshes that share the mesh of this one
+    bool CanBatchWith(const Renderable* other, Material* mat) const override;
+    void RenderBatch(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat) const override;
     //recomputes the bone matrices of this frame; the render path only uploads
     //what this produced
     void UpdateRenderData() const override;
+    //deforms the vertices of this mesh on the GPU, once per frame
+    void DispatchSkinning(CommandBuffer* cmd_buffer) const override;
     void DrawInspector() override;
+
+    //Skins the mesh with a compute pass into a shared pool of skinned vertices
+    //instead of in the vertex shader of every pass. On by default, and ignored
+    //for a mesh the pool has no room for.
+    void SetGpuSkinning(bool on);
+    bool gpu_skinning() const { return gpu_skinning_; }
+
+    //Draws the meshes that share a mesh and a material with one instanced draw
+    //call. A batch shares the bind pose of the mesh, so every instance brings
+    //its own bones and the mesh is skinned by the vertex shader; a mesh that is
+    //skinned by the compute pass is therefore never batched.
+    void SetInstancing(bool on);
+    bool instancing() const { return instancing_; }
+
+    //where the bones of this mesh are in the shared bone matrix pool
+    uint32_t bone_offset() const override;
+    uint32_t prev_bone_offset() const override;
 
     //re-resolves the bone transforms; the first Render does this automatically
     void RefreshBones();
@@ -40,6 +64,13 @@ private:
     std::shared_ptr<Mesh> skinned_mesh() const;
     void ResolveBones() const;
     void UpdateBoneMatrices() const;
+    //gives the slot of this mesh back to the pool
+    void ReleaseBoneSlot() const;
+    //gives the region of the shared pool of skinned vertices back
+    void ReleaseSkinnedVertices() const;
+
+    //whether the passes draw the skinned vertices instead of the bind pose
+    bool skinned_vertex_buffer() const;
 
     mutable bool resolved_ = false;
     mutable std::shared_ptr<const NodeTransformTable> node_table_;
@@ -53,8 +84,20 @@ private:
     //whether the previous frame was skinned from the pose or from the transforms
     mutable bool prev_pose_based_ = false;
     //object space skinning matrices of this frame, refreshed once per frame so
-    //that every pass uploads the same values (and the same previous ones)
-    mutable BoneMatrices bone_matrices_;
+    //that every pass uploads the same values (and the same previous ones); they
+    //are copied into the slot of this mesh in the shared bone matrix pool
+    mutable std::vector<Matrix4x4> bone_matrices_;
+    mutable std::vector<Matrix4x4> prev_bone_matrices_;
+    //room for the bones of this mesh in the shared bone matrix pool, by the
+    //actual bone count of the mesh instead of the worst case a shader accepts
+    mutable uint32_t bone_slot_ = kInvalidBoneOffset;
+    mutable uint32_t bone_slot_bones_ = 0;
+    //region of the shared pool of skinned vertices, see GpuSkinning
+    bool gpu_skinning_ = true;
+    bool instancing_ = false;
+    mutable uint32_t skinned_vertex_offset_ = GpuSkinning::kInvalidOffset;
+    //size of the last batch this mesh was drawn in, only used to report it once
+    mutable size_t batch_size_ = 0;
     mutable bool bone_matrices_cached_ = false;
 };
 

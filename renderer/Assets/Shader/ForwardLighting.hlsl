@@ -4,6 +4,7 @@
 #include "Common/Lighting.hlsli"
 #include "Common/Ao.hlsli"
 #include "Common/Skinning.hlsli"
+#include "Common/Instance.hlsli"
 
 struct PbrMaterial
 {
@@ -24,7 +25,7 @@ Texture2D MetalRoughnessTexture : register(t6);
 Texture2D AoTexture : register(t7);
 Texture2D EmissiveTexture : register(t8);
 
-VSOut main_vs(AppData IN)
+VSOut main_vs(AppData IN, uint instance_id : SV_InstanceID)
 {
     VSOut vso;
 
@@ -32,18 +33,23 @@ VSOut main_vs(AppData IN)
     float3 normal = IN.normal;
     float3 tangent = IN.tangent;
 #ifdef GLACIER_SKINNING
-    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
-    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, false);
-    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, false);
+    position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, instance_id, false);
+    normal = SkinDirection(IN.bone_indices, IN.bone_weights, IN.normal, instance_id, false);
+    tangent = SkinDirection(IN.bone_indices, IN.bone_weights, IN.tangent, instance_id, false);
 #endif
 
-    vso.world_position = (float3) mul(float4(position, 1.0f), _Model);
-    vso.view_position = (float3) mul(float4(position, 1.0f), _ModelView);
-    vso.view_normal = mul(normal, (float3x3) _ModelView);
-    vso.view_tangent = mul(tangent, (float3x3) _ModelView);
+    float4x4 model = ObjectModel(instance_id);
+    float4x4 model_view = ObjectModelView(instance_id);
+
+    vso.world_position = (float3) mul(float4(position, 1.0f), model);
+    vso.view_position = (float3) mul(float4(position, 1.0f), model_view);
+    vso.view_normal = mul(normal, (float3x3) model_view);
+    vso.view_tangent = mul(tangent, (float3x3) model_view);
     //vso.view_binormal = mul(IN.binormal, (float3x3) _ModelView);
-    vso.position = mul(float4(position, 1.0f), _ModelViewProjection);
-    vso.tex_coord = IN.tex_coord * _TextureTileScale.xy + _TextureTileScale.zw;
+    vso.position = mul(float4(position, 1.0f), ObjectModelViewProjection(instance_id));
+
+    float4 tile_scale = ObjectTexTileScale(instance_id);
+    vso.tex_coord = IN.tex_coord * tile_scale.xy + tile_scale.zw;
     
     //vso.shadowHomoPos = ToShadowHomoSpace(pos, _Model);
     return vso;

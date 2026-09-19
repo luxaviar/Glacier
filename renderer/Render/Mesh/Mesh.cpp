@@ -16,6 +16,8 @@ namespace render {
 InputLayoutDesc Mesh::kDefaultLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent };
 InputLayoutDesc Mesh::kSkinnedLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D, InputLayoutDesc::Tangent,
     InputLayoutDesc::BoneWeights, InputLayoutDesc::BoneIndices };
+InputLayoutDesc Mesh::kSkinnedVertexLayout = InputLayoutDesc{ InputLayoutDesc::Position3D, InputLayoutDesc::Normal, InputLayoutDesc::Texture2D,
+    InputLayoutDesc::Tangent, InputLayoutDesc::PrevPosition };
 
 Mesh::Mesh() : name_("unnamed") {}
 
@@ -163,7 +165,10 @@ void Mesh::Setup() {
 
     auto driver = GfxDriver::Get();
 
-    vertex_buffer_ = driver->CreateVertexBuffer(data.data_size(), data.stride());
+    //the bind pose of a skinned mesh is read by the GPU skinning pass, which
+    //needs a shader view of the buffer it draws from
+    auto vertex_view = skinned ? CreateFlags::kShaderResource : CreateFlags::kNone;
+    vertex_buffer_ = driver->CreateVertexBuffer(data.data_size(), data.stride(), vertex_view);
     vertex_buffer_->SetName("vertex buffer");
 
     index_buffer_ = driver->CreateIndexBuffer(indices_.size() * sizeof(uint32_t), IndexFormat::kUInt32);
@@ -212,6 +217,18 @@ void Mesh::Bind(CommandBuffer* cmd_buffer) const {
 void Mesh::Draw(CommandBuffer* cmd_buffer) const {
     Bind(cmd_buffer);
     cmd_buffer->DrawIndexedInstanced((uint32_t)index_buffer_->count(), 1, 0, 0, 0);
+}
+
+void Mesh::Draw(CommandBuffer* cmd_buffer, Buffer* vertex_buffer, size_t vertex_offset) const {
+    vertex_buffer->Bind(cmd_buffer, vertex_offset * vertex_buffer->stride());
+    index_buffer_->Bind(cmd_buffer);
+
+    cmd_buffer->DrawIndexedInstanced((uint32_t)index_buffer_->count(), 1, 0, 0, 0);
+}
+
+void Mesh::DrawInstanced(CommandBuffer* cmd_buffer, uint32_t instance_count) const {
+    Bind(cmd_buffer);
+    cmd_buffer->DrawIndexedInstanced((uint32_t)index_buffer_->count(), instance_count, 0, 0, 0);
 }
 
 }

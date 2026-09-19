@@ -62,6 +62,7 @@ public:
 
     void BindPSO(CommandBuffer* cmd_buffer) override;
     void Bind(CommandBuffer* cmd_buffer, Material* mat) override;
+    void BindBuffer(CommandBuffer* cmd_buffer, const char* name, Buffer* buffer, bool uav = false) override;
 
     void RefreshTranstientBuffer(CommandBuffer* cmd_buffer) override;
 
@@ -76,6 +77,11 @@ protected:
     void Bind(D3D12CommandBuffer* cmd_list);
 
     ResourceAccessBit GetShaderResourceTargetState(bool uav);
+    //Visibility of a descriptor table: a table whose parameters are all read by
+    //the pixel shader stays pixel only, everything else has to be visible to
+    //every stage (the bone matrices of a skinned mesh are read by the vertex
+    //shader, and a pixel only table cannot be bound there).
+    D3D12_SHADER_VISIBILITY GetTableVisibility(const DescriptorTableParam& table) const;
 
     void SetupShaderParameter(const std::shared_ptr<Shader>& shader) override;
     void AddParameter(DescriptorTableParam& list, const ShaderParameter& param);

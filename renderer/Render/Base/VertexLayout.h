@@ -22,6 +22,7 @@
     X( Float4Color ) \
     X( BoneWeights ) \
     X( BoneIndices ) \
+    X( PrevPosition ) \
 
 #define LAYOUT_ELEMENT_META(el, semantic, code, systy, hwtype, hwtypename) \
 struct Meta##el \
@@ -70,6 +71,10 @@ public:
     LAYOUT_ELEMENT_META(Float4Color, Color, C4, Vec4f, DXGI_FORMAT_R32G32B32A32_FLOAT, float4)
     LAYOUT_ELEMENT_META(BoneWeights, BlendWeight, BW4, Vec4f, DXGI_FORMAT_R32G32B32A32_FLOAT, float4)
     LAYOUT_ELEMENT_META(BoneIndices, BlendIndex, BI4, Vec4u, DXGI_FORMAT_R32G32B32A32_UINT, uint4)
+    //the position of the previous frame, which the GPU skinning pass writes
+    //next to the skinned position so the velocity buffer can be built from the
+    //vertex instead of skinning the vertex a second time
+    LAYOUT_ELEMENT_META(PrevPosition, PrevPosition, P3p, Vec3f, DXGI_FORMAT_R32G32B32_FLOAT, float3)
 
     static constexpr std::array<MetaDesc, (int)ElementType::Count> kMetaDescArray = {{
     #define X(el) { \

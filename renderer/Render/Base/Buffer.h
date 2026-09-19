@@ -32,10 +32,16 @@ public:
 
     bool IsDynamic() const { return usage_ == UsageType::kDynamic; }
 
-    virtual void Bind(CommandBuffer* cmd_buffer) = 0;
+    //binds the buffer to the input assembler; a vertex buffer can be bound at a
+    //byte offset, which is how a pool of skinned vertices hands every mesh the
+    //region the skinning pass wrote for it
+    virtual void Bind(CommandBuffer* cmd_buffer, size_t offset = 0) = 0;
 
     virtual void Upload(CommandBuffer* cmd_buffer, const void* data, size_t size = (size_t)-1) = 0;
     virtual void Update(const void* data, size_t size) = 0;
+    //updates a range of a buffer that is visible to the CPU, which is how the
+    //pools that keep the data of every object in one buffer fill their slots
+    virtual void Update(size_t offset, const void* data, size_t size) = 0;
 
     void Update(const void* data) { Update(data, size_); }
 

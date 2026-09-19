@@ -74,6 +74,34 @@ anim_scene:OnLoad(function(renderer)
             skinned_animator:active_clip_name(0), skinned_animator:active_clip_name(1))
     end
 
+    -- instanced skinned meshes: the copies share the mesh and the material of
+    -- the model, so the renderer draws them with one instanced draw call; every
+    -- instance has its own animator, its own pose and its own slot in the shared
+    -- bone matrix pool. A batch draws the bind pose of the mesh, so the compute
+    -- skinning of those instances is off and the vertex shader of the pass skins
+    -- them with the bones of their instance.
+    for i = 1, 3 do
+        local instance_go = Model.GenerateGameObject(cmd_buffer, "assets\\model\\anim\\DemoSkin.gltf", false, 1.0):gc_disable()
+        instance_go:GetTransform().position = { 1.2, 0.0, -2.0 * i }
+
+        local skinned_renderer = instance_go:GetSkinnedMeshRenderer()
+        if skinned_renderer then
+            -- turning instancing on turns the compute skinning of this object
+            -- off, because a batch has to draw the bind pose of the mesh
+            skinned_renderer:SetInstancing(true)
+        end
+
+        local instance_animator = instance_go:GetAnimator()
+        if instance_animator then
+            instance_animator:SetLoop(true)
+            instance_animator:PlayClip("SkinWave")
+            -- a different phase and speed per instance, so one draw call
+            -- carries three different poses
+            instance_animator:SetTime(0.9 * i)
+            instance_animator:SetSpeed(0.6 + 0.2 * i)
+        end
+    end
+
     local pbr_floor = MaterialManager.Instance():Get("pbr_floor");
 
     local ground_go = Primitive.CreateCube(pbr_floor, { 40.0, 1.0, 40.0 }):gc_disable()

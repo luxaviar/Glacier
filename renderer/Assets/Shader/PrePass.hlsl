@@ -1,5 +1,6 @@
 #include "Common/BasicBuffer.hlsli"
 #include "Common/Skinning.hlsli"
+#include "Common/Instance.hlsli"
 
 struct Output
 {
@@ -15,19 +16,19 @@ struct Input
     uint4 bone_indices : BlendIndex;
 };
 
-Output main_vs(Input IN)
+Output main_vs(Input IN, uint instance_id : SV_InstanceID)
 {
-    float3 position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, false);
+    float3 position = SkinPosition(IN.bone_indices, IN.bone_weights, IN.position, instance_id, false);
 
     Output output;
-    output.pos = mul(float4(position, 1.0f), _ModelViewProjection);
+    output.pos = mul(float4(position, 1.0f), ObjectModelViewProjection(instance_id));
     return output;
 }
 #else
-Output main_vs(float3 pos : Position)
+Output main_vs(float3 pos : Position, uint instance_id : SV_InstanceID)
 {
     Output output;
-    output.pos = mul(float4(pos, 1.0f), _ModelViewProjection);
+    output.pos = mul(float4(pos, 1.0f), ObjectModelViewProjection(instance_id));
     // output.viewPos = mul(float4(pos, 1.0f), _ModelView).xyz;
     return output;
 }

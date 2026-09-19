@@ -38,10 +38,17 @@ public:
     void SetResourceState(ResourceAccessBit state, uint32_t subresource = BARRIER_ALL_SUBRESOURCES);
     bool IsUniformState();
 
+    //A resource whose state cannot change: it lives in an upload heap, where
+    //GENERIC_READ is the only state the runtime accepts, so a barrier on it is
+    //an error instead of a transition.
+    bool has_fixed_state() const { return fixed_state_; }
+    void SetFixedState() { fixed_state_ = true; }
+
     virtual void* GetNativeResource() const { return nullptr; }
 
 protected:
     ResourceType resource_type_ = ResourceType::kBuffer;
+    bool fixed_state_ = false;
     std::string name_;
     ResourceState state_ = { 0, ResourceAccessBit::kCommon };
 };

@@ -14,6 +14,7 @@ namespace render {
 class Material;
 class PassNode;
 class CommandBuffer;
+class Buffer;
 
 class Program : private Uncopyable, public Identifiable<Program> {
 public:
@@ -53,6 +54,12 @@ public:
     virtual void BindPSO(CommandBuffer* cmd_buffer) = 0;
     virtual void Bind(CommandBuffer* cmd_buffer, Material* mat) = 0;
     virtual void RefreshTranstientBuffer(CommandBuffer* cmd_buffer) = 0;
+
+    //Binds a buffer to a shader parameter of this program for the draw that is
+    //being recorded. A value that belongs to one object cannot live in the
+    //properties of a shared material, because binding a material that did not
+    //change only refreshes the transient buffers (CommandBuffer::BindMaterial).
+    virtual void BindBuffer(CommandBuffer* cmd_buffer, const char* name, Buffer* buffer, bool uav = false) = 0;
 
     void AddPass(const char* pass_name);
     bool HasPass(const PassNode* pass) const;

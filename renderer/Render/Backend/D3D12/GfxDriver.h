@@ -67,10 +67,11 @@ public:
     void CheckMSAA(uint32_t sample_count, uint32_t& smaple_count, uint32_t& quality_level) override;
 
     std::shared_ptr<Buffer> CreateIndexBuffer(size_t size, IndexFormat type) override;
-    std::shared_ptr<Buffer> CreateVertexBuffer(size_t size, size_t stride) override;
+    std::shared_ptr<Buffer> CreateVertexBuffer(size_t size, size_t stride, CreateFlags flags = CreateFlags::kNone) override;
 
     std::shared_ptr<Buffer> CreateConstantBuffer(const void* data, size_t size, UsageType usage = UsageType::kDynamic) override;
     std::shared_ptr<Buffer> CreateStructuredBuffer(size_t element_size, size_t element_count, bool uav=false) override;
+    std::shared_ptr<Buffer> CreateDynamicStructuredBuffer(size_t element_size, size_t element_count) override;
     std::shared_ptr<Buffer> CreateByteAddressBuffer(size_t size, bool uav = false) override;
 
     template<typename T>

@@ -101,6 +101,24 @@ public:
         return tx->game_object()->GetComponentInParent<T>();
     }
 
+    //the first component of this type in this object or below it, which is how
+    //the renderer of an imported model is found: its meshes hang off the nodes
+    //of the model, not off the object the model was created as
+    template<typename T>
+    T* GetComponentInChildren() {
+        if (auto* component = GetComponent<T>()) {
+            return component;
+        }
+
+        for (auto* child : transform_.children()) {
+            if (auto* component = child->game_object()->GetComponentInChildren<T>()) {
+                return component;
+            }
+        }
+
+        return nullptr;
+    }
+
     template<typename T>
     void VisitComponents(const std::function<void(T*)>& callback) {
         for (auto& com : components_) {
