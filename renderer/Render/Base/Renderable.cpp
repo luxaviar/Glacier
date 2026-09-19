@@ -31,7 +31,26 @@ void Renderable::SetMaterial(const std::shared_ptr<Material>& mat) {
     material_ = mat;
 }
 
+void Renderable::UpdateRenderData() const {
+    CaptureFrameModel();
+}
+
+void Renderable::CaptureFrameModel() const {
+    const auto& m = transform().LocalToWorldMatrix();
+
+    //an object that was never captured has no previous pose, so it reports no
+    //motion instead of the identity matrix
+    prev_model_ = frame_model_valid_ ? frame_model_ : m;
+    frame_model_ = m;
+    frame_model_valid_ = true;
+}
+
 void Renderable::UpdatePerObjectData(CommandBuffer* cmd_buffer) const {
+    //a renderable created after the per frame pass has no snapshot yet
+    if (!frame_model_valid_) {
+        CaptureFrameModel();
+    }
+
     const auto& m = transform().LocalToWorldMatrix();
     const auto& mv = cmd_buffer->view() * m;
     const auto& mvp = cmd_buffer->projection() * mv;
@@ -45,7 +64,6 @@ void Renderable::UpdatePerObjectData(CommandBuffer* cmd_buffer) const {
     };
 
     per_object_data_->Update(&data);
-    prev_model_ = m;
 }
 
 const AABB& Renderable::world_bounds() const {
@@ -146,6 +164,12 @@ void RenderableManager::UpdateBvhNode(Renderable* o) {
     else {
         auto node = tree_.AddLeaf(o, o->world_bounds());
         o->node_ = node;
+    }
+}
+
+void RenderableManager::UpdateRenderData() {
+    for (auto it = objects_.begin(); it != objects_.end(); ++it) {
+        it->data->UpdateRenderData();
     }
 }
 

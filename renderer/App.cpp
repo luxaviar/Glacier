@@ -15,6 +15,7 @@
 #include "Render/ForwardRenderer.h"
 #include "Render/DeferredRenderer.h"
 #include "Render/Base/GfxDriver.h"
+#include "Render/Base/Renderable.h"
 #include "Render/Backend/D3D12/GfxDriver.h"
 #include "Inspect/Profiler.h"
 #include "Render/Material.h"
@@ -138,6 +139,15 @@ void App::DoFrame(float dt) {
         }
         //animation sampling happens here, in Animator::LateUpdate
         BehaviourManager::Instance()->LateUpdate(dt);
+    }
+
+    //the sampled poses are turned into render data (bone matrices and the
+    //previous model matrix) exactly once per frame, so the passes only upload
+    //what they need; it also runs while paused so the editor can move things
+    //without the bones going stale
+    {
+        PerfSample("Update Render Data");
+        render::RenderableManager::Instance()->UpdateRenderData();
     }
 
     {

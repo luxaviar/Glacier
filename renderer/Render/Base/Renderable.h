@@ -68,6 +68,12 @@ public:
     virtual void Render(CommandBuffer* cmd_buffer, Material* mat = nullptr) const = 0;
     virtual void Draw(CommandBuffer* cmd_buffer) const = 0;
 
+    //Refreshes the data every pass of one frame shares: the model matrix the
+    //passes report as the previous one and, for skinned meshes, the bone
+    //matrices. It runs once per frame between LateUpdate and the passes, so no
+    //pass has to rebuild it and no pass can overwrite the previous frame data.
+    virtual void UpdateRenderData() const;
+
     void UpdatePerObjectData(CommandBuffer* cmd_buffer) const;
 
     const AABB& local_bounds() const { return local_bounds_; }
@@ -103,11 +109,23 @@ protected:
 
     AABB local_bounds_ = {Vector3::zero, Vector3::zero};
     mutable AABB world_bounds_;
+    //the model matrix the passes report as the previous one; only
+    //UpdateRenderData may write it, otherwise the last pass of the frame leaves
+    //a stale value for the velocity buffer
     mutable Matrix4x4 prev_model_ = Matrix4x4::identity;
+    //the model matrix captured during this frame, reported as the previous one
+    //by the next frame
+    mutable Matrix4x4 frame_model_ = Matrix4x4::identity;
+    mutable bool frame_model_valid_ = false;
 
     std::shared_ptr<Material> material_;
 
     RenderableTreeNode* node_ = nullptr;
+
+private:
+    //snapshots the model matrix of this frame, so the next frame can report it
+    //as the previous one
+    void CaptureFrameModel() const;
 };
 
 class Camera;
@@ -120,6 +138,10 @@ public:
 
     void UpdateBvhNode(Renderable* o);
     void RemoveBvhNode(Renderable* o);
+
+    //refreshes the per frame render data of every renderable; call it once per
+    //frame, after the update phase and before anything is rendered
+    void UpdateRenderData();
 
     bool Cull(const Camera& camera, std::vector<Renderable*>& result, const CullFilter& filter = nullptr);
     bool Cull(const Frustum& frustum, std::vector<Renderable*>& result, const CullFilter& filter = nullptr);

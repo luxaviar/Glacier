@@ -20,6 +20,9 @@ public:
     SkinnedMeshRenderer(const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material = {});
 
     void Render(CommandBuffer* cmd_buffer, Material* mat = nullptr) const override;
+    //recomputes the bone matrices of this frame; the render path only uploads
+    //what this produced
+    void UpdateRenderData() const override;
     void DrawInspector() override;
 
     //re-resolves the bone transforms; the first Render does this automatically
@@ -36,6 +39,10 @@ private:
     mutable std::vector<Matrix4x4> prev_bone_world_;
     mutable Matrix4x4 prev_world_to_local_ = Matrix4x4::identity;
     mutable bool has_prev_ = false;
+    //object space skinning matrices of this frame, refreshed once per frame so
+    //that every pass uploads the same values (and the same previous ones)
+    mutable BoneMatrices bone_matrices_;
+    mutable bool bone_matrices_cached_ = false;
 };
 
 }

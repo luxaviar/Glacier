@@ -8,6 +8,7 @@
 #include "Render/Base/CommandBuffer.h"
 #include "Render/Base/Buffer.h"
 #include "Common/Log.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
@@ -33,10 +34,12 @@ size_t SkinnedMeshRenderer::bone_count() const {
 
 void SkinnedMeshRenderer::RefreshBones() {
     resolved_ = false;
+    bone_matrices_cached_ = false;
 }
 
 void SkinnedMeshRenderer::ResolveBones() const {
     resolved_ = true;
+    bone_matrices_cached_ = false;
 
     auto mesh = skinned_mesh();
     if (!mesh || !mesh->IsSkinned()) {
@@ -82,33 +85,54 @@ void SkinnedMeshRenderer::Render(CommandBuffer* cmd_buffer, Material* mat) const
         return;
     }
 
-    UpdateBoneMatrices();
+    //UpdateRenderData computed the matrices for this frame; only a mesh that
+    //appeared after the animation phase has to catch up here
+    if (!bone_matrices_cached_) {
+        UpdateBoneMatrices();
+    }
+
+    //the constant buffer is transient and shared by every skinned mesh, so each
+    //draw still uploads the matrices it needs
+    GetBoneData()->Update(&bone_matrices_);
     UpdatePerObjectData(cmd_buffer);
 
     cmd_buffer->BindMaterial(variant.get());
     mesh->Draw(cmd_buffer);
 }
 
+void SkinnedMeshRenderer::UpdateRenderData() const {
+    Renderable::UpdateRenderData();
+
+    if (!resolved_) {
+        ResolveBones();
+    }
+
+    UpdateBoneMatrices();
+}
+
 void SkinnedMeshRenderer::UpdateBoneMatrices() const {
     auto mesh = skinned_mesh();
+    if (!mesh || !mesh->IsSkinned()) {
+        return;
+    }
+
+    PerfSample("Update bone matrices");
+
     const auto& bones = mesh->bones();
     const auto& world_to_local = transform().WorldToLocalMatrix();
 
     size_t count = std::min(bones.size(), (size_t)kMaxBones);
     bool has_prev = has_prev_ && prev_bone_world_.size() == bones.size();
 
-    BoneMatrices data;
     for (size_t i = 0; i < count; ++i) {
         auto* bone = bone_transforms_[i];
         Matrix4x4 world = bone ? bone->LocalToWorldMatrix() : Matrix4x4::identity;
 
         //the mesh transform cancels out again in the vertex shader, so the
         //matrices are expressed in mesh space
-        data.bones[i] = world_to_local * world * bones[i].offset_matrix;
-        data.prev_bones[i] = prev_world_to_local_ * (has_prev ? prev_bone_world_[i] : world) * bones[i].offset_matrix;
+        bone_matrices_.bones[i] = world_to_local * world * bones[i].offset_matrix;
+        bone_matrices_.prev_bones[i] = prev_world_to_local_ * (has_prev ? prev_bone_world_[i] : world) * bones[i].offset_matrix;
     }
-
-    GetBoneData()->Update(&data);
 
     for (size_t i = 0; i < count; ++i) {
         auto* bone = bone_transforms_[i];
@@ -117,6 +141,7 @@ void SkinnedMeshRenderer::UpdateBoneMatrices() const {
 
     prev_world_to_local_ = world_to_local;
     has_prev_ = true;
+    bone_matrices_cached_ = true;
 }
 
 void SkinnedMeshRenderer::DrawInspector() {
