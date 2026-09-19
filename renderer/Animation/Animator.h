@@ -126,6 +126,9 @@ private:
 
     void ResolveBones();
     void ReportUnknownTracks() const;
+    //bone a track drives: a clip remembers the skeleton it was bound to, so the
+    //index baked into the track is used whenever it is played on that skeleton
+    int32_t BoneIndexOf(const AnimationClip& clip, const NodeTrack& track) const;
     void Sample(const AnimationClip& clip, float time, SkeletonPose& pose) const;
     void MarkAnimated(const AnimationClip& clip);
     void Evaluate();

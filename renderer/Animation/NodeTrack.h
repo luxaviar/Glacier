@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include "Animation/AnimationKeyframe.h"
+#include "Animation/Skeleton.h"
 
 namespace glacier {
 
@@ -13,6 +14,12 @@ public:
 
     const std::string& node_name() const { return node_name_; }
     void node_name(const std::string& v) { node_name_ = v; }
+
+    //bone this track drives in the skeleton the clip was bound to; the index is
+    //only valid for that skeleton (see AnimationClip::BindToSkeleton), so the
+    //sampler falls back to the name when it does not match
+    int32_t bone() const { return bone_; }
+    void bone(int32_t v) { bone_ = v; }
 
     void AddPosition(const Vec3Keyframe& key) { positions_.push_back(key); }
     void AddRotation(const QuatKeyframe& key) { rotations_.push_back(key); }
@@ -31,6 +38,7 @@ public:
 
 private:
     std::string node_name_;
+    int32_t bone_ = kInvalidBoneIndex;
     std::vector<Vec3Keyframe> positions_;
     std::vector<QuatKeyframe> rotations_;
     std::vector<Vec3Keyframe> scales_;

@@ -71,7 +71,6 @@ public:
     const Node& root() const { return root_; }
 
     const std::string& name() const { return name_; }
-    const aiScene* scene() const { return scene_; }
 
     const std::shared_ptr<Mesh>& GetMesh(size_t idx) const;
     const std::shared_ptr<Material>& GetMaterial(size_t idx) const;
@@ -87,6 +86,15 @@ public:
         bool srgb, bool mips, TextureWarpMode& mode) const;
 
     GameObject& CreateGameObject(float scale = 1.0f);
+
+    //Loads a file and reuses the imported data when the same file was loaded
+    //before: the meshes, materials, clips and the skeleton are shared between
+    //every instance of the model. The entry is dropped when the source file
+    //changed, so a reload still picks up an edited asset.
+    static std::shared_ptr<Model> Load(CommandBuffer* cmd_buffer, const char* file, bool flip_uv = false);
+    //releases every loaded model (their meshes, materials and textures)
+    static void ClearCache();
+
     static GameObject& GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv = false, float scale = 1.0f);
 
 private:
@@ -116,13 +124,18 @@ private:
         const std::unordered_map<std::string, std::vector<int32_t>>& joints) const;
 
     std::shared_ptr<Skeleton> BuildSkeleton(const std::vector<NodeInfo>& nodes) const;
+    //loads the clips of the file from the cache or converts them, then binds them
+    //to the skeleton of this model: the sampler addresses the bones by index and
+    //only falls back to names for another skeleton
+    void ImportAnimations(const std::filesystem::path& path);
 
     //mutable because the node tree numbers itself while it is being built
     mutable uint32_t node_count_ = 0;
 
     Node root_;
-    Assimp::Importer importer_;
-    const aiScene* scene_;
+    std::unique_ptr<Assimp::Importer> importer_;
+    //only valid while the model is built, see the end of the constructor
+    const aiScene* scene_ = nullptr;
     std::string name_;
     std::vector<std::shared_ptr<Mesh>> meshes_;
     std::vector<std::shared_ptr<Material>> materials_;

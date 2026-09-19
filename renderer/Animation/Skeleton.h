@@ -54,9 +54,15 @@ public:
     //kInvalidBoneIndex when the name is not part of the skeleton
     int32_t IndexOf(const char* name) const;
 
+    //Identifies the bones of this skeleton (their names and parents); a clip
+    //remembers the signature of the skeleton it was bound to, so a mismatch can
+    //fall back to looking nodes up by name
+    uint64_t signature() const { return signature_; }
+
 private:
     std::vector<SkeletonBone> bones_;
     std::unordered_map<std::string, int32_t> lookup_;
+    uint64_t signature_ = 0;
 };
 
 }

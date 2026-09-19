@@ -13,6 +13,7 @@
 #include "App.h"
 #include "Render/Renderer.h"
 #include "Animation/Animator.h"
+#include "Animation/AnimationClipCache.h"
 #include "Render/Mesh/SkinnedMeshRenderer.h"
 #include "Lux/Lux.h"
 
@@ -29,6 +30,23 @@ LUX_IMPL_END
 #define AI_MATKEY_AMBIENT_STR "$clr.ambient"
 
 namespace {
+
+//Models are imported once per file and shared by all of their instances; the
+//entry is dropped when the source file changed.
+struct CachedModel {
+    std::shared_ptr<Model> model;
+    FileStamp stamp;
+};
+
+std::unordered_map<std::string, CachedModel> g_model_cache;
+
+std::string ModelCacheKey(const char* file, bool flip_uv) {
+    std::error_code error;
+    auto path = std::filesystem::weakly_canonical(file, error);
+
+    std::string key = error ? file : path.string();
+    return flip_uv ? key + "|flip_uv" : key;
+}
 
 //taken when the importer does not provide a tick rate (assimp documents 0 as "not time based")
 constexpr double kDefaultTicksPerSecond = 25.0;
@@ -238,7 +256,7 @@ Model::Node::Node(Transform* tx, Node* parent, const aiNode& self, const Model* 
     transform_ = std::make_unique<Transform>(*(Matrix4x4*)(&self.mTransformation));
     transform_->SetParent(tx);
 
-    auto scene = model_->scene();
+    auto scene = model_->scene_;
     meshes_.reserve(self.mNumMeshes);
     for (size_t i = 0; i < self.mNumMeshes; ++i) {
         auto mesh_index = self.mMeshes[i];
@@ -385,11 +403,12 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
         flag |= aiProcess_FlipUVs;
     }
 
-    scene_ = importer_.ReadFile(file, flag);
+    importer_ = std::make_unique<Assimp::Importer>();
+    scene_ = importer_->ReadFile(file, flag);
 
     // If the import failed, report it
     if (!scene_) {
-        throw std::exception(importer_.GetErrorString());
+        throw std::exception(importer_->GetErrorString());
     }
 
     name_ = { scene_->mName.data, scene_->mName.length };
@@ -497,11 +516,37 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
         materials_.push_back(mat);
     }
 
-    animations_.reserve(scene_->mNumAnimations);
-    for (size_t i = 0; i < scene_->mNumAnimations; ++i) {
-        animations_.emplace_back(ImportAnimation(*scene_->mAnimations[i], i));
-        LOG_LOG("animation {0}: {1} tracks, {2}s",
-            animations_.back()->name(), animations_.back()->track_count(), animations_.back()->duration());
+    ImportAnimations(path);
+
+    //the parsed scene is only needed while the model is built; the model itself
+    //stays in the import cache, and keeping the source file in memory with it
+    //would cost more than everything the model uses
+    importer_.reset();
+    scene_ = nullptr;
+}
+
+void Model::ImportAnimations(const std::filesystem::path& path) {
+    if (scene_->mNumAnimations == 0) {
+        return;
+    }
+
+    if (!AnimationClipCache::Load(path, animations_)) {
+        animations_.reserve(scene_->mNumAnimations);
+        for (size_t i = 0; i < scene_->mNumAnimations; ++i) {
+            animations_.emplace_back(ImportAnimation(*scene_->mAnimations[i], i));
+            LOG_LOG("animation {0}: {1} tracks, {2}s",
+                animations_.back()->name(), animations_.back()->track_count(), animations_.back()->duration());
+        }
+
+        AnimationClipCache::Save(path, animations_);
+    }
+
+    //sampling addresses the bones of this model by index, so every track resolves
+    //its node once here; a clip played on another skeleton falls back to names
+    for (auto& clip : animations_) {
+        if (clip && skeleton_) {
+            clip->BindToSkeleton(*skeleton_);
+        }
     }
 }
 
@@ -544,8 +589,31 @@ GameObject& Model::CreateGameObject(float scale) {
 }
 
 GameObject& Model::GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv, float scale) {
-    Model model(cmd_buffer, file, flip_uv);
-    return model.CreateGameObject(scale);
+    return Load(cmd_buffer, file, flip_uv)->CreateGameObject(scale);
+}
+
+std::shared_ptr<Model> Model::Load(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
+    const std::string key = ModelCacheKey(file, flip_uv);
+    const FileStamp stamp = StampOfFile(file);
+
+    auto it = g_model_cache.find(key);
+    if (it != g_model_cache.end() && it->second.stamp == stamp) {
+        LOG_DEBUG("model '{}': reusing the imported asset", file);
+        return it->second.model;
+    }
+
+    auto model = std::make_shared<Model>(cmd_buffer, file, flip_uv);
+
+    CachedModel entry;
+    entry.model = model;
+    entry.stamp = stamp;
+    g_model_cache[key] = std::move(entry);
+
+    return model;
+}
+
+void Model::ClearCache() {
+    g_model_cache.clear();
 }
 
 }

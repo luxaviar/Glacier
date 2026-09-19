@@ -10,6 +10,7 @@
 #include <ImGuizmo.h>
 #include "Render/LightManager.h"
 #include "Render/Editor/Gizmos.h"
+#include "Render/Mesh/Model.h"
 #include "Sampler.h"
 #include "CommandBuffer.h"
 #include "MipsGenerator.h"
@@ -221,10 +222,12 @@ ComPtr<IDXGIAdapter4> D3D12GfxDriver::CreateAdapter(bool use_warp) {
 }
 
 void D3D12GfxDriver::OnDestroy() {
+    render::Model::ClearCache();
     render::MaterialManager::Instance()->Clear();
     render::LightManager::Instance()->Clear();
     render::Gizmos::Instance()->OnDestroy();
     D3D12Sampler::Clear();
+    D3D12CommandBuffer::ClearTextureCache();
 }
 
 D3D12GfxDriver::~D3D12GfxDriver() {

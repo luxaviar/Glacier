@@ -101,6 +101,19 @@ void ByteStream::Write(ByteStream& stream) {
     Write(stream.rbegin(), stream.ReadableBytes());
 }
 
+void ByteStream::Write(const Vec3f& value) {
+    Write(&value, sizeof(value));
+}
+
+void ByteStream::Write(const Quaternion& value) {
+    Write(&value, sizeof(value));
+}
+
+void ByteStream::Write(const std::string& value) {
+    WriteVint((uint32_t)value.size());
+    Write(value.data(), value.size());
+}
+
 int ByteStream::Read(void* data, size_t size) {
     if (size == 0) return 0;
 
@@ -118,6 +131,34 @@ int ByteStream::Read(void* data, size_t size) {
     }
 
     return size;
+}
+
+int ByteStream::Read(Vec3f& value) {
+    return Read(&value, sizeof(value));
+}
+
+int ByteStream::Read(Quaternion& value) {
+    return Read(&value, sizeof(value));
+}
+
+int ByteStream::Read(std::string& value) {
+    if (ReadableBytes() == 0) {
+        read_fail_ = true;
+        return 0;
+    }
+
+    uint32_t length = 0;
+    int size = ReadVint(length);
+
+    //a length that does not fit means the stream was cut short
+    if (ReadableBytes() < length) {
+        read_fail_ = true;
+        return 0;
+    }
+
+    value.assign((const char*)rbegin(), length);
+    Drain(length);
+    return size + (int)length;
 }
 
 int ByteStream::Peek(void* data, size_t size, size_t offset) {

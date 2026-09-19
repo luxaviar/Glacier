@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <iterator>
 #include <thread>
+#include <cstdint>
+#include <filesystem>
 #include <DirectXMath.h>
 #include "Math/Mat4.h"
 #include "Math/Vec4.h"
@@ -21,6 +23,37 @@ using EngineString = std::string;
 std::wstring ToWide( const std::string& narrow );
 
 std::string ToNarrow( const std::wstring& wide );
+
+//identity of a source file, so derived data (caches) can tell whether it is
+//still the one it was built from
+struct FileStamp {
+    uint64_t size = 0;
+    int64_t time = 0;
+
+    bool IsSet() const { return size != 0 || time != 0; }
+    bool operator==(const FileStamp& rhs) const { return size == rhs.size && time == rhs.time; }
+    bool operator!=(const FileStamp& rhs) const { return !(*this == rhs); }
+};
+
+//both fields stay 0 when the file cannot be read
+inline FileStamp StampOfFile(const std::filesystem::path& path) {
+    FileStamp stamp;
+
+    std::error_code error;
+    stamp.size = (uint64_t)std::filesystem::file_size(path, error);
+    if (error) {
+        stamp.size = 0;
+        return stamp;
+    }
+
+    error.clear();
+    auto write_time = std::filesystem::last_write_time(path, error);
+    if (!error) {
+        stamp.time = (int64_t)write_time.time_since_epoch().count();
+    }
+
+    return stamp;
+}
 
 //
 // Get the absolute path to the running exe.

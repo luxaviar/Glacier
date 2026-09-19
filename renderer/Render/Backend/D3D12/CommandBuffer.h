@@ -1,6 +1,9 @@
 #pragma once
 
 #include <vector>
+#include <string>
+#include <unordered_map>
+#include <memory>
 #include <d3d12.h> 
 #include <atomic>
 #include <condition_variable>
@@ -26,6 +29,8 @@ public:
 
     std::shared_ptr<Texture> CreateTextureFromFile(const TCHAR* file, bool srgb, 
         bool gen_mips, TextureType type = TextureType::kTexture2D) override;
+    //drops the decoded textures; the driver clears them before the device goes
+    static void ClearTextureCache();
 
     std::shared_ptr<Texture> CreateTextureFromColor(const Color& color, bool srgb) override;
 
@@ -130,6 +135,9 @@ public:
     void AddInflightResource(std::shared_ptr<Resource>&& res);
 
 private:
+    //decoded images of the process, keyed by file and the settings they were read with
+    static std::unordered_map<std::string, std::shared_ptr<Texture>> texture_cache_;
+
     D3D12_COMMAND_LIST_TYPE native_type_;
     ID3D12Device* device_;
 

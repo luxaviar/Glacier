@@ -6,6 +6,28 @@ namespace glacier {
 
 namespace {
 
+//fnv-1a, so a changed name or parent changes the signature of the skeleton
+constexpr uint64_t kFnvOffset = 14695981039346656037ull;
+constexpr uint64_t kFnvPrime = 1099511628211ull;
+
+void HashByte(uint64_t& hash, uint8_t byte) {
+    hash = (hash ^ byte) * kFnvPrime;
+}
+
+void HashValue(uint64_t& hash, int32_t value) {
+    for (int i = 0; i < 4; ++i) {
+        HashByte(hash, (uint8_t)((uint32_t)value >> (i * 8)));
+    }
+}
+
+void HashString(uint64_t& hash, const std::string& value) {
+    for (char c : value) {
+        HashByte(hash, (uint8_t)c);
+    }
+
+    HashByte(hash, 0);
+}
+
 void CollectHierarchy(const Transform& node, int32_t parent, Skeleton& skeleton) {
     int32_t index = skeleton.AddBone(node.game_object()->name().c_str(), parent,
         node.local_position(), node.local_rotation(), node.local_scale());
@@ -44,10 +66,15 @@ void Skeleton::Build() {
     lookup_.clear();
     lookup_.reserve(bones_.size());
 
+    signature_ = kFnvOffset;
+
     for (size_t i = 0; i < bones_.size(); ++i) {
         //clips address nodes by name, so a duplicated name always resolves to
         //the first bone that carries it; bones themselves bind by index
         lookup_.emplace(bones_[i].name, (int32_t)i);
+
+        HashString(signature_, bones_[i].name);
+        HashValue(signature_, bones_[i].parent);
     }
 }
 

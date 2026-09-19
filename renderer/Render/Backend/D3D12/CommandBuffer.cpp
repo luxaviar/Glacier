@@ -14,6 +14,8 @@
 namespace glacier {
 namespace render {
 
+std::unordered_map<std::string, std::shared_ptr<Texture>> D3D12CommandBuffer::texture_cache_;
+
 D3D12CommandBuffer::D3D12CommandBuffer(GfxDriver* driver, CommandBufferType type) :
     CommandBuffer(driver, type)
 {
@@ -41,11 +43,29 @@ void D3D12CommandBuffer::SetName(const char* name) {
 std::shared_ptr<Texture> D3D12CommandBuffer::CreateTextureFromFile(const TCHAR* file, bool srgb, 
     bool gen_mips, TextureType type)
 {
+    //textures are decoded once: several models and materials of one scene ask for
+    //the same file, and the instance count of a model does not matter either
+    std::string key = ToNarrow(file);
+    key += srgb ? "|srgb" : "|linear";
+    key += gen_mips ? "|mips" : "|no_mips";
+    key += "|" + std::to_string((int)type);
+
+    auto it = texture_cache_.find(key);
+    if (it != texture_cache_.end()) {
+        LOG_DEBUG("texture '{}': reusing the decoded image", key);
+        return it->second;
+    }
+
     const Image image(file, srgb);
     auto tex = std::make_shared<D3D12Texture>(this, image, gen_mips, type, true);
     tex->SetName(ToNarrow(file).c_str());
 
+    texture_cache_.emplace(std::move(key), tex);
     return tex;
+}
+
+void D3D12CommandBuffer::ClearTextureCache() {
+    texture_cache_.clear();
 }
 
 std::shared_ptr<Texture> D3D12CommandBuffer::CreateTextureFromColor(const Color& color, bool srgb) {

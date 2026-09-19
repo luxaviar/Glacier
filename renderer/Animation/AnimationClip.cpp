@@ -1,4 +1,5 @@
 #include "Animation/AnimationClip.h"
+#include "Animation/Skeleton.h"
 #include <algorithm>
 
 namespace glacier {
@@ -41,6 +42,14 @@ const NodeTrack* AnimationClip::FindTrack(const char* node_name) const {
     }
 
     return nullptr;
+}
+
+void AnimationClip::BindToSkeleton(const Skeleton& skeleton) {
+    skeleton_signature_ = skeleton.signature();
+
+    for (auto& track : tracks_) {
+        track.bone(skeleton.IndexOf(track.node_name().c_str()));
+    }
 }
 
 }

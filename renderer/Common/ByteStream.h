@@ -1,9 +1,12 @@
 #pragma once
 
 #include <type_traits>
+#include <string>
 #include <stddef.h>
 #include <stdint.h>
 #include "Uncopyable.h"
+#include "Math/Vec3.h"
+#include "Math/Quat.h"
 
 namespace glacier {
 
@@ -49,6 +52,13 @@ public:
     void Write(const void* data, size_t size);
     void Write(ByteStream& stream);
 
+    //the values the animation data is made of: fixed width numbers, so the
+    //layout of a stream does not depend on the compiler
+    void Write(const Vec3f& value);
+    void Write(const Quaternion& value);
+    //length prefixed text
+    void Write(const std::string& value);
+
     template<typename T>
     void Write(const T& t) {
         Write(&t, sizeof(T));
@@ -75,6 +85,11 @@ public:
     }
 
     int Read(void* data, size_t size);
+
+    int Read(Vec3f& value);
+    int Read(Quaternion& value);
+    //returns the bytes it consumed, 0 when the stream ends inside the text
+    int Read(std::string& value);
 
     template<typename T>
     int Read(T& t) {

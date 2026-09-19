@@ -45,3 +45,4 @@ game.log
 renderer/imgui.ini
 ScreenCaptured.png
 ShadowMapCaptured.png
+*.gclip

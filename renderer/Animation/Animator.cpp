@@ -200,7 +200,7 @@ void Animator::ReportUnknownTracks() const {
 
         size_t unknown = 0;
         for (const auto& track : clip->tracks()) {
-            if (skeleton_->IndexOf(track.node_name().c_str()) == kInvalidBoneIndex) {
+            if (BoneIndexOf(*clip, track) == kInvalidBoneIndex) {
                 ++unknown;
             }
         }
@@ -630,13 +630,22 @@ void Animator::AdvanceTime(Action& action, float dt) {
     }
 }
 
+int32_t Animator::BoneIndexOf(const AnimationClip& clip, const NodeTrack& track) const {
+    if (track.bone() != kInvalidBoneIndex && clip.skeleton_signature() == skeleton_->signature()) {
+        return track.bone();
+    }
+
+    //a clip of another skeleton, e.g. a retargeted one, addresses its nodes by name
+    return skeleton_->IndexOf(track.node_name().c_str());
+}
+
 void Animator::Sample(const AnimationClip& clip, float time, SkeletonPose& pose) const {
     //a clip that does not animate a channel contributes the rest pose of that
     //channel, so mixing towards it relaxes the bone instead of freezing it
     pose.ResetToRest(*skeleton_);
 
     for (const auto& track : clip.tracks()) {
-        int32_t index = skeleton_->IndexOf(track.node_name().c_str());
+        int32_t index = BoneIndexOf(clip, track);
         if (index == kInvalidBoneIndex) {
             continue;
         }
@@ -655,7 +664,7 @@ void Animator::Sample(const AnimationClip& clip, float time, SkeletonPose& pose)
 
 void Animator::MarkAnimated(const AnimationClip& clip) {
     for (const auto& track : clip.tracks()) {
-        int32_t index = skeleton_->IndexOf(track.node_name().c_str());
+        int32_t index = BoneIndexOf(clip, track);
         if (index == kInvalidBoneIndex) {
             continue;
         }
