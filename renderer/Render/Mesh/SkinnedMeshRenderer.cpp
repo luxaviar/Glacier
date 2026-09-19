@@ -37,6 +37,11 @@ void SkinnedMeshRenderer::RefreshBones() {
     bone_matrices_cached_ = false;
 }
 
+void SkinnedMeshRenderer::SetNodeTable(std::shared_ptr<const NodeTransformTable> nodes) {
+    node_table_ = std::move(nodes);
+    RefreshBones();
+}
+
 void SkinnedMeshRenderer::ResolveBones() const {
     resolved_ = true;
     bone_matrices_cached_ = false;
@@ -51,11 +56,26 @@ void SkinnedMeshRenderer::ResolveBones() const {
     prev_bone_world_.assign(bones.size(), Matrix4x4::identity);
     has_prev_ = false;
 
-    for (size_t i = 0; i < bones.size(); ++i) {
-        bone_transforms_[i] = FindNodeTransform(transform(), bones[i].name.c_str());
+    if (!node_table_) {
+        LOG_WARN("SkinnedMeshRenderer '{}': {} joints without a node table keep the bind pose",
+            game_object() ? game_object()->name() : "<none>", bones.size());
+        return;
     }
 
-    size_t missing = (size_t)std::count(bone_transforms_.begin(), bone_transforms_.end(), nullptr);
+    size_t missing = 0;
+    for (size_t i = 0; i < bones.size(); ++i) {
+        //the importer already picked the node the joint belongs to, so the
+        //indices are only checked against the table of this instance
+        int32_t node = bones[i].node;
+        if (node >= 0 && (size_t)node < node_table_->size()) {
+            bone_transforms_[i] = (*node_table_)[node];
+        }
+
+        if (!bone_transforms_[i]) {
+            ++missing;
+        }
+    }
+
     LOG_LOG("SkinnedMeshRenderer '{}': resolved {} of {} bones",
         game_object() ? game_object()->name() : "<none>", bones.size() - missing, bones.size());
 

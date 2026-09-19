@@ -69,22 +69,40 @@ void Animator::SetSkeleton(std::shared_ptr<Skeleton> skeleton) {
     }
 }
 
-void Animator::BindNodes(Transform& root) {
+void Animator::BindNodes(Transform& root, std::shared_ptr<const NodeTransformTable> nodes) {
     UnbindNodes();
-    CollectNodeTransforms(root, nodes_);
+    node_table_ = std::move(nodes);
 
     //remember the bind pose so that Stop() can restore it
-    bind_pose_.reserve(nodes_.size());
-    for (const auto& [name, transform] : nodes_) {
+    auto capture_bind_pose = [this](Transform* transform) {
         BindPose pose;
         pose.transform = transform;
         pose.position = transform->local_position();
         pose.rotation = transform->local_rotation();
         pose.scale = transform->local_scale();
         bind_pose_.push_back(pose);
+    };
+
+    if (node_table_) {
+        //an imported node table lists every node of the instance exactly once,
+        //duplicated names included
+        bind_pose_.reserve(node_table_->size());
+        for (auto* transform : *node_table_) {
+            if (transform) {
+                capture_bind_pose(transform);
+            }
+        }
+    }
+    else {
+        CollectNodeTransforms(root, nodes_);
+
+        bind_pose_.reserve(nodes_.size());
+        for (const auto& [name, transform] : nodes_) {
+            capture_bind_pose(transform);
+        }
     }
 
-    if (nodes_.empty()) {
+    if (bind_pose_.empty()) {
         LOG_WARN("Animator on '{}' bound no node", game_object() ? game_object()->name() : "<none>");
     }
 
@@ -101,6 +119,7 @@ void Animator::BindNodes(Transform& root) {
 
 void Animator::UnbindNodes() {
     nodes_.clear();
+    node_table_ = nullptr;
     bind_pose_.clear();
     bone_transforms_.clear();
     animated_position_.clear();
@@ -131,13 +150,31 @@ void Animator::ResolveBones() {
     written_scale_.assign(count, false);
 
     size_t missing = 0;
-    for (size_t i = 0; i < count; ++i) {
-        auto it = nodes_.find(skeleton_->bone(i).name);
-        if (it != nodes_.end()) {
-            bone_transforms_[i] = it->second;
+    if (node_table_) {
+        if (node_table_->size() != count) {
+            LOG_WARN("Animator '{}': {} nodes for {} skeleton bones, the nodes in between are ignored",
+                game_object() ? game_object()->name() : "<none>", node_table_->size(), count);
         }
-        else {
-            ++missing;
+
+        for (size_t i = 0; i < count; ++i) {
+            if (i < node_table_->size()) {
+                bone_transforms_[i] = (*node_table_)[i];
+            }
+
+            if (!bone_transforms_[i]) {
+                ++missing;
+            }
+        }
+    }
+    else {
+        for (size_t i = 0; i < count; ++i) {
+            auto it = nodes_.find(skeleton_->bone(i).name);
+            if (it != nodes_.end()) {
+                bone_transforms_[i] = it->second;
+            }
+            else {
+                ++missing;
+            }
         }
     }
 
@@ -720,7 +757,7 @@ void Animator::DrawInspector() {
     }
 
     ImGui::Text("clips: %d  nodes: %d  bones: %d",
-        (int)clips_.size(), (int)nodes_.size(), (int)bone_count());
+        (int)clips_.size(), (int)node_count(), (int)bone_count());
 
     if (!clips_.empty()) {
         if (selected_clip_ >= clips_.size()) {

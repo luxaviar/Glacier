@@ -1,5 +1,6 @@
 #include "Model.h"
 #include <algorithm>
+#include <cmath>
 #include <cstring>
 #include <unordered_map>
 #include "Render/Graph/PassNode.h"
@@ -43,58 +44,16 @@ float ToSeconds(double time, double ticks_per_second) {
     return (float)(time / ticks);
 }
 
-void AddMeshComponent(GameObject& go, const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material) {
+void AddMeshComponent(GameObject& go, const std::shared_ptr<Mesh>& mesh, const std::shared_ptr<Material>& material,
+    const std::shared_ptr<NodeTransformTable>& nodes) {
     if (mesh->IsSkinned()) {
-        go.AddComponent<SkinnedMeshRenderer>(mesh, material);
+        //the bones of the mesh address the node table by index
+        auto* renderer = go.AddComponent<SkinnedMeshRenderer>(mesh, material);
+        renderer->SetNodeTable(nodes);
     }
     else {
         go.AddComponent<MeshRenderer>(mesh, material);
     }
-}
-
-//Builds the flat skeleton of the imported node tree: every node is stored with
-//the index of its parent, the rest pose comes from the node transform and the
-//inverse bind matrix from the skin of the meshes. Nodes that are not joints are
-//kept as well, so clips can address them by name like any other bone.
-void AddSkeletonNode(const aiNode& node, int32_t parent,
-    const std::unordered_map<std::string, Matrix4x4>& inverse_bind, Skeleton& skeleton) {
-    Matrix4x4 local;
-    std::memcpy(&local, &node.mTransformation, sizeof(local));
-
-    Vec3f position;
-    Quaternion rotation;
-    Vec3f scale;
-    local.Decompose(position, rotation, scale);
-
-    auto it = inverse_bind.find(node.mName.C_Str());
-    int32_t index = skeleton.AddBone(node.mName.C_Str(), parent, position, rotation, scale,
-        it != inverse_bind.end() ? it->second : Matrix4x4::identity);
-
-    for (size_t i = 0; i < node.mNumChildren; ++i) {
-        AddSkeletonNode(*node.mChildren[i], index, inverse_bind, skeleton);
-    }
-}
-
-std::shared_ptr<Skeleton> BuildSkeleton(const aiScene& scene) {
-    std::unordered_map<std::string, Matrix4x4> inverse_bind;
-    for (size_t i = 0; i < scene.mNumMeshes; ++i) {
-        const auto& mesh = *scene.mMeshes[i];
-        for (size_t b = 0; b < mesh.mNumBones; ++b) {
-            const auto& bone = *mesh.mBones[b];
-
-            Matrix4x4 offset;
-            std::memcpy(&offset, &bone.mOffsetMatrix, sizeof(offset));
-            inverse_bind.emplace(bone.mName.C_Str(), offset);
-        }
-    }
-
-    auto skeleton = std::make_shared<Skeleton>();
-    if (scene.mRootNode) {
-        AddSkeletonNode(*scene.mRootNode, kInvalidBoneIndex, inverse_bind, *skeleton);
-    }
-
-    skeleton->Build();
-    return skeleton;
 }
 
 //aiProcess_MakeLeftHanded converts node transforms and animation values together,
@@ -142,9 +101,138 @@ std::shared_ptr<AnimationClip> ImportAnimation(const aiAnimation& anim, size_t i
 
 }
 
+void Model::CollectNodes(const Node& node, int32_t parent, const Matrix4x4& parent_world, std::vector<NodeInfo>& out) {
+    NodeInfo info;
+    info.node = &node;
+    info.parent = parent;
+    info.world_bind = parent_world * node.transform_->LocalToParentMatrix();
+
+    out.push_back(info);
+    int32_t index = (int32_t)out.size() - 1;
+
+    for (const auto& child : node.children_) {
+        CollectNodes(child, index, info.world_bind, out);
+    }
+}
+
+float Model::BindError(const Matrix4x4& world_bind, const Matrix4x4& offset_matrix) {
+    //the bind pose of the joint has to cancel the inverse bind matrix of the skin
+    const Matrix4x4 skin = world_bind * offset_matrix;
+
+    float error = 0.0f;
+    for (int row = 0; row < 4; ++row) {
+        for (int col = 0; col < 4; ++col) {
+            float expected = row == col ? 1.0f : 0.0f;
+            error = std::max(error, std::abs(skin(row, col) - expected));
+        }
+    }
+
+    return error;
+}
+
+std::vector<Mesh::Bone> Model::ResolveBones(const aiMesh& mesh, const std::string& file,
+    std::vector<NodeInfo>& nodes,
+    const std::unordered_map<std::string, std::vector<int32_t>>& joints) const
+{
+    //a joint is a node of the scene and the inverse bind matrix is the inverse
+    //of that node's bind pose, which is what tells duplicated names apart
+    constexpr float kJointMatchEpsilon = 1.0e-3f;
+
+    std::vector<Mesh::Bone> bones;
+    bones.reserve(mesh.mNumBones);
+
+    size_t missing = 0;
+    size_t matched_by_bind = 0;
+    std::string first_missing;
+
+    for (size_t b = 0; b < mesh.mNumBones; ++b) {
+        const auto& ai_bone = *mesh.mBones[b];
+
+        Mesh::Bone bone;
+        std::memcpy(&bone.offset_matrix, &ai_bone.mOffsetMatrix, sizeof(bone.offset_matrix));
+
+        auto it = joints.find(ai_bone.mName.C_Str());
+        if (it == joints.end()) {
+            if (missing == 0) {
+                first_missing = ai_bone.mName.C_Str();
+            }
+            ++missing;
+            bones.push_back(bone);
+            continue;
+        }
+
+        //a name can belong to more than one node, or to a node that is not the
+        //joint at all, so the bind pose of the joint picks between the candidates
+        int32_t matched = it->second.front();
+        float error = BindError(nodes[matched].world_bind, bone.offset_matrix);
+
+        for (size_t c = 1; c < it->second.size(); ++c) {
+            float candidate_error = BindError(nodes[it->second[c]].world_bind, bone.offset_matrix);
+            if (candidate_error < error) {
+                error = candidate_error;
+                matched = it->second[c];
+            }
+        }
+
+        bone.node = matched;
+
+        if (error >= kJointMatchEpsilon) {
+            if (it->second.size() > 1) {
+                LOG_ERR("model '{0}': joint '{1}' is one of {2} nodes with that name but none of them matches its bind pose",
+                    file, ai_bone.mName.C_Str(), it->second.size());
+            }
+            else {
+                LOG_WARN("model '{0}': joint '{1}' is bound to a node whose bind pose does not match the skin (error {2:.3f})",
+                    file, ai_bone.mName.C_Str(), error);
+            }
+        }
+        else if (it->second.size() > 1) {
+            ++matched_by_bind;
+        }
+
+        //the skeleton carries the inverse bind matrix the skin gave the joint
+        auto& node = nodes[(size_t)bone.node];
+        if (!node.has_inverse_bind) {
+            node.has_inverse_bind = true;
+            node.inverse_bind = bone.offset_matrix;
+        }
+
+        bones.push_back(bone);
+    }
+
+    if (missing > 0) {
+        LOG_ERR("model '{0}': mesh '{1}' has {2} joint(s) that are not nodes of the scene, first is '{3}'; they keep the bind pose",
+            file, mesh.mName.C_Str(), missing, first_missing);
+    }
+
+    if (matched_by_bind > 0) {
+        LOG_LOG("model '{0}': mesh '{1}' matched {2} joint(s) with a shared name by their bind pose",
+            file, mesh.mName.C_Str(), matched_by_bind);
+    }
+
+    return bones;
+}
+
+std::shared_ptr<Skeleton> Model::BuildSkeleton(const std::vector<NodeInfo>& nodes) const {
+    //every node of the imported tree becomes a bone, so clips can address nodes
+    //that are not joints by name as well
+    auto skeleton = std::make_shared<Skeleton>();
+
+    for (const auto& info : nodes) {
+        const auto& tx = info.node->transform();
+        skeleton->AddBone(info.node->name_.c_str(), info.parent,
+            tx.local_position(), tx.local_rotation(), tx.local_scale(), info.inverse_bind);
+    }
+
+    skeleton->Build();
+    return skeleton;
+}
+
 Model::Node::Node(Transform* tx, Node* parent, const aiNode& self, const Model* model) :
     model_(model),
     parent_(parent),
+    //nodes are numbered depth first, the same order the skeleton keeps its bones
+    index_(model->node_count_++),
     name_(self.mName.C_Str())
 {
     transform_ = std::make_unique<Transform>(*(Matrix4x4*)(&self.mTransformation));
@@ -169,7 +257,7 @@ Model::Node::Node(Transform* tx, Node* parent, const aiNode& self, const Model* 
     }
 }
 
-GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
+GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale, const std::shared_ptr<NodeTransformTable>& nodes)
 {
     auto& go = GameObject::Create(name_.c_str());
     auto& tx = go.transform();
@@ -183,6 +271,10 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
         tx.SetParent(parent_tx);
     }
 
+    if (nodes) {
+        (*nodes)[index_] = &tx;
+    }
+
     if (meshes_.size() > 1) {
         for (auto desc : meshes_) {
             auto mesh_index = desc.mesh;
@@ -192,7 +284,7 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
             auto mtl = model_->GetMaterial(mat_index);
             mesh_go.transform().SetParent(&tx);
 
-            AddMeshComponent(mesh_go, mesh, mtl);
+            AddMeshComponent(mesh_go, mesh, mtl, nodes);
         }
     }
     else if (meshes_.size() == 1) {
@@ -200,11 +292,11 @@ GameObject& Model::Node::GenerateGameObject(Transform* parent_tx, float scale)
         auto mat_index = meshes_[0].material;
         auto mesh = model_->GetMesh(mesh_index);
         auto mtl = model_->GetMaterial(mat_index);
-        AddMeshComponent(go, mesh, mtl);
+        AddMeshComponent(go, mesh, mtl, nodes);
     }
     
     for (auto& child : children_) {
-        child.GenerateGameObject(&tx, scale);
+        child.GenerateGameObject(&tx, scale, nodes);
     }
     return go;
 }
@@ -302,11 +394,47 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
 
     name_ = { scene_->mName.data, scene_->mName.length };
 
+    //the node tree comes first: it numbers the nodes, and those numbers are the
+    //bone indices the meshes, the skeleton and the animator share
+    root_ = Node(nullptr, nullptr, *scene_->mRootNode, this);
+
+    std::vector<NodeInfo> nodes;
+    nodes.reserve(node_count_);
+    CollectNodes(root_, kInvalidBoneIndex, Matrix4x4::identity, nodes);
+
+    //joint names of the scene; a name used by more than one node keeps every
+    //candidate, so the bind pose of the joint can pick between them
+    std::unordered_map<std::string, std::vector<int32_t>> joints;
+    size_t shared_names = 0;
+    for (size_t i = 0; i < nodes.size(); ++i) {
+        auto& candidates = joints[nodes[i].node->name_];
+        if (!candidates.empty()) {
+            ++shared_names;
+        }
+        candidates.push_back((int32_t)i);
+    }
+
+    if (shared_names > 0) {
+        LOG_WARN("model '{0}': {1} node name(s) belong to more than one node; bones bind by index, clips that address them by name always hit the first one",
+            path.filename().string(), shared_names);
+    }
+
+    bool skinned = false;
+    for (size_t i = 0; i < scene_->mNumMeshes; ++i) {
+        skinned = skinned || scene_->mMeshes[i]->mNumBones > 0;
+    }
+
     meshes_.reserve(scene_->mNumMeshes);
     for (size_t i = 0; i < scene_->mNumMeshes; i++) {
         const auto& ai_mesh = *scene_->mMeshes[i];
-        auto& mesh = meshes_.emplace_back(std::move(std::make_shared<Mesh>(ai_mesh)));
+        auto& mesh = meshes_.emplace_back(std::make_shared<Mesh>(ai_mesh,
+            ResolveBones(ai_mesh, path.filename().string(), nodes, joints)));
         mesh->name(ai_mesh.mName.C_Str());
+    }
+
+    if (skinned || scene_->mNumAnimations > 0) {
+        skeleton_ = BuildSkeleton(nodes);
+        LOG_LOG("skeleton: {} bones", skeleton_->bone_count());
     }
 
     materials_.reserve(scene_->mNumMaterials);
@@ -369,21 +497,11 @@ Model::Model(CommandBuffer* cmd_buffer, const char* file, bool flip_uv) {
         materials_.push_back(mat);
     }
 
-    root_ = Node(nullptr, nullptr, *scene_->mRootNode, this);
-
     animations_.reserve(scene_->mNumAnimations);
     for (size_t i = 0; i < scene_->mNumAnimations; ++i) {
         animations_.emplace_back(ImportAnimation(*scene_->mAnimations[i], i));
         LOG_LOG("animation {0}: {1} tracks, {2}s",
             animations_.back()->name(), animations_.back()->track_count(), animations_.back()->duration());
-    }
-
-    bool skinned = std::any_of(meshes_.begin(), meshes_.end(),
-        [](const std::shared_ptr<Mesh>& mesh) { return mesh && mesh->IsSkinned(); });
-
-    if (skinned || !animations_.empty()) {
-        skeleton_ = BuildSkeleton(*scene_);
-        LOG_LOG("skeleton: {} bones", skeleton_->bone_count());
     }
 }
 
@@ -404,13 +522,22 @@ const std::shared_ptr<Material>& Model::GetMaterial(size_t idx) const {
 }
 
 GameObject& Model::CreateGameObject(float scale) {
-    auto& go = root_.GenerateGameObject(nullptr, scale);
+    //every instance owns its table of node transforms: the bones of its skinned
+    //meshes and its animator address that table by index, so two instances (or
+    //two nodes that share a name) cannot bind to each other
+    std::shared_ptr<NodeTransformTable> nodes;
+    if (skeleton_) {
+        ASSERT(node_count_ == skeleton_->bone_count());
+        nodes = std::make_shared<NodeTransformTable>(node_count_, nullptr);
+    }
+
+    auto& go = root_.GenerateGameObject(nullptr, scale, nodes);
 
     if (!animations_.empty()) {
         auto* animator = go.AddComponent<Animator>();
         animator->SetClips(animations_);
         animator->SetSkeleton(skeleton_);
-        animator->BindNodes(go.transform());
+        animator->BindNodes(go.transform(), nodes);
     }
 
     return go;

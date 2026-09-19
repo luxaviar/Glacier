@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include "render/base/renderable.h"
+#include "Animation/Skeleton.h"
 #include "geometry.h"
 
 struct aiMesh;
@@ -18,16 +19,22 @@ public:
     static InputLayoutDesc kDefaultLayout;
     static InputLayoutDesc kSkinnedLayout;
 
-    //bone binding of a skinned mesh; offset_matrix is the inverse bind matrix
-    //that maps a mesh space vertex into the bone's local space
+    //bone binding of a skinned mesh: the node it drives in the model's node
+    //table; offset_matrix is the inverse bind matrix that maps a mesh space
+    //vertex into the bone's local space
     struct Bone {
-        std::string name;
+        //index of the joint in the model's node table, which is the skeleton's
+        //bone order; kInvalidBoneIndex when the importer could not match the
+        //joint of the asset to one of its nodes
+        int32_t node = kInvalidBoneIndex;
         Matrix4x4 offset_matrix;
     };
 
     Mesh();
     Mesh(const VertexCollection& vertices, const IndexCollection& indices, bool recalculate_normals = false);
-    Mesh(const aiMesh& mesh);
+    //bones are resolved by the importer, so the mesh never looks a joint up by
+    //name; the list has to hold one entry per bone of the assimp mesh
+    Mesh(const aiMesh& mesh, const std::vector<Bone>& bones);
     Mesh(const std::shared_ptr<Buffer>& vertex_buffer, const std::shared_ptr<Buffer>& index_buffer);
     
     const AABB& bounds() const { return bounds_; }

@@ -8,6 +8,7 @@
 #include "Render/Base/Inputlayout.h"
 #include "Render/Base/CommandBuffer.h"
 #include "Render/Base/CommandQueue.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
@@ -31,7 +32,7 @@ Mesh::Mesh(const VertexCollection& vertices, const IndexCollection& indices, boo
     Setup();
 }
 
-Mesh::Mesh(const aiMesh& mesh) {
+Mesh::Mesh(const aiMesh& mesh, const std::vector<Bone>& bones) {
     name_ = mesh.mName.C_Str();
 
     vertices_.reserve(mesh.mNumVertices);
@@ -64,6 +65,7 @@ Mesh::Mesh(const aiMesh& mesh) {
         }
     }
 
+    bones_ = bones;
     ImportBones(mesh);
 
     Setup();
@@ -72,11 +74,9 @@ Mesh::Mesh(const aiMesh& mesh) {
 void Mesh::ImportBones(const aiMesh& mesh) {
     if (mesh.mNumBones == 0) return;
 
-    bones_.reserve(mesh.mNumBones);
-    for (size_t i = 0; i < mesh.mNumBones; ++i) {
-        const auto& bone = *mesh.mBones[i];
-        bones_.push_back(Bone{ bone.mName.C_Str(), *(Matrix4x4*)&bone.mOffsetMatrix });
-    }
+    //the bones and their node bindings come from the importer, one entry per
+    //bone of the assimp mesh and in the same order
+    ASSERT(bones_.size() == mesh.mNumBones);
 
     //keep the four strongest influences of every vertex, then normalize them
     constexpr size_t kMaxInfluence = 4;

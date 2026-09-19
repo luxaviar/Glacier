@@ -3,6 +3,7 @@
 #include <memory>
 #include <vector>
 #include "Render/Mesh/MeshRenderer.h"
+#include "Animation/NodeLookup.h"
 #include "Math/Mat4.h"
 
 namespace glacier {
@@ -27,6 +28,9 @@ public:
 
     //re-resolves the bone transforms; the first Render does this automatically
     void RefreshBones();
+    //the node table of the instance the mesh belongs to; the bones of the mesh
+    //address it by index, so nodes that share a name cannot be confused
+    void SetNodeTable(std::shared_ptr<const NodeTransformTable> nodes);
     size_t bone_count() const;
 
 private:
@@ -35,6 +39,7 @@ private:
     void UpdateBoneMatrices() const;
 
     mutable bool resolved_ = false;
+    mutable std::shared_ptr<const NodeTransformTable> node_table_;
     mutable std::vector<Transform*> bone_transforms_;
     mutable std::vector<Matrix4x4> prev_bone_world_;
     mutable Matrix4x4 prev_world_to_local_ = Matrix4x4::identity;

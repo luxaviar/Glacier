@@ -2,9 +2,11 @@
 
 #include <optional>
 #include <filesystem>
+#include <unordered_map>
 #include <assimp/Importer.hpp>      // C++ importer interface
 #include <assimp/material.h>
 #include "Animation/AnimationClip.h"
+#include "Animation/NodeLookup.h"
 #include "Animation/Skeleton.h"
 #include "MeshRenderer.h"
 
@@ -44,11 +46,18 @@ public:
         //const AABB& bounds() const { return bounds_; }
         const Transform& transform() const { return *transform_; }
 
-        GameObject& GenerateGameObject(Transform* parent_tx, float scale);
+        //index of this node in the imported tree, which is also the index of its
+        //bone in the skeleton
+        uint32_t index() const { return index_; }
+
+        //fills the transform of every node into `nodes`, which is what the
+        //bones of the generated instance bind to
+        GameObject& GenerateGameObject(Transform* parent_tx, float scale, const std::shared_ptr<NodeTransformTable>& nodes);
 
     private:
         const Model* model_;
         Node* parent_ = nullptr;
+        uint32_t index_ = 0;
         std::string name_;
         std::unique_ptr<Transform> transform_;
         std::vector<MeshDesc> meshes_;
@@ -81,6 +90,36 @@ public:
     static GameObject& GenerateGameObject(CommandBuffer* cmd_buffer, const char* file, bool flip_uv = false, float scale = 1.0f);
 
 private:
+    friend class Node;
+
+    //flat view of the imported node tree, in the order the skeleton stores its
+    //bones in
+    struct NodeInfo {
+        const Node* node = nullptr;
+        int32_t parent = kInvalidBoneIndex;
+        //bind pose world matrix, used to tell nodes that share a name apart
+        Matrix4x4 world_bind = Matrix4x4::identity;
+        //inverse bind matrix the skin gives to the joint of this node
+        Matrix4x4 inverse_bind = Matrix4x4::identity;
+        bool has_inverse_bind = false;
+    };
+
+    static void CollectNodes(const Node& node, int32_t parent, const Matrix4x4& parent_world, std::vector<NodeInfo>& out);
+    //distance between a joint's bind pose and a node's, 0 when they are the same
+    static float BindError(const Matrix4x4& world_bind, const Matrix4x4& offset_matrix);
+
+    //Maps every bone of the mesh to the node it drives: the name gives the
+    //candidates and the inverse bind matrix picks among duplicated ones. Bones
+    //that match no node are reported and stay at kInvalidBoneIndex.
+    std::vector<Mesh::Bone> ResolveBones(const aiMesh& mesh, const std::string& file,
+        std::vector<NodeInfo>& nodes,
+        const std::unordered_map<std::string, std::vector<int32_t>>& joints) const;
+
+    std::shared_ptr<Skeleton> BuildSkeleton(const std::vector<NodeInfo>& nodes) const;
+
+    //mutable because the node tree numbers itself while it is being built
+    mutable uint32_t node_count_ = 0;
+
     Node root_;
     Assimp::Importer importer_;
     const aiScene* scene_;

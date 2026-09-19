@@ -7,6 +7,7 @@
 #include "Core/Behaviour.h"
 #include "Animation/AnimationClip.h"
 #include "Animation/AnimationKeyframe.h"
+#include "Animation/NodeLookup.h"
 #include "Animation/Skeleton.h"
 #include "Animation/SkeletonPose.h"
 
@@ -35,10 +36,11 @@ public:
 
     //Collects every transform under root by name, remembers the bind pose and
     //derives a skeleton when none was imported, so every clip can be retargeted
-    //onto this instance.
-    void BindNodes(Transform& root);
+    //onto this instance. A node table (an imported instance) binds the bones by
+    //index instead of by name, which nodes sharing a name would break.
+    void BindNodes(Transform& root, std::shared_ptr<const NodeTransformTable> nodes = nullptr);
     void UnbindNodes();
-    size_t node_count() const { return nodes_.size(); }
+    size_t node_count() const { return node_table_ ? node_table_->size() : nodes_.size(); }
 
     size_t clip_count() const { return clips_.size(); }
     const char* clip_name(size_t index) const;
@@ -137,6 +139,8 @@ private:
     std::shared_ptr<Skeleton> skeleton_;
     //a skeleton derived from the hierarchy goes away with the binding
     bool owns_skeleton_ = false;
+    //transform of every node of the imported instance, in skeleton order
+    std::shared_ptr<const NodeTransformTable> node_table_;
     std::vector<Transform*> bone_transforms_;
 
     std::unordered_map<std::string, Transform*> nodes_;

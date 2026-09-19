@@ -45,8 +45,8 @@ void Skeleton::Build() {
     lookup_.reserve(bones_.size());
 
     for (size_t i = 0; i < bones_.size(); ++i) {
-        //not every asset has unique node names; the first bone wins, the same
-        //way the transform lookup resolves them
+        //clips address nodes by name, so a duplicated name always resolves to
+        //the first bone that carries it; bones themselves bind by index
         lookup_.emplace(bones_[i].name, (int32_t)i);
     }
 }

@@ -2,10 +2,17 @@
 
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 namespace glacier {
 
 class Transform;
+
+//Transforms of every node of one generated instance, in the order the imported
+//node tree stores them. A Skeleton uses the same order for its bones, so a bone
+//index addresses the transform it drives without going through the node names,
+//which are not guaranteed to be unique.
+using NodeTransformTable = std::vector<Transform*>;
 
 //maps the name of every GameObject in the hierarchy containing `node` (node
 //itself included) to its transform
