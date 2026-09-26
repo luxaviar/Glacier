@@ -17,6 +17,7 @@
 #include "../Image.h"
 #include "Inspect/Profiler.h"
 #include "Input/Input.h"
+#include "Core/Behaviour.h"
 #include "App.h"
 
 namespace glacier {
@@ -153,9 +154,15 @@ void Editor::DrawPanel() {
     PerfSample("Editor");
 
     auto& state = Input::GetJustKeyDownState();
-    if (state.Tab) {
+    //tab hides the panels, but not while it is being typed into one of them
+    if (state.Tab && !Input::IsTextInputActive()) {
         show_windows_ = !show_windows_;
     }
+
+    //what the behaviours of the scene draw over it - the key hints of the demo
+    //- is a foreground drawing of this frame, so it stays up whichever windows
+    //are shown and takes no input of its own
+    BehaviourManager::Instance()->DrawOverlay();
 
     if (show_windows_) {
         DrawMainMenu();
@@ -229,7 +236,9 @@ void Editor::DrawMainMenu() {
         }
 
         if (ImGui::BeginMenu("Tools")) {
-            if (ImGui::MenuItem("Capture Screen", "F2") || state.F2) {
+            //the F2 key itself is handled by the app, so it works before the
+            //first frame of the editor is up (and only captures once)
+            if (ImGui::MenuItem("Capture Screen", "F2")) {
                 App::Self()->GetRenderer()->CaptureScreen();
             }
 

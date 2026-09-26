@@ -52,6 +52,9 @@ LUX_PROP_FUNC_GET(Animator, blend_parameter, blend_parameter)
 LUX_FUNC(Animator, duration)
 LUX_FUNC(Animator, SetTime)
 LUX_FUNC(Animator, SetSpeed)
+LUX_FUNC_SPEC(Animator, SetClipSpeed, SetClipSpeed, bool, const char*, float)
+LUX_FUNC(Animator, GetClipSpeed)
+LUX_FUNC_SPEC(Animator, SetClipPhase, SetClipPhase, bool, const char*, float)
 LUX_FUNC(Animator, SetLoop)
 LUX_FUNC(Animator, SetWriteTransforms)
 LUX_PROP_FUNC_GET(Animator, time, time)
@@ -261,7 +264,7 @@ Animator::Action& Animator::AddAction(const std::shared_ptr<AnimationClip>& clip
 
     Action action;
     action.clip = clip;
-    action.speed = speed_;
+    action.speed = ActionSpeed(*clip);
     action.loop = loop_;
     action.weight = weight;
     action.fade_from = weight;
@@ -513,7 +516,7 @@ bool Animator::Play(size_t index, bool loop) {
     Action action;
     action.clip = clip;
     action.loop = loop;
-    action.speed = speed_;
+    action.speed = ActionSpeed(*clip);
     action.weight = 1.0f;
     action.fade_from = 1.0f;
     action.fade_to = 1.0f;
@@ -726,9 +729,96 @@ void Animator::SetTime(float t) {
 void Animator::SetSpeed(float v) {
     speed_ = v;
 
+    //a clip with a rate of its own keeps it, the base rate is only what the
+    //other clips play at
     for (auto& action : actions_) {
-        action.speed = v;
+        if (action.clip) {
+            action.speed = ActionSpeed(*action.clip);
+        }
     }
+}
+
+float Animator::ActionSpeed(const AnimationClip& clip) const {
+    auto it = clip_speeds_.find(clip.name());
+    return it != clip_speeds_.end() ? it->second : speed_;
+}
+
+bool Animator::SetClipSpeed(size_t index, float speed) {
+    auto clip = GetClip(index);
+    if (!clip) {
+        LOG_WARN("Animator::SetClipSpeed failed, invalid clip index {}", index);
+        return false;
+    }
+
+    clip_speeds_[clip->name()] = speed;
+
+    if (auto* action = FindAction(clip.get())) {
+        action->speed = speed;
+    }
+
+    return true;
+}
+
+bool Animator::SetClipSpeed(const char* name, float speed) {
+    auto clip = GetClip(name);
+    if (!clip) {
+        LOG_WARN("Animator::SetClipSpeed failed, unknown clip '{}'", name ? name : "<none>");
+        return false;
+    }
+
+    size_t index = IndexOfClip(clip.get());
+    return index < clips_.size() && SetClipSpeed(index, speed);
+}
+
+float Animator::GetClipSpeed(const char* name) const {
+    auto clip = GetClip(name);
+    return clip ? ActionSpeed(*clip) : 0.0f;
+}
+
+bool Animator::SetClipPhase(size_t index, float phase) {
+    auto clip = GetClip(index);
+    if (!clip) {
+        LOG_WARN("Animator::SetClipPhase failed, invalid clip index {}", index);
+        return false;
+    }
+
+    auto* action = FindAction(clip.get());
+    if (!action) {
+        return false;
+    }
+
+    float clip_duration = clip->duration();
+    if (clip_duration <= 0.0f) {
+        return false;
+    }
+
+    //one is the end of the clip rather than its start, which is where a one
+    //shot stopped by its own length is
+    if (phase >= 1.0f) {
+        phase = 1.0f;
+    }
+    else {
+        phase -= ::floorf(phase);
+    }
+
+    action->time = phase * clip_duration;
+
+    //a clip that takes no part in the blend is not worth evaluating again
+    if (action->weight > 0.0f) {
+        Evaluate();
+    }
+
+    return true;
+}
+
+bool Animator::SetClipPhase(const char* name, float phase) {
+    auto clip = GetClip(name);
+    if (!clip) {
+        LOG_WARN("Animator::SetClipPhase failed, unknown clip '{}'", name ? name : "<none>");
+        return false;
+    }
+
+    return SetClipPhase(IndexOfClip(clip.get()), phase);
 }
 
 void Animator::SetLoop(bool v) {

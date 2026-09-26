@@ -65,7 +65,12 @@ void Keyboard::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam) {
 
     case WM_KEYDOWN:
     case WM_SYSKEYDOWN:
-        if (imio.WantCaptureKeyboard) {
+        //A widget that is taking text keeps the keys to itself; a panel that is
+        //merely the one in focus, or under the mouse, does not. The demo is
+        //played with the keyboard while the panels of the editor are up, and
+        //having to click the viewport first to give the keys back to the game is
+        //not something a game engine does.
+        if (imio.WantTextInput) {
             return;
         }
         down = true;
@@ -73,9 +78,8 @@ void Keyboard::ProcessMessage(UINT message, WPARAM wParam, LPARAM lParam) {
 
     case WM_KEYUP:
     case WM_SYSKEYUP:
-        if (imio.WantCaptureKeyboard) {
-            return;
-        }
+        //a release is always taken, whatever the interface is doing: a key that
+        //went down before a text field took the keyboard would stick otherwise
         break;
 
     default:

@@ -27,6 +27,11 @@ public:
     static bool IsJustKeyDown(Keyboard::Keys key);
     static bool IsJustKeyUp(Keyboard::Keys key);
 
+    //a widget of the interface is taking text right now (see Keyboard.cpp): the
+    //keys that belong to the interface as much as to the game - escape closes
+    //the app, tab hides the panels - have to be left to it while it is
+    static bool IsTextInputActive();
+
     static const Keyboard::State& GetKeyState();
     static const Keyboard::State& GetJustKeyDownState();
     static const Keyboard::State& GetJustKeyUpState();

@@ -24,8 +24,13 @@ class CommandBuffer;
 //not fit keeps the vertex shader skinning path.
 class GpuSkinning : public Singleton<GpuSkinning> {
 public:
-    //vertices of all skinned meshes of the scene, 65536 of them are 3.5MB
-    static constexpr uint32_t kCapacity = 65536;
+    //The pool holds the deformed vertices of every skinned mesh of the scene and
+    //is given 32MB of the memory of the GPU to do it: a skinned vertex takes
+    //kVertexSize bytes, which is what the layout the compute pass writes strides
+    //a vertex by (Mesh::kSkinnedVertexLayout).
+    static constexpr uint32_t kMemorySize = _32MB;
+    static constexpr uint32_t kVertexSize = 56;
+    static constexpr uint32_t kCapacity = kMemorySize / kVertexSize;
     static constexpr uint32_t kInvalidOffset = 0xffffffff;
     //vertices one thread group skins, must match SkinningCS.hlsl
     static constexpr uint32_t kThreads = 64;

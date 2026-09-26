@@ -18,6 +18,9 @@ void GpuSkinning::Setup() {
     auto gfx = GfxDriver::Get();
 
     uint32_t stride = (uint32_t)Mesh::kSkinnedVertexLayout.data_size();
+    //the capacity is a budget of memory, so it is only the number of vertices
+    //it is meant to be for the layout it was divided by
+    assert(stride == kVertexSize);
     vertex_buffer_ = gfx->CreateVertexBuffer(stride * kCapacity, stride, CreateFlags::kUav);
     vertex_buffer_->SetName("skinned vertex pool");
 

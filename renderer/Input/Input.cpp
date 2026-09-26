@@ -1,5 +1,7 @@
 #include "input.h"
 
+#include <imgui.h>
+
 namespace glacier {
 
 bool Input::IsRelativeMode() {
@@ -36,6 +38,10 @@ bool Input::IsJustKeyDown(Keyboard::Keys key) {
 
 bool Input::IsJustKeyUp(Keyboard::Keys key) {
     return Instance()->keyboard().IsJustKeyUp(key);
+}
+
+bool Input::IsTextInputActive() {
+    return ImGui::GetIO().WantTextInput;
 }
 
 const Keyboard::State& Input::GetKeyState() {

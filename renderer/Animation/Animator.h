@@ -132,6 +132,25 @@ public:
     float speed() const { return speed_; }
     void SetSpeed(float v);
 
+    //Rate of one clip, which overrides the rate SetSpeed gives every action. A
+    //negative rate plays the clip backwards, e.g. to back a character up with
+    //the walk cycle it walked away with. The rate of a clip that is not
+    //playing is remembered for the next time it is played.
+    bool SetClipSpeed(size_t index, float speed);
+    bool SetClipSpeed(const char* name, float speed);
+    float GetClipSpeed(const char* name) const;
+
+    //Puts the clip at a point of its own cycle, 0 to 1, instead of letting its
+    //time run (1 is the end of the clip). Clips that were authored on the same
+    //cycle - the locomotion of a character usually is - can be lined up with
+    //each other this way, which is what a blend of them needs: a pose that mixes
+    //a walk and a strafe only reads as one step while the foot of the walk and
+    //the foot of the strafe are on the floor at the same moment. The time runs
+    //on from there, so whoever drives a phase sets it every frame. False while
+    //the clip is not part of the blend.
+    bool SetClipPhase(size_t index, float phase);
+    bool SetClipPhase(const char* name, float phase);
+
     bool loop() const { return loop_; }
     void SetLoop(bool v);
 
@@ -187,6 +206,8 @@ private:
     Action* FindAction(const AnimationClip* clip);
     const Action* FindAction(const AnimationClip* clip) const;
     Action& AddAction(const std::shared_ptr<AnimationClip>& clip, float weight);
+    //the rate an action of this clip plays at: its own rate, or the base one
+    float ActionSpeed(const AnimationClip& clip) const;
     size_t IndexOfClip(const AnimationClip* clip) const;
     bool RemoveAction(const AnimationClip* clip);
 
@@ -236,6 +257,8 @@ private:
 
     std::vector<BlendClip> blend_clips_;
     float blend_parameter_ = 0.0f;
+    //clips with a rate of their own, see SetClipSpeed
+    std::unordered_map<std::string, float> clip_speeds_;
 
     bool root_motion_ = false;
     size_t root_motion_bone_ = 0;

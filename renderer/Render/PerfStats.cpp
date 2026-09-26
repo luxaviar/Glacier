@@ -36,6 +36,14 @@ void PerfStats::PostRender(CommandBuffer* cmd_buffer, bool show_stats) {
         gpu_stats_.Sample(result.elapsed_time);
     }
 
+    //what the frame drew is read here rather than where it is shown, so that
+    //whoever shows it does not have to own a command buffer of the frame
+    auto primitives = primitiv_query_->GetQueryResult(cmd_buffer);
+    if (primitives.is_valid) {
+        vertices_ = primitives.vertices_rendered;
+        primitives_ = primitives.primitives_rendered;
+    }
+
     accum_time_ += elapsed_time;
     if (accum_time_ > 1.0) {
         gpu_time_ = gpu_stats_.average();
@@ -95,14 +103,14 @@ void PerfStats::DrawStatsPanel(CommandBuffer* cmd_buffer) {
     ImGui::Text("GPU Frame Time:"); ImGui::SameLine(kLabelWidth);
     ImGui::Text("%.4fms", elapsed_time * 1000.0f);
 
-    auto result = primitiv_query_->GetQueryResult(cmd_buffer);
-
+    //the counts of the frame were read by PostRender, so the panel only shows
+    //them; the queries belong to the frame, not to the window
     ImGui::Text("Render Vertices:"); ImGui::SameLine(kLabelWidth);
-    ImGui::Text("%llu", result.is_valid ? result.vertices_rendered : 0);
+    ImGui::Text("%llu", vertices_);
 
     ImGui::Text("Render Primitives:"); ImGui::SameLine(kLabelWidth);
-    ImGui::Text("%llu", result.is_valid ? result.primitives_rendered : 0);
-    
+    ImGui::Text("%llu", primitives_);
+
     ImGui::End();
 }
 

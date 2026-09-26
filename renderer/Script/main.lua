@@ -33,13 +33,16 @@ function main.create_scene()
     local pbr_scene = require("pbrscene")
     local phy_scene = require("physcene")
     local anim_scene = require("animscene")
+    local ybot_scene = require("ybotscene")
 
     local sm = SceneManager.Instance()
     sm:Add(pbr_scene)
     sm:Add(phy_scene)
     sm:Add(anim_scene)
+    sm:Add(ybot_scene)
     --sm:Load("pbr", SceneLoadMode.kSingle)
-    sm:Load("anim", SceneLoadMode.kSingle)
+    --sm:Load("anim", SceneLoadMode.kSingle)
+    sm:Load("ybot", SceneLoadMode.kSingle)
     --sm:Load("physics", SceneLoadMode.kSingle)
 end
 

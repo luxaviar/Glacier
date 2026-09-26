@@ -26,8 +26,11 @@ constexpr uint32_t kInvalidBoneOffset = 0xffffffff;
 //add the region of the current frame (FrameOffset) to the offset of its slot.
 class BoneMatrixPool : public Singleton<BoneMatrixPool> {
 public:
-    //matrices per region, 8192 of them are 512KB
-    static constexpr uint32_t kCapacity = 8192;
+    //matrices per region, 32768 of them are 2MB; the three regions of the pool
+    //are 6MB of the memory of the GPU, which is room for 250 characters of the
+    //65 bone rig of the demo (every one of them takes 2 x 65 matrices, one slot
+    //per pose of the frame and one for the pose before it)
+    static constexpr uint32_t kCapacity = 32768;
     //frames in flight the buffer is split for, see GfxDriver::kBufferCount
     static constexpr uint32_t kRegionCount = 3;
     //bones past kMaxBones are dropped at import, so this much room at the end of

@@ -74,6 +74,9 @@ public:
     const std::vector<Renderable*>& GetVisibles() const { return visibles_; }
 
     GfxDriver* driver() { return gfx_; }
+    //what the last frames rendered: the frame time, the gpu time and what the
+    //draws of the frame came to (see PerfStats)
+    PerfStats* stats() { return stats_.get(); }
     void OptionWindow(bool* open);
 
     void CaptureScreen();

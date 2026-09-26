@@ -57,6 +57,8 @@ and runtime-compiled shaders.
 * Editor & Gizmo
 * Input System
 * Lua Binding Framework
+* GPU skinning & instanced skinning draws
+* Animation System
 
 ## Example
 
@@ -74,3 +76,6 @@ and runtime-compiled shaders.
 
 **GTAO**
 ![GTAO](samples/GTAO.png)
+
+**Animation**
+![Animation](samples/animation.gif)

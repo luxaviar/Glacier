@@ -23,4 +23,13 @@ void BehaviourManager::LateUpdate(float dt) {
     }
 }
 
+void BehaviourManager::DrawOverlay() {
+    for (auto it = objects_.begin(); it != objects_.end(); ++it) {
+        auto be = it->data;
+        if (be->IsActive()) {
+            be->DrawOverlay();
+        }
+    }
+}
+
 }

@@ -28,6 +28,10 @@ public:
     render::Renderer* GetRenderer() const { return renderer_.get(); }
     LuaVM& VM() { return vm_; }
 
+    //the world is held still with P; what is drawn over the scene keeps drawing
+    //while it is, so whatever of it shows reads this
+    bool paused() const { return pause_; }
+
 private:
     //void OnStart();
     void DoFrame( float dt );

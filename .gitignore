@@ -40,6 +40,7 @@ vcpkg_installed/
 .vscode/
 .idea/
 .docs/
+.tmp/
 build/
 game.log
 renderer/imgui.ini

@@ -90,17 +90,26 @@ bool App::HandleInput(float dt) {
 
     auto& keyboard = Input::Instance()->keyboard();
     auto& state = keyboard.GetState();
-    if (state.Escape) {
+    //escape is the way out of the app, unless a widget of the editor is being
+    //typed into, where it is the way out of the edit
+    if (state.Escape && !Input::IsTextInputActive()) {
         gfx_->OnDestroy();
         return true;
     }
 
-    if (state.Space) {
+    //P pauses the world; space belongs to the game, a demo character jumps with it
+    if (keyboard.IsJustKeyDown(Keyboard::P)) {
         pause_ = !pause_;
     }
 
     if (keyboard.IsJustKeyDown(Keyboard::F11)) {
         wnd_->ToogleFullScreen();
+    }
+
+    //F2 writes what the frame looks like to ScreenCaptured.png, next to the
+    //scripts the app runs from, which is how a run is checked without a viewer
+    if (keyboard.IsJustKeyDown(Keyboard::F2)) {
+        renderer_->CaptureScreen();
     }
     
     return false;
