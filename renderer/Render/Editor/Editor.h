@@ -41,6 +41,9 @@ private:
     void DrawMainMenu();
     void DrawScenePanel();
     void DrawInspectorPanel();
+    //draws what the profiler measured on the frame that ended before this one,
+    //which is the newest frame there is a complete measurement of
+    void DrawProfilerPanel();
 
     GfxDriver* gfx_;
 
@@ -51,6 +54,7 @@ private:
     bool show_scene_hierachy_ = true;
     bool show_inspector_ = true;
     bool show_stats_ = true;
+    bool show_profiler_ = true;
     bool show_imgui_demo_ = false;
 
     bool enable_gizmos_ = true;

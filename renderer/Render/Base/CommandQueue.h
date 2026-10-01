@@ -26,7 +26,10 @@ public:
 
     virtual uint64_t GetCompletedFenceValue() = 0;
     virtual bool IsFenceComplete(uint64_t fenceValue ) = 0;
-    virtual void WaitForFenceValue(uint64_t fenceValue) = 0;
+    // label names the wait in the profile, timeout_ms is for the waits that must
+    // not hang the app (see the D3D12 implementation)
+    virtual void WaitForFenceValue(uint64_t fenceValue, const char* label = "WaitForFenceValue",
+        uint32_t timeout_ms = 0xFFFFFFFF) = 0;
 
     virtual void Flush() = 0;
 

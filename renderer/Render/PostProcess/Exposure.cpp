@@ -1,6 +1,7 @@
 #include "Exposure.h"
 #include <assert.h>
 #include <algorithm>
+#include <cmath>
 #include "Render/Renderer.h"
 #include <imgui.h>
 #include "Math/Util.h"
@@ -38,7 +39,26 @@ void Exposure::Setup(Renderer* renderer)
     exposure_params_ = gfx_->CreateConstantParameter<ExposureAdaptParam, UsageType::kDefault>();
     
     auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kCopy);
-    alignas(16) float initExposure[] = { 1.0, 1.0 };
+
+    // The tone mapping of a frame reads the exposure itself, which is what the
+    // frame before it metered: the first frame of a run has no frame before it,
+    // and what the buffer starts with is what it is exposed by. 1.0 - the
+    // exposure of a scene of 1.2 * 2^0 = 2.4 - is far darker than any scene
+    // here meters (ybot reads about 0.6, EV100 0.5), so starting there blew the
+    // bright parts of the character out on the first frame. A frame that has not
+    // been metered yet is exposed as the middle grey the meter is calibrated
+    // for: 0.18 * 100 / K is the EV100 of middle grey, and the demo scenes meter
+    // within a fraction of it, so the first frame looks like the ones after it
+    // even before the meter runs. The second value is the EV100 the adaptation
+    // of the next frame moves away from (see ComputeLuminanceAdaptation).
+    const float meter_k = exposure_params_.param().meter_calibration_constant;
+    const float init_ev100 = std::log2(0.18f * 100.0f / meter_k);
+    // must match ConvertEV100ToExposure of Common/Color.hlsli
+    constexpr float kExposureScale = 1.2f;
+    alignas(16) float initExposure[] = {
+        1.0f / (kExposureScale * std::exp2(init_ev100)),
+        init_ev100,
+    };
     exposure_buf_->Upload(cmd_buffer, initExposure);
 
     auto cmd_queue = gfx_->GetCommandQueue(CommandBufferType::kCopy);

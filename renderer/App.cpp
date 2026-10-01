@@ -15,6 +15,7 @@
 #include "Render/ForwardRenderer.h"
 #include "Render/DeferredRenderer.h"
 #include "Render/Base/GfxDriver.h"
+#include "Render/Base/Enums.h"
 #include "Render/Base/Renderable.h"
 #include "Render/Backend/D3D12/GfxDriver.h"
 #include "Inspect/Profiler.h"
@@ -66,6 +67,17 @@ void App::Setup(std::unique_ptr<Window>&& window,
 
 void App::Finalize() {
     Profiler::Instance()->PrintAll();
+
+    // Nothing waits for the GPU at the end of a frame any more (see
+    // GfxDriver::EndFrame), so the frames still in flight may be reading what
+    // the teardown below is about to take apart. This is where that wait
+    // belongs now: once, on the way out, instead of once per frame.
+    if (gfx_) {
+        gfx_->GetCommandQueue(render::CommandBufferType::kDirect)->Flush();
+        gfx_->GetCommandQueue(render::CommandBufferType::kCompute)->Flush();
+        gfx_->GetCommandQueue(render::CommandBufferType::kCopy)->Flush();
+    }
+
     GameObjectManager::Instance()->OnExit();
     SceneManager::Instance()->ClearAll();
 
@@ -111,11 +123,26 @@ bool App::HandleInput(float dt) {
     if (keyboard.IsJustKeyDown(Keyboard::F2)) {
         renderer_->CaptureScreen();
     }
+
+    //F4 writes the profile of the frame that just ended to the log, which is
+    //where a measurement worth keeping goes; the panel of the editor shows the
+    //same tree, but only while the app is running
+    if (keyboard.IsJustKeyDown(Keyboard::F4)) {
+        Profiler::Instance()->PrintFrame();
+        //the tree says where the CPU time went, the table where the GPU time
+        //went; a frame that is waiting for the GPU shows up in both
+        renderer_->stats()->PrintPassTimings();
+    }
     
     return false;
 }
 
 void App::DoFrame(float dt) {
+    //the profile is reported per frame, so the frame has to be marked; every
+    //sample taken below, here or in the renderer, lands inside it
+    auto profiler = Profiler::Instance();
+    profiler->BeginFrame();
+
     gfx_->BeginFrame();
 
     GameObjectManager::Instance()->CleanDead();
@@ -171,6 +198,18 @@ void App::DoFrame(float dt) {
     //job2.WaitComplete();
 
     gfx_->EndFrame();
+
+    //the GPU side of the frame the profiler is about to close: the renderer
+    //reads it out of its queries, and the report is where the two halves of a
+    //frame are read together
+    profiler->SetFrameGpuTime(renderer_->stats()->gpu_time() * 1000.0);
+
+    //from the end of the frame before this one to the end of this one, which is
+    //the loop iteration this frame belongs to; the dt the loop computed is the
+    //interval before that, and using it here would report another frame's wall
+    //time next to this frame's profile
+    profiler->EndFrame(frame_timer_.DeltaTime());
+    frame_timer_.Mark();
 }
 
 App::~App()

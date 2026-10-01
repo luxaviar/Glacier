@@ -56,10 +56,14 @@ D3D12CommandQueue::D3D12CommandQueue(D3D12GfxDriver* driver, CommandBufferType t
 }
 
 D3D12CommandQueue::~D3D12CommandQueue() {
+    if (wait_event_ != nullptr) {
+        ::CloseHandle(wait_event_);
+    }
 }
 
 void D3D12CommandQueue::SetName(const TCHAR* Name) {
     command_queue_->SetName(Name);
+    queue_name_ = ToNarrow(Name);
 }
 
 uint64_t D3D12CommandQueue::Signal() {
@@ -80,17 +84,23 @@ bool D3D12CommandQueue::IsFenceComplete(uint64_t fenceValue) {
     return fence_->GetCompletedValue() >= fenceValue;
 }
 
-void D3D12CommandQueue::WaitForFenceValue(uint64_t fenceValue) {
-    PerfGuard gurad("WaitForFenceValue");
+void D3D12CommandQueue::WaitForFenceValue(uint64_t fenceValue, const char* label, uint32_t timeout_ms) {
+    PerfGuard gurad(label);
     if (!IsFenceComplete(fenceValue)) {
-        auto event = ::CreateEvent(nullptr, false, false, nullptr);
+        // one event for the queue rather than one per wait: the wait can happen
+        // twice a frame, and creating a handle on every call is a syscall pair
+        if (wait_event_ == nullptr) {
+            wait_event_ = ::CreateEvent(nullptr, false, false, nullptr);
+        }
+
+        auto event = wait_event_;
         if (event) {
             // Fire event when GPU hits current fence.  
             fence_->SetEventOnCompletion(fenceValue, event);
             // Wait until the GPU hits current fence event is fired.
-            ::WaitForSingleObject(event, DWORD_MAX);
-
-            ::CloseHandle(event);
+            if (::WaitForSingleObject(event, timeout_ms) == WAIT_TIMEOUT) {
+                LOG_WARN("waited {} ms for fence {} of the {} queue and gave up", timeout_ms, fenceValue, label);
+            }
         }
     }
 }
@@ -98,9 +108,9 @@ void D3D12CommandQueue::WaitForFenceValue(uint64_t fenceValue) {
 void D3D12CommandQueue::Flush() {
     Signal();
     // Wait until the GPU has completed commands up to this fence point.
-    WaitForFenceValue(current_fence_value);
+    WaitForFenceValue(current_fence_value, "WaitForFenceValue(flush)");
 
-    ProccessInFlightCommandLists();
+    CollectCompletedCommandLists();
 }
 
 uint64_t D3D12CommandQueue::ExecuteCommandBuffer(std::vector<CommandBuffer*>& cmd_buffers) {
@@ -146,6 +156,12 @@ uint64_t D3D12CommandQueue::ExecuteCommandBuffer(std::vector<CommandBuffer*>& cm
     command_queue_->ExecuteCommandLists(executed_num, executed_list.data());
     uint64_t fence_value = Signal();
 
+    // remember what was submitted, so that whoever later reads data this buffer
+    // wrote can ask whether the GPU is done with it
+    for (auto command_list : inflight_list) {
+        command_list->SetSubmittedFence(fence_value);
+    }
+
     //ResourceStateTracker::Unlock();
 
     // Queue command lists for reuse.
@@ -169,7 +185,7 @@ uint64_t D3D12CommandQueue::ExecuteCommandBuffer(CommandBuffer* cmd_buffer) {
     return ExecuteCommandBuffer(cmd_buffers);
 }
 
-void D3D12CommandQueue::ProccessInFlightCommandLists() {
+void D3D12CommandQueue::CollectCompletedCommandLists() {
     CommandBufferEntry commandListEntry;
 
     while (inflight_command_lists_.TryPeek(commandListEntry)) {
@@ -194,6 +210,12 @@ D3D12CommandBuffer* D3D12CommandQueue::GetNativeCommandBuffer() {
 }
 
 std::unique_ptr<CommandBuffer> D3D12CommandQueue::CreateCommandBuffer() {
+    // a list that is created rather than taken from the pool means the frames in
+    // flight had none free; the count settles once the recycling keeps up
+    // at log level rather than debug level on purpose: the count is what says
+    // whether the pool is being recycled, and a release run is what is checked
+    LOG_LOG("command queue '{}': created command list #{}", queue_name_, ++created_command_lists_);
+
     auto cmd_buffer = std::make_unique<D3D12CommandBuffer>(driver_, type_);
     switch (native_type_) {
         case D3D12_COMMAND_LIST_TYPE_COPY:

@@ -13,7 +13,11 @@ std::shared_ptr<Texture> RenderTexturePool::Get(uint32_t width, uint32_t height,
 {
     auto it = std::find_if(free_textures_.begin(), free_textures_.end(),
         [=](std::shared_ptr<Texture>& tex) {
-            if (tex->GetFormat() == format && tex->width() == width, tex->height() == height && tex->GetFlags() == (uint32_t)flags) {
+            // the size is part of what makes a texture reusable: a texture of the
+            // wrong size used to slip through, because the comma here threw the
+            // comparison away and only the format and the flags were left
+            if (tex->GetFormat() == format && tex->width() == width && tex->height() == height &&
+                tex->GetFlags() == (uint32_t)flags) {
                 return true;
             }
 

@@ -237,7 +237,10 @@ void Renderer::PreRender(CommandBuffer* cmd_buffer) {
 
     //the passes draw the deformed vertices, so the skinning of the frame has to
     //be dispatched before the render graph runs
-    RenderableManager::Instance()->UpdateSkinning(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "Skinning", cmd_buffer);
+        RenderableManager::Instance()->UpdateSkinning(cmd_buffer);
+    }
 }
 
 void Renderer::Render(float delta_time) {
@@ -254,35 +257,65 @@ void Renderer::Render(float delta_time) {
 
     {
         PerfSample("Exexute render graph");
-        render_graph_.Execute(cmd_buffer);
+        //the graph names its own passes, so the timer is handed to it rather
+        //than bracketing each one here
+        render_graph_.Execute(cmd_buffer, &stats_->pass_timer());
     }
 
-    ResolveMSAA(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "Resolve MSAA", cmd_buffer);
+        ResolveMSAA(cmd_buffer);
+    }
 
-    DoTAA(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "TAA", cmd_buffer);
+        DoTAA(cmd_buffer);
+    }
 
-    HdrPostProcess(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "Hdr Post Process", cmd_buffer);
+        HdrPostProcess(cmd_buffer);
+    }
+
+    {
+        // The meter of this frame has to run before the tone mapping reads the
+        // exposure, or a frame is exposed with what the frame before it metered:
+        // that leaves the first frame of a run - which has no frame before it -
+        // exposed with whatever the exposure buffer was seeded with, and it is
+        // the frame a cold start leaves on the screen the longest.
+        GpuPassScope pass(stats_->pass_timer(), "Exposure", cmd_buffer);
+        exposure_.UpdateExposure(cmd_buffer);
+    }
 
     {
         PerfSample("Bloom");
+        GpuPassScope pass(stats_->pass_timer(), "Bloom", cmd_buffer);
         bloom_.Execute(this, cmd_buffer);
     }
 
-    tonemapping_.Execute(this, cmd_buffer);
-
-    exposure_.UpdateExposure(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "Tone Mapping", cmd_buffer);
+        tonemapping_.Execute(this, cmd_buffer);
+    }
 
     {
         PerfSample("Post Process");
+        GpuPassScope pass(stats_->pass_timer(), "Post Process", cmd_buffer);
         LdrPostProcess(cmd_buffer);
         post_process_manager_.Render(cmd_buffer);
     }
 
-    DoFXAA(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "FXAA", cmd_buffer);
+        DoFXAA(cmd_buffer);
+    }
 
     present_render_target_->Bind(cmd_buffer);
 
-    editor_.Render(cmd_buffer);
+    {
+        GpuPassScope pass(stats_->pass_timer(), "Editor", cmd_buffer);
+        editor_.Render(cmd_buffer);
+    }
 
     stats_->PostRender(cmd_buffer, editor_.ShowStats());
 

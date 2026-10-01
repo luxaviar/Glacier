@@ -98,7 +98,12 @@ void GTAO::Execute(Renderer* renderer, CommandBuffer* cmd_buffer) {
     auto camera = renderer->GetMainCamera();
     auto& param = gtao_param_.param();
     auto width = ao_full_render_target_->width();
-    auto height = ao_full_render_target_->width();
+    // the shader turns the search direction of a pixel into uv with 1 / width
+    // and 1 / height, and the upsample reads the resolution of the trace back
+    // out of render_param.xy, so the height has to be the real one: a square
+    // pair made the vertical march of the search short by the aspect ratio and
+    // the upsample interpolate in y with the wrong fraction
+    auto height = ao_full_render_target_->height();
     if (half_ao_res_) {
         width /= 2;
         height /= 2;
@@ -108,16 +113,36 @@ void GTAO::Execute(Renderer* renderer, CommandBuffer* cmd_buffer) {
     param.render_param = Vec4f{ (float)width, (float)height, 1.0f / width, 1.0f / height };
     gtao_param_.Update();
 
+    // the stages are timed apart because they answer to different things: the
+    // trace is what the resolution of the trace target scales, the upsample and
+    // the two filters run at the resolution of the screen whatever it is
+    auto& pass_timer = renderer->stats()->pass_timer();
+
     if (half_ao_res_) {
-        Renderer::PostProcess(cmd_buffer, ao_half_render_target_, gtao_mat_.get());
-        Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_upsampling_mat_.get());
+        {
+            GpuPassScope pass(pass_timer, "GTAO trace", cmd_buffer);
+            Renderer::PostProcess(cmd_buffer, ao_half_render_target_, gtao_mat_.get());
+        }
+
+        {
+            GpuPassScope pass(pass_timer, "GTAO upsample", cmd_buffer);
+            Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_upsampling_mat_.get());
+        }
     }
     else {
+        GpuPassScope pass(pass_timer, "GTAO trace", cmd_buffer);
         Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_mat_.get());
     }
 
-    Renderer::PostProcess(cmd_buffer, ao_spatial_render_target_, gtao_filter_x_mat_.get());
-    Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_filter_y_mat_.get());
+    {
+        GpuPassScope pass(pass_timer, "GTAO filter x", cmd_buffer);
+        Renderer::PostProcess(cmd_buffer, ao_spatial_render_target_, gtao_filter_x_mat_.get());
+    }
+
+    {
+        GpuPassScope pass(pass_timer, "GTAO filter y", cmd_buffer);
+        Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_filter_y_mat_.get());
+    }
 }
 
 void GTAO::DrawOptionWindow() {

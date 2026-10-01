@@ -39,7 +39,13 @@ public:
     void DrawOptionWindow();
 
 protected:
-    bool half_ao_res_ = false;
+    // The trace is the heaviest thing the frame runs: eight angles of ten taps,
+    // each tap reconstructing the view position of two pixels. It is also a
+    // low frequency signal, which is why the upsample and the bilateral filter
+    // are there at all - running the trace on the half resolution target and
+    // putting it back at full resolution with them costs a quarter of it.
+    // The checkbox of the AO panel still turns it off for a comparison.
+    bool half_ao_res_ = true;
 
     ConstantParameter<GtaoParam> gtao_param_;
     std::shared_ptr<Material> gtao_mat_;

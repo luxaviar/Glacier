@@ -52,7 +52,10 @@ public:
         UINT numSamples = D3D12_MAX_MULTISAMPLE_SAMPLE_COUNT,
         D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE) const;
 
-    void EnqueueReadback(D3D12Texture::ReadbackTask&& task);
+    // cmd_buffer is the one the copy was recorded into: it is submitted after the
+    // task is queued (see Renderer::CaptureScreen), so it is the command buffer
+    // that knows the fence the readback is done under
+    void EnqueueReadback(CommandBuffer* cmd_buffer, D3D12Texture::ReadbackTask&& task);
 
     ID3D12Device2* GetDevice() const { return device_.Get(); }
     SwapChain* GetSwapChain() const { return swap_chain_.get(); }
@@ -65,6 +68,15 @@ public:
     void Present(CommandBuffer* cmd_buffer) override;
 
     void CheckMSAA(uint32_t sample_count, uint32_t& smaple_count, uint32_t& quality_level) override;
+
+    bool vsync() const override { return swap_chain_ ? swap_chain_->vsync() : vsync_; }
+    void vsync(bool v) override {
+        vsync_ = v;
+
+        if (swap_chain_) {
+            swap_chain_->vsync(v);
+        }
+    }
 
     std::shared_ptr<Buffer> CreateIndexBuffer(size_t size, IndexFormat type) override;
     std::shared_ptr<Buffer> CreateVertexBuffer(size_t size, size_t stride, CreateFlags flags = CreateFlags::kNone) override;
@@ -99,6 +111,18 @@ public:
 private:
     static constexpr uint32_t kQueryArraySize = 1024;
 
+    // How many frames the CPU is allowed to run ahead of the GPU, which is also
+    // how many frames of resources have to stay alive at a time. It is what the
+    // swapchain lets it run ahead by (kBufferCount - 1 buffers, see
+    // SetMaximumFrameLatency), so the two limiters agree on it.
+    static constexpr uint32_t kFramesInFlight = D3D12SwapChain::kBufferCount - 1;
+
+    struct FrameContext {
+        // the fence the frame got when it was submitted; everything the frame
+        // used is free to reuse once this completed
+        uint64_t fence = 0;
+    };
+
     void ProcessReadback();
 
     static void ImGuiSrvDescriptorAlloc(ImGui_ImplDX12_InitInfo* info,
@@ -130,13 +154,22 @@ private:
     
     std::unique_ptr<LinearAllocator> linear_allocator_;
 
+    // a readback that is waiting for the GPU to have copied it
+    struct ReadbackEntry {
+        D3D12Texture::ReadbackTask task;
+        CommandBuffer* cmd_buffer = nullptr;
+    };
+
     std::unique_ptr<D3D12SwapChain> swap_chain_;
     std::unique_ptr<MipsGenerator> mips_generator_;
-    std::queue<std::pair<uint64_t, D3D12Texture::ReadbackTask>> readback_queue_;
+    std::queue<ReadbackEntry> readback_queue_;
 
     std::unique_ptr<D3D12CommandQueue> direct_command_queue_;
     std::unique_ptr<D3D12CommandQueue> copy_command_queue_;
     std::unique_ptr<D3D12CommandQueue> compute_command_queue_;
+
+    FrameContext frame_contexts_[kFramesInFlight];
+    uint32_t frame_index_ = 0;
 };
 
 }

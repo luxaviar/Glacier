@@ -1,9 +1,11 @@
 #include "SwapChain.h"
+#include <algorithm>
 #include "Exception/Exception.h"
 #include "Texture.h"
 #include "RenderTarget.h"
 #include "GfxDriver.h"
 #include "CommandBuffer.h"
+#include "Inspect/Profiler.h"
 
 namespace glacier {
 namespace render {
@@ -60,6 +62,10 @@ D3D12SwapChain::D3D12SwapChain(D3D12GfxDriver* driver, HWND hWnd, uint32_t width
     GfxThrowIfFailed(swap_chain_->GetBuffer(0, IID_PPV_ARGS(&back_buffer_)));
 
     cur_backbuffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
+    // a backbuffer that was never presented has no fence; leaving the array as
+    // the allocator left it would be a wait on a value that never completes
+    std::fill(std::begin(fence_values_), std::end(fence_values_), 0);
+
     frame_latency_waitable_object_ = swap_chain_->GetFrameLatencyWaitableObject();
     swap_chain_->SetMaximumFrameLatency(kBufferCount - 1);
 }
@@ -96,6 +102,11 @@ void D3D12SwapChain::CreateRenderTarget() {
 
 void D3D12SwapChain::OnResize(uint32_t width, uint32_t height) {
     if (width == width_ || height == height_) return;
+
+    // a resize is a one-off path - it happens between two frames - and the frames
+    // in flight may still be reading the buffers that are about to be replaced,
+    // so this is the one place that waits for the whole queue on purpose
+    driver_->GetCommandQueue()->Flush();
 
     width_ = width;
     height_ = height;
@@ -157,6 +168,11 @@ bool D3D12SwapChain::CheckTearingSupport() {
 }
 
 void D3D12SwapChain::Wait() {
+    // the first limiter of the frame loop: the waitable object counts how many
+    // frames were handed to the display, and keeping the CPU from getting more
+    // than kBufferCount - 1 frames ahead is what the frame contexts rely on
+    PerfGuard guard("WaitForFrameLatency");
+
     // Wait for 1 second (should never have to wait that long...)
     DWORD result = ::WaitForSingleObjectEx(frame_latency_waitable_object_, 1000, TRUE);
 }
@@ -191,7 +207,11 @@ void D3D12SwapChain::Present(std::vector<CommandBuffer*>& cmd_buffers) {
     fence_values_[cur_backbuffer_index_] = cmd_queue->Signal();
     cur_backbuffer_index_ = swap_chain_->GetCurrentBackBufferIndex();
     auto fenceValue = fence_values_[cur_backbuffer_index_];
-    cmd_queue->WaitForFenceValue(fenceValue);
+    if (!cmd_queue->IsFenceComplete(fenceValue)) {
+        // the backbuffer is about to be written again, so this is the one wait
+        // that is still allowed to block the frame; it must not hang the app
+        cmd_queue->WaitForFenceValue(fenceValue, "WaitForFenceValue(backbuffer)", 100);
+    }
 
     render_target_->AttachColor(AttachmentPoint::kColor0, back_buffer_textures_[cur_backbuffer_index_]);
 

@@ -14,6 +14,7 @@ class RenderTarget;
 class PassNode;
 class RenderPass;
 class Renderer;
+class PassObserver;
 
 class RenderGraphCompileException : public BaseException {
 public:
@@ -31,7 +32,9 @@ public:
     RenderGraph(const RenderGraph&) = delete;
 
     //void Execute(Renderer* renderer);
-    void Execute(CommandBuffer* cmd_buffer);
+    // observer, when there is one, is told where every pass starts and ends; it
+    // is how the GPU pass timer of PerfStats brackets the passes of the graph
+    void Execute(CommandBuffer* cmd_buffer, PassObserver* observer = nullptr);
     void Reset() noexcept;
 
     PassNode& GetPass(const char* passName);

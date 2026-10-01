@@ -6,7 +6,7 @@ function main.init(cmd_args)
     local app = App:Self()
 
     local Window = require("Glacier.Window")
-    local wnd = Window(1280, 720, "Engine Viewer")
+    local wnd = Window(1440, 900, "Engine Viewer")
     INFO("[Lua] Create Window!")
 
     local TextureFormat = require("Glacier.TextureFormat")

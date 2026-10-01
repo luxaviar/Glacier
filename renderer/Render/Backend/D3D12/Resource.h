@@ -83,6 +83,11 @@ struct InflightResource {
     std::shared_ptr<Resource> res;
     ResourceLocation location;
     D3D12DescriptorRange slot;
+    // Fence the resource may be reused after. It is left at 0 for what a command
+    // buffer itself holds: those live exactly as long as the buffer, and the
+    // buffer is only reset once the fence of its last submission completed (see
+    // D3D12CommandQueue::CollectCompletedCommandLists), so a fence per resource
+    // would say the same thing again.
     uint64_t fence_value = 0;
 };
 

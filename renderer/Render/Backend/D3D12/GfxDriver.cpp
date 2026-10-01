@@ -21,6 +21,14 @@
 namespace glacier {
 namespace render {
 
+// Set to 1 to make every frame end with a wait for the GPU, which is how the
+// renderer worked before the frame contexts were added. It is a debugging switch
+// for bisecting a flicker or a device removal: the frame end still has to do the
+// recycling either way, and the switch only adds the wait back.
+#ifndef GLACIER_FLUSH_EVERY_FRAME
+#define GLACIER_FLUSH_EVERY_FRAME 0
+#endif
+
 LUX_IMPL(GfxDriver, GfxDriver)
 LUX_FUNC(GfxDriver, LGetCommandQueue)
 LUX_IMPL_END
@@ -52,6 +60,19 @@ void D3D12GfxDriver::Init(HWND hWnd, int width, int height, TextureFormat format
 
     auto adapter = CreateAdapter(false);
     device_ = CreateDevice(adapter);
+
+#if IS_DEBUG
+    // The debug layer keeps no messages unless it is told how many to keep, and
+    // the queue is what a run is checked against on the way out (see
+    // DumpDebugLayerMessages). The last 1024 of them are enough for a teardown.
+    {
+        ComPtr<ID3D12InfoQueue> info_queue;
+        if (SUCCEEDED(device_->QueryInterface(IID_PPV_ARGS(&info_queue)))) {
+            info_queue->SetMessageCountLimit(1024);
+        }
+    }
+#endif
+
     GfxThrowIfFailed(device_->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS, &D3D12_options_, sizeof(D3D12_options_)));
 
     direct_command_queue_ = std::make_unique<D3D12CommandQueue>(this, CommandBufferType::kDirect);
@@ -222,6 +243,13 @@ ComPtr<IDXGIAdapter4> D3D12GfxDriver::CreateAdapter(bool use_warp) {
     return dxgiAdapter4;
 }
 
+#if IS_DEBUG
+// The driver is held by the Lua side and outlives the log, so the messages of
+// the debug layer are taken while the run is being torn down and the log is
+// still there to take them (see the definition below)
+static void DumpDebugLayerMessages(ID3D12Device* device);
+#endif
+
 void D3D12GfxDriver::OnDestroy() {
     render::Model::ClearCache();
     render::MaterialManager::Instance()->Clear();
@@ -230,7 +258,85 @@ void D3D12GfxDriver::OnDestroy() {
     render::BoneMatrixPool::Instance()->Release();
     D3D12Sampler::Clear();
     D3D12CommandBuffer::ClearTextureCache();
+
+#if IS_DEBUG
+    DumpDebugLayerMessages(device_.Get());
+#endif
 }
+
+#if IS_DEBUG
+// The debug layer reports to the debugger, and a Debug run started by hand has
+// none attached, so everything it says would be lost. The info queue keeps the
+// messages instead: they are drained into the log on the way out, which is what
+// says whether a Debug run of the three scenes was clean.
+static void DumpDebugLayerMessages(ID3D12Device* device) {
+    ComPtr<ID3D12InfoQueue> info_queue;
+    if (device == nullptr || FAILED(device->QueryInterface(IID_PPV_ARGS(&info_queue)))) {
+        return;
+    }
+
+    // A run stores a lot of messages, most of them information about what the
+    // layer watched happen; writing all of them would take longer than the run.
+    // The newest ones are the ones of the teardown, so a bounded window of them
+    // is scanned; the count is what says whether anything was reported, and the
+    // lines of the two severities above information are what a run is judged on.
+    constexpr UINT64 kMaxScanned = 8192;
+    constexpr UINT64 kMaxPrinted = 128;
+
+    const UINT64 count = info_queue->GetNumStoredMessages();
+    const UINT64 first = count > kMaxScanned ? count - kMaxScanned : 0;
+    UINT64 errors = 0;
+    UINT64 warnings = 0;
+    UINT64 printed = 0;
+
+    for (UINT64 i = first; i < count; ++i) {
+        SIZE_T size = 0;
+        if (FAILED(info_queue->GetMessage(i, nullptr, &size)) || size == 0) {
+            continue;
+        }
+
+        std::vector<uint8_t> buffer(size);
+        auto* message = reinterpret_cast<D3D12_MESSAGE*>(buffer.data());
+        if (FAILED(info_queue->GetMessage(i, message, &size))) {
+            continue;
+        }
+
+        const bool is_error = message->Severity == D3D12_MESSAGE_SEVERITY_CORRUPTION ||
+            message->Severity == D3D12_MESSAGE_SEVERITY_ERROR;
+        const bool is_warning = message->Severity == D3D12_MESSAGE_SEVERITY_WARNING;
+        if (!is_error && !is_warning) {
+            continue;
+        }
+
+        if (is_error) {
+            ++errors;
+        }
+        else {
+            ++warnings;
+        }
+
+        if (printed >= kMaxPrinted) {
+            continue;
+        }
+
+        ++printed;
+        if (is_error) {
+            LOG_ERR("d3d12 debug layer: [{}] {}", (int)message->ID, message->pDescription);
+        }
+        else {
+            LOG_WARN("d3d12 debug layer: [{}] {}", (int)message->ID, message->pDescription);
+        }
+    }
+
+    LOG_LOG("d3d12 debug layer: {} stored messages, last {} scanned, {} errors, {} warnings, {} printed",
+        count, count - first, errors, warnings, printed);
+
+    // A Debug run can end without the file being closed - the debug layer of the
+    // build is what has been seen to do that - and what is still in the buffer
+    // of the log would be lost with it. The dump is pushed out now instead.
+    Logging::Instance()->Flush();
+}
+#endif
 
 D3D12GfxDriver::~D3D12GfxDriver() {
     ImGui_ImplDX12_Shutdown();
@@ -282,8 +388,8 @@ D3D12CommandBuffer* D3D12GfxDriver::GetCommandList(D3D12_COMMAND_LIST_TYPE type)
     return static_cast<D3D12CommandBuffer*>(cmd_buffer);
 }
 
-void D3D12GfxDriver::EnqueueReadback(D3D12Texture::ReadbackTask&& task) {
-    readback_queue_.emplace(std::make_pair(direct_command_queue_->GetCompletedFenceValue() + 1, std::move(task)));
+void D3D12GfxDriver::EnqueueReadback(CommandBuffer* cmd_buffer, D3D12Texture::ReadbackTask&& task) {
+    readback_queue_.push({ std::move(task), cmd_buffer });
 }
 
 DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format, UINT numSamples,
@@ -321,7 +427,15 @@ void D3D12GfxDriver::GenerateMipMaps(D3D12CommandBuffer* cmd_buffer, D3D12Textur
 void D3D12GfxDriver::BeginFrame() {
     PerfGuard gurad("begin frame");
 
+    // the one limiter the frame still has to respect: the swapchain waits until
+    // the display has room for another frame
     swap_chain_->Wait();
+
+    // give back what the GPU finished with before the frame asks for any of it:
+    // command lists (and the temporary resources recorded into them) and the
+    // upload pages of the linear allocator
+    direct_command_queue_->CollectCompletedCommandLists();
+    linear_allocator_->BeginFrame(direct_command_queue_->GetCompletedFenceValue());
 
     if (imgui_enable_) {
         ImGui_ImplDX12_NewFrame();
@@ -357,10 +471,30 @@ void D3D12GfxDriver::Present(CommandBuffer* cmd_buffer) {
 void D3D12GfxDriver::EndFrame() {
     PerfGuard gurad("end frame");
 
+#if GLACIER_FLUSH_EVERY_FRAME
+    // the way the loop worked before the frame contexts: the frame ends only once
+    // the GPU is done with it, which serializes the two of them
     direct_command_queue_->Flush();
+#endif
+
+    // the frame is submitted and accounted for, but not waited for. Everything
+    // the frame used is retired under this fence, and the frame after the next
+    // one only takes it back once the GPU says it is done (see BeginFrame and
+    // D3D12CommandQueue::CollectCompletedCommandLists).
+    const uint64_t frame_fence = direct_command_queue_->Signal();
+    frame_contexts_[frame_index_].fence = frame_fence;
+    linear_allocator_->EndFrame(frame_fence);
 
     ProcessReadback();
-    linear_allocator_->Cleanup(direct_command_queue_->GetCompletedFenceValue());
+
+    frame_index_ = (frame_index_ + 1) % kFramesInFlight;
+
+    // the frame that used the context being taken up again has to be done; with
+    // the swapchain holding the CPU back as well, this is normally no wait at all
+    const FrameContext& context = frame_contexts_[frame_index_];
+    if (context.fence != 0) {
+        direct_command_queue_->WaitForFenceValue(context.fence, "WaitForFrameContext");
+    }
 }
 
 void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_count, uint32_t& quality_level) {
@@ -392,11 +526,16 @@ void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_co
 void D3D12GfxDriver::ProcessReadback() {
     auto complete_value = direct_command_queue_->GetCompletedFenceValue();
     while (!readback_queue_.empty()) {
-        if (readback_queue_.front().first > complete_value) {
+        auto& entry = readback_queue_.front();
+        // the copy was recorded into a command buffer that gets submitted after
+        // the task was queued, so the fence is asked for here rather than when
+        // the task was queued (0 means it is not submitted yet)
+        const uint64_t fence = entry.cmd_buffer != nullptr ? entry.cmd_buffer->submitted_fence() : 0;
+        if (fence == 0 || fence > complete_value) {
             break;
         }
 
-        readback_queue_.front().second.Process();
+        entry.task.Process();
         readback_queue_.pop();
     }
 }

@@ -1,5 +1,6 @@
 #include "RenderGraph.h"
 #include "PassNode.h"
+#include "PassObserver.h"
 #include <sstream>
 
 namespace glacier {
@@ -31,11 +32,19 @@ PassNode& RenderGraph::CreatePass(const char* name, std::unique_ptr<PassExecutor
     return passes_.back();
 }
 
-void RenderGraph::Execute(CommandBuffer* cmd_buffer) {
+void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
     assert(baked);
     for (auto& p : passes_) {
         if (p.active()) {
+            if (observer != nullptr) {
+                observer->BeginPass(p.name().c_str(), cmd_buffer);
+            }
+
             p.Execute(cmd_buffer);
+
+            if (observer != nullptr) {
+                observer->EndPass(cmd_buffer);
+            }
         }
     }
 }

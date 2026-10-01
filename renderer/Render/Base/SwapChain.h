@@ -30,6 +30,12 @@ public:
     virtual std::shared_ptr<RenderTarget>& GetRenderTarget() = 0;
     virtual void OnResize(uint32_t width, uint32_t height) = 0;
 
+    // whether a present waits for the display. The swapchain is the one that
+    // hands the flag to DXGI, so the driver forwards this to it (see
+    // GfxDriver::vsync) rather than keeping a copy of its own.
+    bool vsync() const { return vsync_; }
+    void vsync(bool v) { vsync_ = v; }
+
     virtual void Wait() = 0;
     virtual void Present(std::vector<CommandBuffer*>& cmd_buffers) = 0;
 

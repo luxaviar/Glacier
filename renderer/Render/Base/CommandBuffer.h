@@ -102,8 +102,17 @@ public:
 
     GfxDriver* GetDriver() const { return driver_; }
 
+    // The fence value the last submission of this command buffer got, 0 before
+    // it was ever executed. Whoever reads back what the buffer wrote - query
+    // results, a readback copy - uses it to tell whether the GPU got there yet,
+    // since the submission that carried the copy is not later than this one.
+    uint64_t submitted_fence() const { return submitted_fence_; }
+    void SetSubmittedFence(uint64_t fence_value) { submitted_fence_ = fence_value; }
+
 protected:
     bool closed_ = false;
+
+    uint64_t submitted_fence_ = 0;
     
     GfxDriver* driver_;
     CommandBufferType type_;

@@ -497,9 +497,14 @@ void D3D12Texture::ReadBackImage(CommandBuffer* cmd_buffer, int left, int top,
     src_box.back = 1;
     commandList->CopyTextureRegion(&copyDest, 0, 0, 0, &copySrc, &src_box);
 
-    size_t rowPitch = *pRowSizesInBytes;
+    // The copy writes the rows padded to the pitch the footprint reports, so
+    // the walk over them has to use that same one. The row size out of
+    // GetCopyableFootprints is unpadded, and a texture whose width is not a
+    // multiple of 64 pixels (256 bytes) shears a little more on every row when
+    // it is used as the pitch - 1440 wide, for one, which is what the window is
+    size_t rowPitch = pLayout->Footprint.RowPitch;
     ReadbackTask task{ rowPitch, std::move(stage_location), std::move(callback)};
-    gfx->EnqueueReadback(std::move(task));
+    gfx->EnqueueReadback(cmd_buffer, std::move(task));
 }
 
 void D3D12Texture::ReadbackTask::Process() {

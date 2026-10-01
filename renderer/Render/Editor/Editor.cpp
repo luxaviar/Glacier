@@ -1,4 +1,6 @@
 #include "Editor.h"
+#include <algorithm>
+#include <cstdarg>
 #include <map>
 #include <imgui.h>
 #include "Core/GameObject.h"
@@ -174,6 +176,10 @@ void Editor::DrawPanel() {
             DrawInspectorPanel();
         }
 
+        if (show_profiler_) {
+            DrawProfilerPanel();
+        }
+
         if (show_imgui_demo_) {
             ImGui::ShowDemoWindow(&show_imgui_demo_);
         }
@@ -222,6 +228,7 @@ void Editor::DrawMainMenu() {
             ImGui::MenuItem("Scene Hierarchy", "", &show_scene_hierachy_, show_windows_);
             ImGui::MenuItem("Inspector", "", &show_inspector_, show_windows_);
             ImGui::MenuItem("Statistics", "", &show_stats_, show_windows_);
+            ImGui::MenuItem("CPU Profile", "", &show_profiler_, show_windows_);
             ImGui::MenuItem("IMGUI Demo", "", &show_imgui_demo_, show_windows_);
             ImGui::EndMenu();
         }
@@ -244,6 +251,12 @@ void Editor::DrawMainMenu() {
 
             if (ImGui::MenuItem("Capture ShadowMap", "F3") || state.F3) {
                 App::Self()->GetRenderer()->CaptureShadowMap();
+            }
+
+            //F4 itself is handled by the app, the way F2 is, so it writes the
+            //profile even before the first frame of the editor is up
+            if (ImGui::MenuItem("Write Profile", "F4")) {
+                Profiler::Instance()->PrintFrame();
             }
             ImGui::EndMenu();
         }
@@ -425,6 +438,229 @@ void Editor::SetKernelGauss(BlurParam& param, int radius, float sigma) {
     {
         param.coefficients[i] = (float)param.coefficients[i] / sum;
     }
+}
+
+namespace {
+
+//the widths of the numbers that follow the name, as printf field widths; the
+//header row is written with the same ones so the two line up
+constexpr int kSelfChars = 6;   //"%6.2f"
+constexpr int kTotalChars = 6;  //"%6.2f"
+constexpr int kShareChars = 7;  //"%6.1f%%"
+constexpr int kCallsChars = 5;  //"%5.0f"
+
+//a node whose self time is this much of the frame is what the panel is for, so
+//it is the one thing that is coloured
+constexpr double kProfileHotShare = 0.2;
+//a node that runs less often than every other frame does not get a row: a row
+//that comes and goes is one more thing that flickers
+constexpr double kProfileMinCalls = 0.5;
+
+const ImVec4 kProfileNumberColor(0.75f, 0.75f, 0.78f, 1.0f);
+const ImVec4 kProfileHotColor(1.0f, 0.55f, 0.40f, 1.0f);
+const ImVec4 kProfileHeadColor(0.55f, 0.55f, 0.58f, 1.0f);
+
+struct ProfileColumns {
+    float name = 0.0f;
+    float self = 0.0f;
+    float total = 0.0f;
+    float share = 0.0f;
+    float calls = 0.0f;
+};
+
+//The numbers are the same width on every row, so where they start is a column
+//of its own and the name gets whatever the window has left. That is what keeps
+//a deep row and a shallow one reading the same.
+ProfileColumns ProfileColumnLayout() {
+    const float digit = ImGui::CalcTextSize("0").x;
+    const float gap = digit;
+
+    const float numbers = (kSelfChars + kTotalChars + kShareChars + kCallsChars) * digit + 3.0f * gap;
+    const float width = ImGui::GetWindowWidth() - ImGui::GetStyle().WindowPadding.x * 2.0f;
+
+    ProfileColumns columns;
+    columns.name = std::clamp(width - numbers, 70.0f, 220.0f);
+    columns.self = columns.name;
+    columns.total = columns.self + kSelfChars * digit + gap;
+    columns.share = columns.total + kTotalChars * digit + gap;
+    columns.calls = columns.share + kShareChars * digit + gap;
+    return columns;
+}
+
+//a row of numbers, right aligned in fields of the widths above
+void ProfileNumberRow(const ProfileColumns& columns, const ImVec4& color,
+    double self, double total, double share, double calls)
+{
+    ImGui::SameLine(columns.self);
+    ImGui::TextColored(color, "%6.2f", self);
+    ImGui::SameLine(columns.total);
+    ImGui::TextColored(color, "%6.2f", total);
+    ImGui::SameLine(columns.share);
+    ImGui::TextColored(color, "%6.1f%%", share);
+    ImGui::SameLine(columns.calls);
+    ImGui::TextColored(color, "%5.0f", calls);
+}
+
+bool ProfileNodeShown(const Profiler::Node& node) {
+    return node.average().calls >= kProfileMinCalls;
+}
+
+void DrawProfilerNode(const Profiler::Node& node, double frame_ms, const ProfileColumns& columns) {
+    auto profiler = Profiler::Instance();
+
+    if (!ProfileNodeShown(node)) {
+        //the node is not worth a row of its own, but one of its children may be
+        for (auto* child : node.children()) {
+            DrawProfilerNode(*child, frame_ms, columns);
+        }
+
+        return;
+    }
+
+    bool has_child = false;
+    for (auto* child : node.children()) {
+        if (ProfileNodeShown(*child)) {
+            has_child = true;
+            break;
+        }
+    }
+
+    //the id of a row is the node itself and not its label, so numbers that
+    //change every frame do not cost the row its open state
+    auto flags = ImGuiTreeNodeFlags_DefaultOpen | ImGuiTreeNodeFlags_SpanAvailWidth;
+    if (!has_child) {
+        flags |= ImGuiTreeNodeFlags_Leaf | ImGuiTreeNodeFlags_NoTreePushOnOpen;
+    }
+
+    const bool open = ImGui::TreeNodeEx((const void*)&node, flags, "%s", node.name());
+
+    const auto& average = node.average();
+    const double self = profiler->AverageSelfMs(node);
+    //what a row accounts for is its whole span, so the frame itself is 100% and
+    //a child never reads higher than the node it sits under
+    const double share = frame_ms > 0.0 ? average.total_ms / frame_ms * 100.0 : 0.0;
+    const double self_share = frame_ms > 0.0 ? self / frame_ms : 0.0;
+
+    if (ImGui::IsItemHovered()) {
+        const auto& last = node.span(Profiler::Period::kLast);
+        ImGui::SetTooltip("%s\nthe row is an average of the recent frames\n"
+            "the frame that ended last: self %.3f ms, total %.3f ms, max %.3f ms, %u calls",
+            node.name(), profiler->SelfTimeMs(node, Profiler::Period::kLast),
+            last.total_ms(), last.max_ms(), last.calls);
+    }
+
+    ProfileNumberRow(columns, self_share >= kProfileHotShare ? kProfileHotColor : kProfileNumberColor,
+        self, average.total_ms, share, average.calls);
+
+    if (open && has_child) {
+        for (auto* child : node.children()) {
+            DrawProfilerNode(*child, frame_ms, columns);
+        }
+
+        ImGui::TreePop();
+    }
+}
+
+}
+
+void Editor::DrawProfilerPanel() {
+    PerfSample("Profiler panel");
+
+    auto profiler = Profiler::Instance();
+    auto* frame_node = profiler->frame_node();
+    if (!frame_node) {
+        return;
+    }
+
+    //the panel is built in the middle of a frame, so the newest frame there is
+    //a complete measurement of is the one that ended before this one
+    const auto& frame_span = frame_node->span(Profiler::Period::kLast);
+    if (frame_span.calls == 0) {
+        return;
+    }
+
+    //both the frame and the rows are read averaged, so the shares below add up
+    //to the frame and the numbers hold still enough to be read
+    const double frame_ms = frame_node->average().total_ms;
+
+    //the middle of the bottom half: the hierarchy owns the left of the window,
+    //the inspector the right, the statistics box the bottom left corner and the
+    //hint of a demo scene the top middle
+    ImGui::SetNextWindowPos(ImVec2(width_ * 0.26f, height_ * 0.52f), ImGuiCond_FirstUseEver);
+    ImGui::SetNextWindowSize(ImVec2(width_ * 0.46f, height_ * 0.46f), ImGuiCond_FirstUseEver);
+
+    if (!ImGui::Begin("CPU Profile")) {
+        ImGui::End();
+        return;
+    }
+
+    const auto columns = ProfileColumnLayout();
+
+    auto labeled = [&columns](const char* label, const char* tooltip, const char* fmt, ...) {
+        ImGui::TextUnformatted(label);
+        if (tooltip != nullptr && ImGui::IsItemHovered()) {
+            ImGui::SetTooltip("%s", tooltip);
+        }
+
+        ImGui::SameLine(columns.name);
+        va_list args;
+        va_start(args, fmt);
+        ImGui::TextV(fmt, args);
+        va_end(args);
+    };
+
+    //the wall time of the loop iteration is what the frame rate is, and the
+    //span the tree below measures is a part of it; what is left over is the loop
+    //around the frame, the message pump mostly
+    const double wall_ms = profiler->average_frame_ms();
+    const double unprofiled_ms = wall_ms > frame_ms ? wall_ms - frame_ms : 0.0;
+
+    labeled("frames", nullptr, "%u", profiler->frame_count() - 1);
+    labeled("wall", "the whole loop iteration, end to end:\nthe message pump, the input, and the frame below\n"
+        "the frame rate is this one",
+        "%.2f ms  end to end, %.1f fps", wall_ms, profiler->frame_rate());
+    labeled("profiled", "what the tree below adds up to.\n"
+        "It is not pure cpu work: the waits for the gpu and for the swap chain\n"
+        "happen inside it, and show up as begin frame, present and end frame",
+        "%.2f ms  the span the tree below adds up to", frame_ms);
+    labeled("unprofiled", "wall minus profiled: the cost of the loop around the frame",
+        "%.2f ms  outside that span, the message pump mostly", unprofiled_ms);
+    labeled("overhead", "what one Begin/End pair costs, measured at startup.\n"
+        "It is subtracted from self, so a sample does not pay for being measured.\n"
+        "The clock is a counter, and its smallest step is the second number:\n"
+        "one sample costs less than a step, and a sample shorter than a step\n"
+        "measures as no time at all",
+        "%.0f ns per sample, the clock steps every %.0f ns",
+        profiler->sample_overhead_ns(), profiler->clock_step_ns());
+
+    ImGui::Separator();
+
+    ImGui::Text("node");
+    if (ImGui::IsItemHovered()) {
+        ImGui::SetTooltip("self is the node's own work: the spans of its children are taken out\n"
+            "of it, and so is what the sampling itself cost\n"
+            "share is the whole span of the node as a part of the frame\n"
+            "hover a row for the frame that ended last");
+    }
+    ImGui::SameLine(columns.self); ImGui::TextColored(kProfileHeadColor, "%6s", "self");
+    ImGui::SameLine(columns.total); ImGui::TextColored(kProfileHeadColor, "%6s", "total");
+    ImGui::SameLine(columns.share); ImGui::TextColored(kProfileHeadColor, "%7s", "share");
+    ImGui::SameLine(columns.calls); ImGui::TextColored(kProfileHeadColor, "%5s", "calls");
+
+    for (auto* child : profiler->root()->children()) {
+        DrawProfilerNode(*child, frame_ms, columns);
+    }
+
+    ImGui::Separator();
+
+    if (ImGui::SmallButton("Write to log")) {
+        profiler->PrintFrame();
+    }
+
+    ImGui::SameLine();
+    ImGui::TextDisabled("(F4)");
+
+    ImGui::End();
 }
 
 }

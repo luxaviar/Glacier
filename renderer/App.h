@@ -44,6 +44,9 @@ private:
     float time_scale_ = 1.0f;
     bool pause_ = false;
     Timer timer_;
+    //the loop iteration a frame was part of, which is what the frame cost the
+    //user; timer_ above is the interval before it and drives the game instead
+    Timer frame_timer_;
     LuaVM vm_;
 
     std::unique_ptr<render::Renderer> renderer_;

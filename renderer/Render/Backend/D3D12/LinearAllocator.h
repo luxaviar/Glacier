@@ -68,7 +68,15 @@ public:
     size_t page_size() const { return page_size_; }
 
     LinearAllocBlock Allocate(size_t size, size_t alignment = 256);
-    void Cleanup(uint64_t fence_value);
+
+    // Two phases, because a frame no longer ends by waiting for the GPU: EndFrame
+    // retires what the frame used under the fence it was submitted with, and the
+    // BeginFrame after it hands back whatever the GPU finished with by then. A
+    // page the GPU is still reading must not be handed out again, which is why
+    // the frame that retires it is the one that has to complete.
+    void BeginFrame(uint64_t completed_fence);
+    void EndFrame(uint64_t frame_fence);
+
     void Clear();
 
 private:

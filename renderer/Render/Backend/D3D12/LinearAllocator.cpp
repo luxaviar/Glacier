@@ -1,6 +1,7 @@
 #include "LinearAllocator.h"
 #include <d3d12.h>
 #include "GfxDriver.h"
+#include "Common/Log.h"
 
 namespace glacier {
 namespace render {
@@ -80,30 +81,37 @@ void LinearAllocator::Clear() {
     }
 }
 
-void LinearAllocator::Cleanup(uint64_t fence_value) {
-    while (!retired_pages_.empty() && retired_pages_.front().first < fence_value) {
+void LinearAllocator::BeginFrame(uint64_t completed_fence) {
+    // a page that a frame retired is free once that frame completed, which <=
+    // says as plainly as it can be said
+    while (!retired_pages_.empty() && retired_pages_.front().first <= completed_fence) {
         available_pages_.push(retired_pages_.front().second);
         retired_pages_.pop();
     }
 
+    // for large pages
+    while (!dying_pages_.empty() && dying_pages_.front().first <= completed_fence) {
+        dying_pages_.pop();
+    }
+}
+
+void LinearAllocator::EndFrame(uint64_t frame_fence) {
+    // the page being filled is done with as well: the frame is over, and its
+    // contents belong to that frame from here on
     if (page_) {
-        retired_pages_.emplace(std::pair{ fence_value, page_ });
+        retired_pages_.emplace(std::pair{ frame_fence, page_ });
         page_ = nullptr;
     }
 
     for (auto page : inflight_pages_) {
-        retired_pages_.emplace(std::pair{ fence_value, page });
+        retired_pages_.emplace(std::pair{ frame_fence, page });
     }
     inflight_pages_.clear();
 
-    // for large pages
-    while (!dying_pages_.empty() && dying_pages_.front().first < fence_value) {
-        dying_pages_.pop();
+    for (auto& page : large_pages_) {
+        dying_pages_.emplace(std::pair{ frame_fence, std::move(page) });
     }
 
-    for (auto& page : large_pages_) {
-        dying_pages_.emplace(std::pair{ fence_value, std::move(page) });
-    }
     large_pages_.clear();
 }
 
@@ -118,6 +126,11 @@ LinearAllocPage* LinearAllocator::AcquirePage() {
         auto page = std::make_unique<LinearAllocPage>(page_size_, type_);
         ptr = page.get();
         page_pool_.emplace_back(std::move(page));
+
+        // a page that has to be created rather than recycled means the frames in
+        // flight needed more than the pool held; the count should settle, and
+        // seeing it climb means the pages are not coming back (see BeginFrame)
+        LOG_LOG("linear allocator: created page #{} of {} bytes", page_pool_.size(), page_size_);
     }
 
     return ptr;

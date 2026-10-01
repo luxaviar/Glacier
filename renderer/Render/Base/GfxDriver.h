@@ -109,8 +109,11 @@ public:
 
     void ToggleImgui() noexcept { imgui_enable_ = !imgui_enable_; }
 
-    bool vsync() const { return vsync_; }
-    void vsync(bool v) { vsync_ = v; }
+    // Whether a present waits for the display. The swapchain is the one that
+    // passes it to DXGI, so an implementation that has a swapchain has to let it
+    // know as well; setting the flag on the driver alone used to do nothing.
+    virtual bool vsync() const { return vsync_; }
+    virtual void vsync(bool v) { vsync_ = v; }
 
     static GfxDriver* Get() { return driver_; }
 

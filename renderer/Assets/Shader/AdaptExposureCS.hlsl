@@ -40,7 +40,12 @@ void main_cs( uint GI : SV_GroupIndex )
         float prev_exposure = Exposure[1];
 
         float exposure = ComputeLuminanceAdaptation(prev_exposure, EV100, SpeedToLight, SpeedToDark, _DeltaTime);
-        exposure = clamp(EV100, MinExposure, MaxExposure);
+        // The value the adaptation moves towards is what is clamped, and the
+        // result of the adaptation is what has to be kept: clamping EV100 - the
+        // meter reading itself - threw the adapted value away and made the
+        // exposure jump straight to what the meter read, so the speed the panel
+        // exposes (and the seeding of the buffer) never had an effect.
+        exposure = clamp(exposure, MinExposure, MaxExposure);
 
         Exposure[0] = ConvertEV100ToExposure(exposure);
         Exposure[1] = exposure;
