@@ -19,7 +19,6 @@ namespace render {
 
 class GfxDriver;
 class CascadedShadowManager;
-class OldPointLight;
 class Light;
 class CommandBuffer;
 class PassNode;
@@ -111,7 +110,6 @@ protected:
 
     void AddShadowPass(GraphResourceHandle shadow_map);
     void AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal, GraphResourceHandle occlusion);
-    void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
     void InitFloorPbr(CommandBuffer* cmd_buffer);
     void InitDefaultPbr(CommandBuffer* cmd_buffer);

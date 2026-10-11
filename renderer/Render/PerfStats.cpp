@@ -50,9 +50,10 @@ void GpuPassTimer::BeginPass(const char* name, CommandBuffer* cmd_buffer) {
         return;
     }
 
-    // a pass may bracket stages of its own - the render graph brackets the GTAO
-    // pass and GTAO brackets its trace and its filters - so what is open when
-    // this one starts is what tells a pass of the frame from a stage of one
+    // a pass may bracket stages of its own - the render graph brackets every
+    // node of the frame and the renderer still brackets what runs outside the
+    // graph - so what is open when this one starts is what tells a pass of the
+    // frame from a stage of one
     PassTiming entry;
     entry.name = name;
     entry.depth = (uint32_t)open_.size();

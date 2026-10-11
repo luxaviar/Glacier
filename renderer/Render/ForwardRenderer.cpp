@@ -6,7 +6,6 @@
 #include <imgui.h>
 #include "Math/Util.h"
 #include "Render/Graph/PassNode.h"
-#include "Render/Graph/ResourceEntry.h"
 #include "Render/Mesh/model.h"
 #include "Camera.h"
 #include "Math/Vec3.h"
