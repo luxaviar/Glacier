@@ -329,6 +329,7 @@ void D3D12Texture::UploadTexture(CommandBuffer* cmd_buffer, const std::vector<D3
 }
 
 void D3D12Texture::Create(const TextureDescription& detail, const D3D12_CLEAR_VALUE* clear_value) {
+    create_flags_ = detail.create_flags;
     D3D12_RESOURCE_FLAGS create_flags = GetCreateFlags(detail.create_flags);
 
     //Create default resource

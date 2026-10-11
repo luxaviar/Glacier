@@ -48,7 +48,6 @@ public:
     const D3D12_CLEAR_VALUE& GetClearValue() const { return clear_value_; }
 
     uint32_t GetMipLevels() const override { return desc_.MipLevels; }
-    uint32_t GetFlags() const override { return desc_.Flags; }
 
     uint32_t GetSampleCount() const override { return desc_.SampleDesc.Count; }
     uint32_t GetSampleQuality() const override { return desc_.SampleDesc.Quality; }

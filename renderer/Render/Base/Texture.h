@@ -68,7 +68,11 @@ public:
     
     virtual uint32_t GetMipLevels() const = 0;
     virtual TextureFormat GetFormat() const = 0;
-    virtual uint32_t GetFlags() const = 0;
+
+    // The CreateFlags the texture was made with (resource target, depth
+    // stencil, UAV, ...). The pool of render textures keys on it: two
+    // textures are interchangeable only when it matches.
+    uint32_t create_flags() const { return create_flags_; }
 
     virtual uint32_t GetSampleCount() const = 0;
     virtual uint32_t GetSampleQuality() const = 0;
@@ -83,6 +87,7 @@ public:
         int width, int height, int destX, int destY, ReadbackDelegate&& callback) = 0;
 
 protected:
+    uint32_t create_flags_ = 0;
     bool file_image_ = false;
 };
 
