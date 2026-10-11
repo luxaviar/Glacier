@@ -46,6 +46,19 @@ void Editor::OnResize(uint32_t width, uint32_t height) {
     height_ = height;
 }
 
+MeshRenderer* Editor::SelectedMesh() {
+    return selected_go_ ? selected_go_->GetComponent<MeshRenderer>() : nullptr;
+}
+
+void Editor::UpdatePassActivity() {
+    const bool outline = SelectedMesh() != nullptr;
+    for (auto* pass : outline_passes_) {
+        if (pass != nullptr) {
+            pass->active(outline);
+        }
+    }
+}
+
 void Editor::Pick(CommandBuffer* cmd_buffer, int x, int y, Camera* camera, const std::vector<Renderable*>& visibles, std::shared_ptr<RenderTarget>& rt) {
     if (visibles.empty()) return;
 
@@ -374,47 +387,46 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vblur_mat->SetProperty("Control", blur_dir);
     vblur_mat->SetProperty("_PostSourceTexture", outline_htex);
 
-    render_graph.AddPass("outline mask",
+    outline_passes_[0] = &render_graph.AddPass("outline mask",
         [=](PassBuilder& b) {
             b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
         },
         [this, renderer, outline_mat](PassContext& ctx, const PassNode& pass) {
-            auto cmd_buffer = ctx.cmd_buffer();
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            // the pass is switched off while nothing is selected (T2.2); this
+            // only covers a frame whose selection changed under the node
+            auto mr = SelectedMesh();
             if (!mr) return;
 
+            auto cmd_buffer = ctx.cmd_buffer();
             renderer->GetLightingRenderTarget()->BindDepthStencil(cmd_buffer);
             pass.Render(cmd_buffer, mr, outline_mat.get());
         });
 
-    render_graph.AddPass("outline draw",
+    outline_passes_[1] = &render_graph.AddPass("outline draw",
         [=](PassBuilder& b) {
             b.Write(outline_draw, ResourceAccessBit::kRenderTarget);
         },
         [this, outline_draw_rt, outline_solid_mat](PassContext& ctx, const PassNode& pass) {
-            auto cmd_buffer = ctx.cmd_buffer();
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            auto mr = SelectedMesh();
             if (!mr) return;
 
+            auto cmd_buffer = ctx.cmd_buffer();
             outline_draw_rt->Clear(cmd_buffer);
             RenderTargetGuard gurad(cmd_buffer, outline_draw_rt.get());
 
             pass.Render(cmd_buffer, mr, outline_solid_mat.get());
         });
 
-    render_graph.AddPass("horizontal blur",
+    outline_passes_[2] = &render_graph.AddPass("horizontal blur",
         [=](PassBuilder& b) {
             b.Read(outline_draw, ResourceAccessBit::kPixelShaderRead);
             b.Write(outline_blur, ResourceAccessBit::kRenderTarget);
         },
         [this, outline_hrt, blur_dir, hblur_mat](PassContext& ctx, const PassNode& pass) {
-            auto cmd_buffer = ctx.cmd_buffer();
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            auto mr = SelectedMesh();
             if (!mr) return;
 
+            auto cmd_buffer = ctx.cmd_buffer();
             outline_hrt->ClearColor(cmd_buffer, AttachmentPoint::kColor0);
             blur_dir_.isHorizontal = true;
             blur_dir->Update(&blur_dir_);
@@ -422,18 +434,17 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             Renderer::PostProcess(cmd_buffer, outline_hrt, hblur_mat.get());
         });
 
-    render_graph.AddPass("vertical blur",
+    outline_passes_[3] = &render_graph.AddPass("vertical blur",
         [=](PassBuilder& b) {
             b.Read(outline_blur, ResourceAccessBit::kPixelShaderRead);
             b.Write(hdr_color, ResourceAccessBit::kRenderTarget);
             b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
         },
         [this, blur_dir, renderer, vblur_mat](PassContext& ctx, const PassNode& pass) {
-            auto cmd_buffer = ctx.cmd_buffer();
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            auto mr = SelectedMesh();
             if (!mr) return;
 
+            auto cmd_buffer = ctx.cmd_buffer();
             blur_dir_.isHorizontal = false;
             blur_dir->Update(&blur_dir_);
 

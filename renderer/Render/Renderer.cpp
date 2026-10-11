@@ -274,6 +274,18 @@ void Renderer::Render(float delta_time) {
     }
 
     {
+        // The passes that follow a runtime toggle rather than a value of the
+        // frame are switched here, before the graph runs: the upsample of the
+        // AO chain follows the half resolution option, and the outline chain
+        // follows the selection of the editor (T2.2).
+        if (gtao_upsample_pass_ != nullptr) {
+            gtao_upsample_pass_->active(gtao_.half_resolution());
+        }
+
+        editor_.UpdatePassActivity();
+    }
+
+    {
         PerfSample("Exexute render graph");
         //the graph names its own passes, so the timer is handed to it rather
         //than bracketing each one here
@@ -414,6 +426,13 @@ void Renderer::AddShadowPass(GraphResourceHandle shadow_map) {
     render_graph_.AddPass("shadow",
         [=](PassBuilder& b) {
             b.Write(shadow_map, ResourceAccessBit::kDepthWrite);
+            // The pass puts the main camera and the lighting target back when
+            // it is done - the reset its consumers rely on. The camera is not
+            // a resource state; the target it leaves bound is, so it is part
+            // of what the pass declared (T2.1). Both are the state the frame
+            // starts in and the pass that follows the shadow expects anyway.
+            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
         [this](PassContext& ctx, const PassNode& pass) {
             auto cmd_buffer = ctx.cmd_buffer();
@@ -433,16 +452,69 @@ void Renderer::AddShadowPass(GraphResourceHandle shadow_map) {
 }
 
 void Renderer::AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal, GraphResourceHandle occlusion) {
-    render_graph_.AddPass("GTAO",
+    // The chain is four nodes of the graph (T2.2, D8): the trace, the upsample
+    // that puts a half resolution trace back on the full target, and the two
+    // directions of the bilateral filter. The target of the full resolution
+    // trace and the source of the first filter direction is `occlusion` - the
+    // full target the lighting pass reads, owned by the renderer; the other
+    // two are transients of the graph (T2.4).
+    render_graph_.AddPass("GTAO trace",
         [=](PassBuilder& b) {
             b.Read(depth, ResourceAccessBit::kPixelShaderRead);
             b.Read(normal, ResourceAccessBit::kPixelShaderRead);
+            ao_half_ = b.CreateTexture("ao half texture",
+                GraphTextureDesc::Scale(TextureScale::kHalf)
+                    .Format(TextureFormat::kR11G11B10_FLOAT)
+                    .CreateFlag(CreateFlags::kRenderTarget));
+            ao_spatial_ = b.CreateTexture("ao spatial texture",
+                GraphTextureDesc::Scale(TextureScale::kFull)
+                    .Format(TextureFormat::kR11G11B10_FLOAT)
+                    .CreateFlag(CreateFlags::kRenderTarget));
+            b.Write(ao_half_, ResourceAccessBit::kRenderTarget);
+            // the trace renders into the full target directly while it runs at
+            // full resolution
             b.Write(occlusion, ResourceAccessBit::kRenderTarget);
         },
-        [this](PassContext& ctx, const PassNode& pass) {
-            auto cmd_buffer = ctx.cmd_buffer();
-            //PerfSample("GTAO Pass");
-            gtao_.Execute(this, cmd_buffer);
+        [=](PassContext& ctx, const PassNode& pass) {
+            gtao_.BindHalfTarget(ctx.GetTextureShared(ao_half_));
+            gtao_.ExecuteTrace(this, ctx.cmd_buffer());
+        });
+
+    auto& upsample = render_graph_.AddPass("GTAO upsample",
+        [=](PassBuilder& b) {
+            b.Read(depth, ResourceAccessBit::kPixelShaderRead);
+            b.Read(ao_half_, ResourceAccessBit::kPixelShaderRead);
+            b.Write(occlusion, ResourceAccessBit::kRenderTarget);
+        },
+        [=](PassContext& ctx, const PassNode& pass) {
+            gtao_.ExecuteUpsample(ctx.cmd_buffer());
+        });
+
+    // the upsample is part of the chain only while the trace runs at half
+    // resolution (T2.2); a full resolution trace writes the full target and
+    // the filter below reads it straight away. Renderer::Render switches it
+    // with the state of the AO option before the graph runs.
+    gtao_upsample_pass_ = &upsample;
+
+    render_graph_.AddPass("GTAO filter x",
+        [=](PassBuilder& b) {
+            b.Read(depth, ResourceAccessBit::kPixelShaderRead);
+            b.Read(occlusion, ResourceAccessBit::kPixelShaderRead);
+            b.Write(ao_spatial_, ResourceAccessBit::kRenderTarget);
+        },
+        [=](PassContext& ctx, const PassNode& pass) {
+            gtao_.BindSpatialTarget(ctx.GetTextureShared(ao_spatial_));
+            gtao_.ExecuteFilterX(ctx.cmd_buffer());
+        });
+
+    render_graph_.AddPass("GTAO filter y",
+        [=](PassBuilder& b) {
+            b.Read(depth, ResourceAccessBit::kPixelShaderRead);
+            b.Read(ao_spatial_, ResourceAccessBit::kPixelShaderRead);
+            b.Write(occlusion, ResourceAccessBit::kRenderTarget);
+        },
+        [=](PassContext& ctx, const PassNode& pass) {
+            gtao_.ExecuteFilterY(ctx.cmd_buffer());
         });
 }
 

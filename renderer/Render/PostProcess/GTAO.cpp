@@ -37,18 +37,14 @@ void GTAO::Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffe
     ao_full_render_target_->AttachColor(AttachmentPoint::kColor0, ao_texture);
     ao_texture->SetName("ao texture");
 
-    auto ao_half_texture = RenderTexturePool::Get(width / 2, height / 2, TextureFormat::kR11G11B10_FLOAT);
+    // the half resolution trace target and the stage between the two filter
+    // directions are transients the graph hands the chain every frame (T2.4),
+    // so they are not attached here; BindHalfTarget / BindSpatialTarget attach
+    // what the frame resolved before the node that uses it runs
     ao_half_render_target_ = gfx_->CreateRenderTarget(width / 2, height / 2);
-    ao_half_render_target_->AttachColor(AttachmentPoint::kColor0, ao_half_texture);
-    ao_half_texture->SetName("ao half texture");
-
-    auto ao_tmp_texture = RenderTexturePool::Get(width, height, TextureFormat::kR11G11B10_FLOAT);
     ao_spatial_render_target_ = gfx_->CreateRenderTarget(width, height);
-    ao_spatial_render_target_->AttachColor(AttachmentPoint::kColor0, ao_tmp_texture);
-    ao_tmp_texture->SetName("ao temp texture");
 
     gtao_upsampling_mat_ = std::make_shared<PostProcessMaterial>("GTAOUpsampling", TEXT("GTAOUpsampling"));
-    gtao_upsampling_mat_->SetProperty("OcclusionTexture", ao_half_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
     gtao_upsampling_mat_->SetProperty("_GtaoData", gtao_param_);
 
     gtao_filter_x_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
@@ -56,10 +52,12 @@ void GTAO::Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffe
     gtao_filter_x_mat_->SetProperty("_GtaoData", gtao_param_);
     gtao_filter_x_mat_->SetProperty("OcclusionTexture", ao_full_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 
+    // the source of the second direction is the transient of the frame, so the
+    // node that binds it points the material at it (BindSpatialTarget); the
+    // source of the first direction is the full target above and stays
     gtao_filter_y_mat_ = std::make_shared<PostProcessMaterial>("GTAOFilter", TEXT("GTAOFilter"));
     gtao_filter_y_mat_->SetProperty("filter_param", gtao_filter_y_param_);
     gtao_filter_y_mat_->SetProperty("_GtaoData", gtao_param_);
-    gtao_filter_y_mat_->SetProperty("OcclusionTexture", ao_spatial_render_target_->GetColorAttachment(AttachmentPoint::kColor0));
 
     gtao_mat_ = std::make_shared<PostProcessMaterial>("GTAO", TEXT("GTAO"));
     gtao_mat_->SetProperty("_GtaoData", gtao_param_);
@@ -73,7 +71,15 @@ void GTAO::Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffe
 
 void GTAO::OnResize(uint32_t width, uint32_t height) {
     ao_full_render_target_->Resize(width, height);
+
+    // the half and the spatial target carry the transient textures of the
+    // frame that just ran (T2.4); a pooled texture is not resized here - it is
+    // detached, the target is sized, and the node that runs next attaches the
+    // texture of its own frame
+    ao_half_render_target_->DetachColor(AttachmentPoint::kColor0);
     ao_half_render_target_->Resize(width / 2, height / 2);
+
+    ao_spatial_render_target_->DetachColor(AttachmentPoint::kColor0);
     ao_spatial_render_target_->Resize(width, height);
 }
 
@@ -87,14 +93,34 @@ void GTAO::SetupBuiltinProperty(Material* mat) {
     }
 }
 
-void GTAO::Execute(Renderer* renderer, CommandBuffer* cmd_buffer) {
-    //constexpr float Rots[6] = { 60.0f, 300.0f, 180.0f, 240.0f, 120.0f, 0.0f };
-    //constexpr float Offsets[4] = { 0.1f, 0.6f, 0.35f, 0.85f };
-    //float TemporalAngle = Rots[frame_count_ % 6] * (math::k2PI / 360.0f);
-    //float SinAngle, CosAngle;
-    //math::FastSinCos(&SinAngle, &CosAngle, TemporalAngle);
-    // GtaoParam Params = { CosAngle, SinAngle, Offsets[(frame_count_ / 6) % 4] * 0.25, Offsets[frame_count_ % 4] };
+void GTAO::BindTarget(RenderTarget* target, const std::shared_ptr<Texture>& texture) {
+    if (!texture) {
+        return;
+    }
 
+    if (target->GetColorAttachment(AttachmentPoint::kColor0).get() == texture.get()) {
+        return;
+    }
+
+    // the texture is the frame's and comes at the size the frame resolved; the
+    // attachment steps aside first so that sizing the target does not reach
+    // into the texture the graph owns
+    target->DetachColor(AttachmentPoint::kColor0);
+    target->Resize(texture->width(), texture->height());
+    target->AttachColor(AttachmentPoint::kColor0, texture);
+}
+
+void GTAO::BindHalfTarget(const std::shared_ptr<Texture>& texture) {
+    BindTarget(ao_half_render_target_.get(), texture);
+    gtao_upsampling_mat_->SetProperty("OcclusionTexture", texture);
+}
+
+void GTAO::BindSpatialTarget(const std::shared_ptr<Texture>& texture) {
+    BindTarget(ao_spatial_render_target_.get(), texture);
+    gtao_filter_y_mat_->SetProperty("OcclusionTexture", texture);
+}
+
+void GTAO::UpdateParam(Renderer* renderer) {
     auto camera = renderer->GetMainCamera();
     auto& param = gtao_param_.param();
     auto width = ao_full_render_target_->width();
@@ -112,37 +138,32 @@ void GTAO::Execute(Renderer* renderer, CommandBuffer* cmd_buffer) {
     param.fov_scale = height / (math::Tan(camera->fov() * math::kDeg2Rad * 0.5f) * 2.0f) * 0.5f;
     param.render_param = Vec4f{ (float)width, (float)height, 1.0f / width, 1.0f / height };
     gtao_param_.Update();
+}
 
-    // the stages are timed apart because they answer to different things: the
-    // trace is what the resolution of the trace target scales, the upsample and
-    // the two filters run at the resolution of the screen whatever it is
-    auto& pass_timer = renderer->stats()->pass_timer();
+void GTAO::ExecuteTrace(Renderer* renderer, CommandBuffer* cmd_buffer) {
+    UpdateParam(renderer);
 
+    // the trace renders into the half resolution target while it runs at half
+    // resolution, and into the full target the lighting reads otherwise; the
+    // four stages are timed apart by the graph, which brackets every node
     if (half_ao_res_) {
-        {
-            GpuPassScope pass(pass_timer, "GTAO trace", cmd_buffer);
-            Renderer::PostProcess(cmd_buffer, ao_half_render_target_, gtao_mat_.get());
-        }
-
-        {
-            GpuPassScope pass(pass_timer, "GTAO upsample", cmd_buffer);
-            Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_upsampling_mat_.get());
-        }
+        Renderer::PostProcess(cmd_buffer, ao_half_render_target_, gtao_mat_.get());
     }
     else {
-        GpuPassScope pass(pass_timer, "GTAO trace", cmd_buffer);
         Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_mat_.get());
     }
+}
 
-    {
-        GpuPassScope pass(pass_timer, "GTAO filter x", cmd_buffer);
-        Renderer::PostProcess(cmd_buffer, ao_spatial_render_target_, gtao_filter_x_mat_.get());
-    }
+void GTAO::ExecuteUpsample(CommandBuffer* cmd_buffer) {
+    Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_upsampling_mat_.get());
+}
 
-    {
-        GpuPassScope pass(pass_timer, "GTAO filter y", cmd_buffer);
-        Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_filter_y_mat_.get());
-    }
+void GTAO::ExecuteFilterX(CommandBuffer* cmd_buffer) {
+    Renderer::PostProcess(cmd_buffer, ao_spatial_render_target_, gtao_filter_x_mat_.get());
+}
+
+void GTAO::ExecuteFilterY(CommandBuffer* cmd_buffer) {
+    Renderer::PostProcess(cmd_buffer, ao_full_render_target_, gtao_filter_y_mat_.get());
 }
 
 void GTAO::DrawOptionWindow() {

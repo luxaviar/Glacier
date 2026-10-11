@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <string>
 #include "gizmos.h"
 
@@ -10,6 +11,8 @@ class GameObject;
 namespace render {
 
 class Material;
+class MeshRenderer;
+class PassNode;
 class Renderer;
 class RenderTarget;
 class CommandBuffer;
@@ -30,6 +33,12 @@ public:
 
     void RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer);
 
+    // The outline chain runs only while the editor has a mesh selected: the
+    // four passes are switched here, before the graph of the frame runs, so
+    // that an inactive chain reaches neither the timing table nor the barrier
+    // plan (T2.2 - the bodies used to return early while still running).
+    void UpdatePassActivity();
+
     bool ShowStats() const { return show_windows_ && show_stats_; }
 
     void Render(CommandBuffer* cmd_buffer);
@@ -38,6 +47,8 @@ public:
     void DrawPanel();
 
 private:
+    MeshRenderer* SelectedMesh();
+
     void DrawMainMenu();
     void DrawScenePanel();
     void DrawInspectorPanel();
@@ -84,6 +95,9 @@ private:
 
     BlurParam blur_param_;
     BlurDirection blur_dir_;
+
+    //the four nodes of the outline chain, in the order they run
+    std::array<PassNode*, 4> outline_passes_ = {};
 };
 
 }

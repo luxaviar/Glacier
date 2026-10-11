@@ -22,6 +22,7 @@ class CascadedShadowManager;
 class OldPointLight;
 class Light;
 class CommandBuffer;
+class PassNode;
 
 struct alignas(16) PerFrameData {
     Matrix4x4 _View;
@@ -133,6 +134,13 @@ protected:
     //what the graph borrows from the renderer (see RenderGraph::Import)
     GraphResourceHandle hdr_color_;
     GraphResourceHandle hdr_depth_;
+
+    //the transients of the AO chain (T2.4), registered by AddGtaoPass
+    GraphResourceHandle ao_half_;
+    GraphResourceHandle ao_spatial_;
+    //the upsample node of the chain, switched by the half resolution option
+    //before the graph of a frame runs (T2.2)
+    PassNode* gtao_upsample_pass_ = nullptr;
 
     //hardware render target
     std::shared_ptr<RenderTarget> present_render_target_;

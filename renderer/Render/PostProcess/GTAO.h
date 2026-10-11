@@ -32,8 +32,26 @@ struct alignas(16) GtaoParam {
 class GTAO {
 public:
     void Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffer, const std::shared_ptr<Texture>& normal_buffer);
-    void Execute(Renderer* renderer, CommandBuffer* cmd_buffer);
     void OnResize(uint32_t width, uint32_t height);
+
+    // The chain runs as four nodes of the graph (T2.2, D8): the trace, the
+    // upsample that puts a half resolution trace back on the full target, and
+    // the two directions of the bilateral filter. The trace target of the half
+    // resolution mode and the stage between the two directions are transients
+    // the graph owns (T2.4): the node that renders into one binds what the
+    // frame resolved, the node that samples one points its material at it -
+    // the texture of a transient belongs to the frame, not to the material.
+    void BindHalfTarget(const std::shared_ptr<Texture>& texture);
+    void BindSpatialTarget(const std::shared_ptr<Texture>& texture);
+
+    void ExecuteTrace(Renderer* renderer, CommandBuffer* cmd_buffer);
+    void ExecuteUpsample(CommandBuffer* cmd_buffer);
+    void ExecuteFilterX(CommandBuffer* cmd_buffer);
+    void ExecuteFilterY(CommandBuffer* cmd_buffer);
+
+    //what the "Half Resolution" checkbox of the AO panel says; the upsample
+    //node of the graph follows it (T2.2)
+    bool half_resolution() const { return half_ao_res_; }
 
     void SetupBuiltinProperty(Material* mat);
     void DrawOptionWindow();
@@ -45,6 +63,9 @@ public:
     }
 
 protected:
+    void UpdateParam(Renderer* renderer);
+    void BindTarget(RenderTarget* target, const std::shared_ptr<Texture>& texture);
+
     // The trace is the heaviest thing the frame runs: eight angles of ten taps,
     // each tap reconstructing the view position of two pixels. It is also a
     // low frequency signal, which is why the upsample and the bilateral filter
@@ -61,6 +82,9 @@ protected:
     ConstantParameter<Vector4> gtao_filter_x_param_;
     ConstantParameter<Vector4> gtao_filter_y_param_;
 
+    // the full target is the one the lighting pass reads and the renderer
+    // imports; the half and the spatial target carry the transients of the
+    // frame and are attached to them while the frame runs (T2.4)
     std::shared_ptr<RenderTarget> ao_half_render_target_;
     std::shared_ptr<RenderTarget> ao_full_render_target_;
     std::shared_ptr<RenderTarget> ao_spatial_render_target_;
