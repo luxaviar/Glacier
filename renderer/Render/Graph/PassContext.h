@@ -28,6 +28,12 @@ public:
     // frame (they are created at their first use, see RenderGraph::Execute).
     Texture* GetTexture(GraphResourceHandle handle) const;
 
+    // The frame's transient behind a handle, for what holds a texture for
+    // longer than one bind - a material property, which stores it as a shared
+    // pointer. Null for an imported resource and before the transient of the
+    // frame was created.
+    std::shared_ptr<Texture> GetTextureShared(GraphResourceHandle handle) const;
+
 private:
     CommandBuffer* cmd_buffer_;
     const RenderGraph* graph_;

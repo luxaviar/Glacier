@@ -102,5 +102,10 @@ Texture* GraphResourceTable::Resolve(GraphResourceHandle handle) const {
     return e.kind == GraphResourceKind::kImported ? e.texture : e.owned.get();
 }
 
+std::shared_ptr<Texture> GraphResourceTable::ResolveShared(GraphResourceHandle handle) const {
+    const auto& e = entry(handle);
+    return e.kind == GraphResourceKind::kTransient ? e.owned : nullptr;
+}
+
 } // namespace render
 } // namespace glacier

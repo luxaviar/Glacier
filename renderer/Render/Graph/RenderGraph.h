@@ -103,6 +103,9 @@ public:
     // The texture a handle names; null before a transient was created for the
     // frame (PassContext resolves handles through this)
     Texture* ResolveTexture(GraphResourceHandle handle) const;
+    // The shared pointer of a transient of the frame; null for an imported
+    // resource, whose lifetime is somebody else's
+    std::shared_ptr<Texture> ResolveTextureShared(GraphResourceHandle handle) const;
 
     const GraphStats& stats() const { return stats_; }
 
@@ -126,7 +129,10 @@ protected:
     uint32_t render_width_ = 0;
     uint32_t render_height_ = 0;
 
-    std::vector<PassNode> passes_;
+    // The passes live behind stable addresses: what AddPass hands back (a
+    // PassNode&) has to stay valid across the registrations that come after it
+    // - the runtime toggles of a frame hold on to the pass they switch (T2.2).
+    std::vector<std::unique_ptr<PassNode>> passes_;
     GraphResourceTable resources_;
     GraphResourceAllocator allocator_;
 

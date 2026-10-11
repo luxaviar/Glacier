@@ -105,6 +105,12 @@ public:
     // frame; never null for an imported one.
     Texture* Resolve(GraphResourceHandle handle) const;
 
+    // The frame's transient behind a handle; an imported resource is owned
+    // outside the graph, so this is null for it. A material that samples a
+    // transient holds the texture as a shared pointer, so this is what
+    // re-points such a material at the texture of the frame (T2.4).
+    std::shared_ptr<Texture> ResolveShared(GraphResourceHandle handle) const;
+
 private:
     std::vector<GraphResourceEntry> entries_;
 };

@@ -25,14 +25,14 @@ RenderGraph::~RenderGraph()
 
 PassNode& RenderGraph::CreatePass(const char* name, std::unique_ptr<PassExecutor>&& executor) {
     for (auto& p : passes_) {
-        if (p.name() == name) {
+        if (p->name() == name) {
             throw RGC_EXCEPTION("In RenderGraph::CreatePass, pass name duplicated: " + std::string(name));
         }
     }
 
-    passes_.emplace_back(name, std::move(executor));
+    passes_.push_back(std::make_unique<PassNode>(name, std::move(executor)));
     dirty_ = true;
-    return passes_.back();
+    return *passes_.back();
 }
 
 GraphResourceHandle RenderGraph::Import(const char* name, Texture* texture,
@@ -45,9 +45,9 @@ PassNode& RenderGraph::GetPass(const char* passName)
 {
     for(auto& p : passes_)
     {
-        if( p.name() == passName )
+        if( p->name() == passName )
         {
-            return p;
+            return *p;
         }
     }
     throw RGC_EXCEPTION( "In RenderGraph::GetPass, pass not found: " + std::string(passName));
@@ -91,11 +91,11 @@ void RenderGraph::Compile() {
     compile_desc_.passes.reserve(passes_.size());
     for (const auto& pass : passes_) {
         GraphPassDesc desc;
-        desc.name = pass.name();
-        desc.side_effect = pass.side_effect();
-        desc.usages.reserve(pass.usages().size());
+        desc.name = pass->name();
+        desc.side_effect = pass->side_effect();
+        desc.usages.reserve(pass->usages().size());
 
-        for (const auto& usage : pass.usages()) {
+        for (const auto& usage : pass->usages()) {
             desc.usages.push_back({ usage.resource.index, usage.access });
         }
 
@@ -121,6 +121,14 @@ Texture* RenderGraph::ResolveTexture(GraphResourceHandle handle) const {
     }
 
     return ResolveTextureEntry(resources_.entry(handle));
+}
+
+std::shared_ptr<Texture> RenderGraph::ResolveTextureShared(GraphResourceHandle handle) const {
+    if (!resources_.Contains(handle)) {
+        return nullptr;
+    }
+
+    return resources_.ResolveShared(handle);
 }
 
 Texture* RenderGraph::ResolveTextureEntry(const GraphResourceEntry& entry) const {
@@ -160,7 +168,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
 
         std::string sequence;
         for (const auto& compiled_pass : compiled_.passes) {
-            const auto& p = passes_[compiled_pass.pass];
+            const auto& p = *passes_[compiled_pass.pass];
             if (!p.active()) {
                 continue;
             }
@@ -188,7 +196,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
     stats.culled = (uint32_t)compiled_.culled.size();
 
     for (const auto& compiled_pass : compiled_.passes) {
-        auto& pass = passes_[compiled_pass.pass];
+        auto& pass = *passes_[compiled_pass.pass];
         if (!pass.active()) {
             continue;
         }
@@ -283,7 +291,7 @@ void RenderGraph::Reset() noexcept
 
     for (auto& p : passes_)
     {
-        p.Reset();
+        p->Reset();
     }
 }
 
@@ -345,7 +353,7 @@ std::string RenderGraph::Dump() const {
     out += std::format("passes (execution order, {} run):\n", compiled_.passes.size());
     for (size_t oi = 0; oi < compiled_.passes.size(); ++oi) {
         const auto& compiled_pass = compiled_.passes[oi];
-        const auto& pass = passes_[compiled_pass.pass];
+        const auto& pass = *passes_[compiled_pass.pass];
         out += std::format("  [{}] {}{}\n", oi, pass.name(), pass.active() ? "" : " (inactive)");
 
         for (const auto& usage : compiled_pass.expected) {
