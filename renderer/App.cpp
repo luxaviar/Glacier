@@ -132,6 +132,9 @@ bool App::HandleInput(float dt) {
         //the tree says where the CPU time went, the table where the GPU time
         //went; a frame that is waiting for the GPU shows up in both
         renderer_->stats()->PrintPassTimings();
+        //and the line of the render graph: what it ran, and how much of the
+        //frame still transitions resources on its own (see RenderGraph::stats)
+        renderer_->render_graph().PrintStats();
     }
     
     return false;

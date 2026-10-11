@@ -28,8 +28,8 @@ protected:
     void InitRenderTarget() override;
     void ResolveMSAA(CommandBuffer* cmd_buffer) override;
 
-    void AddPreDepthPass();
-    void AddDepthNormalPass();
+    void AddPreDepthPass(GraphResourceHandle prepass_depth);
+    void AddDepthNormalPass(GraphResourceHandle prepass_depth, GraphResourceHandle depth_normal);
     void AddLightingPass();
     
     void InitRenderGraph(GfxDriver* gfx);

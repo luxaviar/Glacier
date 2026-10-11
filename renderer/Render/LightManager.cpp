@@ -109,10 +109,18 @@ void LightManager::Update(CommandBuffer* cmd_buffer) {
 }
 
 void LightManager::AddSkyboxPass(Renderer* renderer) {
+    auto hdr_color = renderer->hdr_color_handle();
+    auto hdr_depth = renderer->hdr_depth_handle();
+
     renderer->render_graph().AddPass("skybox",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            //the box is depth tested against the scene (it binds the depth
+            //attachment) and drawn over the color of the lighting pass
+            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
+            b.Write(hdr_color, ResourceAccessBit::kRenderTarget);
         },
-        [=](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [=](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             auto main_camera_ = renderer->GetMainCamera();
             if (main_camera_->type() != CameraType::kPersp) return;
 

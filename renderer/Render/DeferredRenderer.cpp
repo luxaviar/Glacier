@@ -53,6 +53,10 @@ void DeferredRenderer::Setup() {
 
     Renderer::Setup();
 
+    //the occlusion texture the lighting pass reads is imported by
+    //InitRenderGraph, so it has to exist first
+    gtao_.Setup(this, hdr_render_target_->GetDepthStencil(), gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
+
     InitRenderGraph(gfx_);
 
     lighting_mat_ = std::make_shared<PostProcessMaterial>("DeferredLighting", TEXT("DeferredLighting"));
@@ -69,7 +73,6 @@ void DeferredRenderer::Setup() {
 
     fxaa_.Setup(this);
     taa_.Setup(this);
-    gtao_.Setup(this, hdr_render_target_->GetDepthStencil(), gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
 }
 
 void DeferredRenderer::JitterProjection(Matrix4x4& projection) {
@@ -152,11 +155,19 @@ void DeferredRenderer::PreRender(CommandBuffer* cmd_buffer) {
     Renderer::PreRender(cmd_buffer);
 }
 
-void DeferredRenderer::AddGPass() {
+void DeferredRenderer::AddGPass(GraphResourceHandle albedo, GraphResourceHandle normal,
+    GraphResourceHandle ao_metal_roughness, GraphResourceHandle emissive, GraphResourceHandle velocity) {
     render_graph_.AddPass("GPass",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Write(albedo, ResourceAccessBit::kRenderTarget);
+            b.Write(normal, ResourceAccessBit::kRenderTarget);
+            b.Write(ao_metal_roughness, ResourceAccessBit::kRenderTarget);
+            b.Write(emissive, ResourceAccessBit::kRenderTarget);
+            b.Write(velocity, ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("GPass Pass");
 
             RenderTargetGuard rt_gurad(cmd_buffer, gbuffer_render_target_.get());
@@ -164,11 +175,22 @@ void DeferredRenderer::AddGPass() {
         });
 }
 
-void DeferredRenderer::AddLightingPass() {
+void DeferredRenderer::AddLightingPass(GraphResourceHandle albedo, GraphResourceHandle normal,
+    GraphResourceHandle ao_metal_roughness, GraphResourceHandle emissive,
+    GraphResourceHandle occlusion, GraphResourceHandle shadow_map) {
     render_graph_.AddPass("DeferredLighting",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Read(albedo, ResourceAccessBit::kPixelShaderRead);
+            b.Read(normal, ResourceAccessBit::kPixelShaderRead);
+            b.Read(ao_metal_roughness, ResourceAccessBit::kPixelShaderRead);
+            b.Read(emissive, ResourceAccessBit::kPixelShaderRead);
+            b.Read(hdr_depth_handle(), ResourceAccessBit::kPixelShaderRead);
+            b.Read(shadow_map, ResourceAccessBit::kPixelShaderRead);
+            b.Read(occlusion, ResourceAccessBit::kPixelShaderRead);
+            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("DeferredLighting Pass");
 
             LightManager::Instance()->Update(cmd_buffer);
@@ -179,10 +201,31 @@ void DeferredRenderer::AddLightingPass() {
 }
 
 void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
-    AddShadowPass();
-    AddGPass();
-    AddGtaoPass();
-    AddLightingPass();
+    //what the passes of the deferred stack declare they touch (§3.3)
+    auto gbuffer_albedo = render_graph_.Import("gbuffer albedo",
+        gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto gbuffer_normal = render_graph_.Import("gbuffer normal",
+        gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto gbuffer_ao_metal_roughness = render_graph_.Import("gbuffer ao metal roughness",
+        gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto gbuffer_emissive = render_graph_.Import("gbuffer emissive",
+        gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto gbuffer_velocity = render_graph_.Import("gbuffer velocity",
+        gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto csm_shadow = render_graph_.Import("csm shadow map", csm_manager_->shadow_map().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto ao_texture = render_graph_.Import("ao texture", gtao_.occlusion_texture().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+
+    AddShadowPass(csm_shadow);
+    AddGPass(gbuffer_albedo, gbuffer_normal, gbuffer_ao_metal_roughness, gbuffer_emissive, gbuffer_velocity);
+    AddGtaoPass(hdr_depth_handle(), gbuffer_normal, ao_texture);
+    AddLightingPass(gbuffer_albedo, gbuffer_normal, gbuffer_ao_metal_roughness, gbuffer_emissive, ao_texture, csm_shadow);
 
     LightManager::Instance()->AddSkyboxPass(this);
     editor_.RegisterHighLightPass(gfx, this);

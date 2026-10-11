@@ -29,13 +29,25 @@ void PassNode::Setup(Renderer* renderer) {
 
 }
 
-void PassNode::Execute(CommandBuffer* cmd_buffer) {
+void PassNode::Execute(PassContext& ctx) {
     if (executor_) {
-        executor_->Execute(cmd_buffer, *this);
+        executor_->Execute(ctx, *this);
     }
     else {
-        Render(cmd_buffer);
+        Render(ctx.cmd_buffer());
     }
+}
+
+void PassNode::AddUsage(GraphResourceHandle resource, ResourceAccessBit access) {
+    usages_.push_back({ resource, access });
+}
+
+void PassNode::SetRenderTarget(GraphResourceHandle resource, AttachmentPoint point) {
+    render_targets_.push_back({ resource, point });
+}
+
+void PassNode::SetDepthStencil(GraphResourceHandle resource) {
+    depth_stencil_ = resource;
 }
 
 void PassNode::Render(CommandBuffer* cmd_buffer, const std::vector<Renderable*>& objs, Material* mat) const {

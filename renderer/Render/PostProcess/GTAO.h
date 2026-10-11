@@ -38,6 +38,12 @@ public:
     void SetupBuiltinProperty(Material* mat);
     void DrawOptionWindow();
 
+    //the occlusion the lighting pass reads; imported by the renderer's graph
+    //registration (see .docs/render-graph-plan.md T1.7)
+    std::shared_ptr<Texture>& occlusion_texture() {
+        return ao_full_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
+    }
+
 protected:
     // The trace is the heaviest thing the frame runs: eight angles of ten taps,
     // each tap reconstructing the view position of two pixels. It is also a

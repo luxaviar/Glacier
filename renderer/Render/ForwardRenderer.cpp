@@ -52,6 +52,10 @@ void ForwardRenderer::Setup() {
     Renderer::Setup();
     msaa_.Setup(this);
 
+    //the occlusion texture the GTAO pass declares is imported by
+    //InitRenderGraph, so it has to exist first
+    gtao_.Setup(this, prepass_render_target_->GetDepthStencil(), depthnormal_);
+
     InitRenderGraph(gfx_);
 
     prepass_mat_ = std::make_shared<Material>("PrePass", TEXT("PrePass"), nullptr);
@@ -63,8 +67,6 @@ void ForwardRenderer::Setup() {
 
     ss.warpU = ss.warpV = WarpMode::kClamp;
     depthnormal_mat_->SetProperty("linear_sampler", ss);
-
-    gtao_.Setup(this, prepass_render_target_->GetDepthStencil(), depthnormal_);
 
     auto solid_mat = MaterialManager::Instance()->Get("solid");
     solid_mat->AddPass("solid");
@@ -117,11 +119,13 @@ void ForwardRenderer::ResolveMSAA(CommandBuffer* cmd_buffer) {
     msaa_.Execute(this, cmd_buffer);
 }
 
-void ForwardRenderer::AddPreDepthPass() {
+void ForwardRenderer::AddPreDepthPass(GraphResourceHandle prepass_depth) {
     render_graph_.AddPass("prepass",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Write(prepass_depth, ResourceAccessBit::kDepthWrite);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("predepth pass");
 
             prepass_render_target_->Bind(cmd_buffer);
@@ -131,11 +135,14 @@ void ForwardRenderer::AddPreDepthPass() {
         });
 }
 
-void ForwardRenderer::AddDepthNormalPass() {
+void ForwardRenderer::AddDepthNormalPass(GraphResourceHandle prepass_depth, GraphResourceHandle depth_normal) {
     render_graph_.AddPass("depth normal",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Read(prepass_depth, ResourceAccessBit::kNonPixelShaderRead);
+            b.Write(depth_normal, ResourceAccessBit::kShaderWrite);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("depth normal pass");
 
             auto dst_width = depthnormal_->width();
@@ -155,9 +162,12 @@ void ForwardRenderer::AddDepthNormalPass() {
 
 void ForwardRenderer::AddLightingPass() {
     render_graph_.AddPass("ForwardLighting",
-        [&](PassNode& pass) {
+        [this](PassBuilder& b) {
+            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("Lighting Pass");
 
             LightManager::Instance()->Update(cmd_buffer);
@@ -168,10 +178,24 @@ void ForwardRenderer::AddLightingPass() {
 }
 
 void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
-    AddPreDepthPass();
-    AddDepthNormalPass();
-    AddGtaoPass();
-    AddShadowPass();
+    //what the passes of the forward stack declare they touch (§3.3). The
+    //lighting target of this renderer is the MSAA target, which the graph does
+    //not manage; the passes of the shared tail (skybox, outline) declare the
+    //hdr pair, which is where the resolve puts the frame (see §8, T1.7).
+    auto prepass_depth = render_graph_.Import("prepass depth",
+        prepass_render_target_->GetDepthStencil().get(),
+        ResourceAccessBit::kDepthWrite, ResourceAccessBit::kDepthWrite);
+    auto depth_normal = render_graph_.Import("depth normal", depthnormal_.get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto ao_texture = render_graph_.Import("ao texture", gtao_.occlusion_texture().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto csm_shadow = render_graph_.Import("csm shadow map", csm_manager_->shadow_map().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+
+    AddPreDepthPass(prepass_depth);
+    AddDepthNormalPass(prepass_depth, depth_normal);
+    AddGtaoPass(prepass_depth, depth_normal, ao_texture);
+    AddShadowPass(csm_shadow);
     AddLightingPass();
 
     LightManager::Instance()->AddSkyboxPass(this);

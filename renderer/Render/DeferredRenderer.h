@@ -36,8 +36,11 @@ protected:
     void DoTAA(CommandBuffer* cmd_buffer) override;
     void DoFXAA(CommandBuffer* cmd_buffer) override;
 
-    void AddGPass();
-    void AddLightingPass();
+    void AddGPass(GraphResourceHandle albedo, GraphResourceHandle normal,
+        GraphResourceHandle ao_metal_roughness, GraphResourceHandle emissive, GraphResourceHandle velocity);
+    void AddLightingPass(GraphResourceHandle albedo, GraphResourceHandle normal,
+        GraphResourceHandle ao_metal_roughness, GraphResourceHandle emissive,
+        GraphResourceHandle occlusion, GraphResourceHandle shadow_map);
 
     void InitRenderGraph(GfxDriver* gfx);
 

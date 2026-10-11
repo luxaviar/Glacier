@@ -71,6 +71,27 @@ public:
     virtual void AliasResource(Resource* before, Resource* after) = 0;
     virtual void UavResource(Resource* res) = 0;
 
+    // —— render graph validation (see .docs/render-graph-plan.md §4.6) ——
+    // While a graph scope is open the command buffer knows which resources the
+    // graph manages and which state each of them is planned to be in for the
+    // pass that is running, so a transition to that state is free - the graph
+    // already moved the resource there - and anything else takes the old
+    // immediate path and is counted. The fallback count is the progress bar of
+    // the migration: it is what drops to zero as the passes declare the
+    // resources they use. Outside a scope every call is the plain transition.
+    virtual void BeginGraphScope() {}
+    virtual void EndGraphScope() {}
+    virtual void AddGraphResource(Resource* resource) {}
+    virtual void BeginGraphPass(const char* name) {}
+    virtual void EndGraphPass() {}
+    virtual void SetGraphExpectedState(Resource* resource, ResourceAccessBit state) {}
+    // The graph's own transition: it moves the resource to what the next pass
+    // plans, it is not checked and it is never a fallback
+    virtual void GraphTransitionBarrier(Resource* resource, ResourceAccessBit state) {
+        TransitionBarrier(resource, state);
+    }
+    virtual uint32_t graph_fallback_count() const { return 0; }
+
     virtual void CopyResource(Resource* src, Resource* dst) = 0;
 
     virtual void ClearUAV(Buffer* buffer) = 0;

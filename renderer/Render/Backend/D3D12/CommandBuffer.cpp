@@ -14,6 +14,17 @@
 namespace glacier {
 namespace render {
 
+namespace {
+
+// The fallback warnings are a limited sample for whoever migrates a pass: the
+// same transition repeats every frame, and after the first ones the count in
+// RenderGraph::stats is the report to read. The budget is per run rather than
+// per command buffer, since the command buffers are pooled and created lazily.
+constexpr uint32_t kMaxGraphFallbackWarnings = 16;
+uint32_t g_graph_fallback_warnings = 0;
+
+} // namespace
+
 std::unordered_map<std::string, std::shared_ptr<Texture>> D3D12CommandBuffer::texture_cache_;
 
 D3D12CommandBuffer::D3D12CommandBuffer(GfxDriver* driver, CommandBufferType type) :
@@ -251,7 +262,83 @@ void D3D12CommandBuffer::TransitionBarrier(Resource* resource, ResourceAccessBit
         return;
     }
 
+    //Validation of the render graph (see .docs/render-graph-plan.md §4.6): while
+    //a pass of the graph runs, the state it declared for a resource is what the
+    //resource was just moved to, so asking for it again costs nothing. Anything
+    //else changes the state right here, the old way, and is counted - the count
+    //is how much of the renderer still transitions on its own.
+    if (in_graph_scope_ && graph_resources_.count(resource) != 0) {
+        auto it = graph_expected_states_.find(resource);
+        if (it != graph_expected_states_.end() &&
+            ((uint64_t)after_state & (uint64_t)it->second) == (uint64_t)after_state) {
+            return;
+        }
+
+        ++graph_fallback_count_;
+        if (g_graph_fallback_warnings < kMaxGraphFallbackWarnings) {
+            ++g_graph_fallback_warnings;
+            if (it == graph_expected_states_.end()) {
+                LOG_WARN("render graph: pass '{}' transitions '{}' to {:#x} without declaring it",
+                    graph_pass_name_ ? graph_pass_name_ : "?", resource->GetName(), (uint64_t)after_state);
+            }
+            else {
+                LOG_WARN("render graph: pass '{}' transitions '{}' to {:#x}, not the declared {:#x}",
+                    graph_pass_name_ ? graph_pass_name_ : "?", resource->GetName(),
+                    (uint64_t)after_state, (uint64_t)it->second);
+            }
+        }
+
+        graph_expected_states_[resource] = after_state;
+    }
+
     resource_state_tracker_.TransitionResource(resource, (D3D12_RESOURCE_STATES)after_state, subresource);
+}
+
+void D3D12CommandBuffer::BeginGraphScope() {
+    in_graph_scope_ = true;
+    graph_pass_name_ = nullptr;
+    graph_fallback_count_ = 0;
+    graph_resources_.clear();
+    graph_expected_states_.clear();
+}
+
+void D3D12CommandBuffer::EndGraphScope() {
+    in_graph_scope_ = false;
+    graph_pass_name_ = nullptr;
+    graph_resources_.clear();
+    graph_expected_states_.clear();
+}
+
+void D3D12CommandBuffer::AddGraphResource(Resource* resource) {
+    if (resource && !resource->has_fixed_state()) {
+        graph_resources_.insert(resource);
+    }
+}
+
+void D3D12CommandBuffer::BeginGraphPass(const char* name) {
+    graph_pass_name_ = name;
+}
+
+void D3D12CommandBuffer::EndGraphPass() {
+    graph_pass_name_ = nullptr;
+    // the next pass declares its own states; a use the pass body made with a
+    // state of its own is not carried over
+    graph_expected_states_.clear();
+}
+
+void D3D12CommandBuffer::SetGraphExpectedState(Resource* resource, ResourceAccessBit state) {
+    if (resource) {
+        graph_expected_states_[resource] = state;
+    }
+}
+
+void D3D12CommandBuffer::GraphTransitionBarrier(Resource* resource, ResourceAccessBit state) {
+    if (resource->has_fixed_state()) {
+        return;
+    }
+
+    resource_state_tracker_.TransitionResource(resource, (D3D12_RESOURCE_STATES)state,
+        BARRIER_ALL_SUBRESOURCES);
 }
 
 void D3D12CommandBuffer::AliasResource(ID3D12Resource* before, ID3D12Resource* after) {

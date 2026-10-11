@@ -59,6 +59,11 @@ public:
     std::shared_ptr<RenderTarget>& GetLdrRenderTarget() { return ldr_render_target_; }
     std::shared_ptr<RenderTarget>& GetPresentRenderTarget() { return present_render_target_; }
 
+    // The imported targets the passes of the graph declare (see
+    // .docs/render-graph-plan.md T1.7)
+    GraphResourceHandle hdr_color_handle() const { return hdr_color_; }
+    GraphResourceHandle hdr_depth_handle() const { return hdr_depth_; }
+
     Camera* GetMainCamera() const;
     PostProcessManager& GetPostProcessManager() { return post_process_manager_; }
 
@@ -103,8 +108,8 @@ protected:
 
     void InitMaterial();
 
-    void AddShadowPass();
-    void AddGtaoPass();
+    void AddShadowPass(GraphResourceHandle shadow_map);
+    void AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal, GraphResourceHandle occlusion);
     void AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light);
 
     void InitFloorPbr(CommandBuffer* cmd_buffer);
@@ -124,6 +129,10 @@ protected:
     std::shared_ptr<RenderTarget> hdr_render_target_;
     //linear ldr render target
     std::shared_ptr<RenderTarget> ldr_render_target_;
+
+    //what the graph borrows from the renderer (see RenderGraph::Import)
+    GraphResourceHandle hdr_color_;
+    GraphResourceHandle hdr_depth_;
 
     //hardware render target
     std::shared_ptr<RenderTarget> present_render_target_;

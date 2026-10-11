@@ -3,6 +3,7 @@
 #include <vector>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <memory>
 #include <d3d12.h> 
 #include <atomic>
@@ -72,6 +73,15 @@ public:
 
     void AliasResource(Resource* before, Resource* after) override;
     void UavResource(Resource* res) override;
+
+    void BeginGraphScope() override;
+    void EndGraphScope() override;
+    void AddGraphResource(Resource* resource) override;
+    void BeginGraphPass(const char* name) override;
+    void EndGraphPass() override;
+    void SetGraphExpectedState(Resource* resource, ResourceAccessBit state) override;
+    void GraphTransitionBarrier(Resource* resource, ResourceAccessBit state) override;
+    uint32_t graph_fallback_count() const override { return graph_fallback_count_; }
 
     void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
 
@@ -145,6 +155,13 @@ private:
     ComPtr<ID3D12GraphicsCommandList> command_list_ = nullptr;
 
     ResourceStateTracker resource_state_tracker_;
+
+    // render graph validation (see CommandBuffer.h / §4.6)
+    bool in_graph_scope_ = false;
+    const char* graph_pass_name_ = nullptr;
+    uint32_t graph_fallback_count_ = 0;
+    std::unordered_set<Resource*> graph_resources_;
+    std::unordered_map<Resource*, ResourceAccessBit> graph_expected_states_;
 
     std::unique_ptr<DynamicDescriptorHeap> dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
     ID3D12DescriptorHeap* descriptor_heaps_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];

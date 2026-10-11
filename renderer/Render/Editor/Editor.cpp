@@ -292,6 +292,14 @@ void Editor::DrawScenePanel() {
 
 void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto& render_graph = renderer->render_graph();
+
+    //the outline chain: a mask into the depth stencil of the scene, a draw of
+    //the selected object into a half res target, and the two blur directions
+    //that put it back over the color of the frame. The targets are registered
+    //with the graph before the passes declare them (T1.7).
+    auto hdr_color = renderer->hdr_color_handle();
+    auto hdr_depth = renderer->hdr_depth_handle();
+
     auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"), nullptr);
 
     RasterStateDesc outline_rs;
@@ -302,18 +310,6 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     outline_rs.depthStencilPassOp = StencilOp::kReplace;
     outline_mat->GetProgram()->SetRasterState(outline_rs);
     outline_mat->GetProgram()->SetInputLayout(Mesh::kDefaultLayout);
-    
-    render_graph.AddPass("outline mask",
-        [&](PassNode& pass) {
-        },
-        [this, renderer, outline_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
-            if (!mr) return;
-
-            renderer->GetLightingRenderTarget()->BindDepthStencil(cmd_buffer);
-            pass.Render(cmd_buffer, mr, outline_mat.get());
-        });
 
     auto outline_draw_tex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
     outline_draw_tex->SetName("Outline draw texture");
@@ -321,34 +317,25 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     auto outline_draw_rt = gfx->CreateRenderTarget(outline_draw_tex->width(), outline_draw_tex->height());
     outline_draw_rt->AttachColor(AttachmentPoint::kColor0, outline_draw_tex);
 
-    auto solid_mat = MaterialManager::Instance()->Get("solid");
-    auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
-
-    outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
-
-    render_graph.AddPass("outline draw",
-        [&](PassNode& pass) {
-        },
-        [this, outline_draw_tex, outline_draw_rt, outline_solid_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
-            if (!mr) return;
-
-            outline_draw_rt->Clear(cmd_buffer);
-            RenderTargetGuard gurad(cmd_buffer, outline_draw_rt.get());
-
-            pass.Render(cmd_buffer, mr, outline_solid_mat.get());
-        });
-
-    SetKernelGauss(blur_param_, 4, 2.0);
-    auto blur_param = gfx->CreateConstantBuffer<BlurParam>(blur_param_, UsageType::kDefault);
-    auto blur_dir = gfx->CreateConstantBuffer<BlurDirection>(blur_dir_);
-
     auto outline_htex = RenderTexturePool::Get(renderer->GetLightingRenderTarget()->width() / 2, renderer->GetLightingRenderTarget()->height() / 2);
     outline_htex->SetName("horizontal outline draw texture");
 
     auto outline_hrt = gfx->CreateRenderTarget(outline_htex->width(), outline_htex->height());
     outline_hrt->AttachColor(AttachmentPoint::kColor0, outline_htex);
+
+    auto outline_draw = render_graph.Import("outline draw texture", outline_draw_tex.get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto outline_blur = render_graph.Import("outline blur texture", outline_htex.get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+
+    auto solid_mat = MaterialManager::Instance()->Get("solid");
+    auto outline_solid_mat = std::make_shared<Material>(*solid_mat);
+
+    outline_solid_mat->SetProperty("color", Color{ 1.0f, 0.4f, 0.4f, 1.0f });
+
+    SetKernelGauss(blur_param_, 4, 2.0);
+    auto blur_param = gfx->CreateConstantBuffer<BlurParam>(blur_param_, UsageType::kDefault);
+    auto blur_dir = gfx->CreateConstantBuffer<BlurDirection>(blur_dir_);
 
     SamplerState ss;
     ss.warpU = ss.warpV = WarpMode::kMirror;
@@ -366,21 +353,6 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     hblur_mat->SetProperty("Control", blur_dir);
     hblur_mat->SetProperty("_point_clamp_sampler", ss);
     hblur_mat->SetProperty("_PostSourceTexture", outline_draw_tex);
-
-    render_graph.AddPass("horizontal blur",
-        [&](PassNode& pass) {
-        },
-        [this, outline_htex, outline_hrt, blur_dir, hblur_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            if (!selected_go_) return;
-            auto mr = selected_go_->GetComponent<MeshRenderer>();
-            if (!mr) return;
-
-            outline_hrt->ClearColor(cmd_buffer, AttachmentPoint::kColor0);
-            blur_dir_.isHorizontal = true;
-            blur_dir->Update(&blur_dir_);
-
-            Renderer::PostProcess(cmd_buffer, outline_hrt, hblur_mat.get());
-        });
 
     SamplerState vss;
     vss.warpU = vss.warpV = WarpMode::kMirror;
@@ -402,10 +374,62 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     vblur_mat->SetProperty("Control", blur_dir);
     vblur_mat->SetProperty("_PostSourceTexture", outline_htex);
 
-    render_graph.AddPass("vertical blur",
-        [&](PassNode& pass) {
+    render_graph.AddPass("outline mask",
+        [=](PassBuilder& b) {
+            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
         },
-        [this, blur_dir, renderer, vblur_mat](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this, renderer, outline_mat](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
+            if (!selected_go_) return;
+            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            if (!mr) return;
+
+            renderer->GetLightingRenderTarget()->BindDepthStencil(cmd_buffer);
+            pass.Render(cmd_buffer, mr, outline_mat.get());
+        });
+
+    render_graph.AddPass("outline draw",
+        [=](PassBuilder& b) {
+            b.Write(outline_draw, ResourceAccessBit::kRenderTarget);
+        },
+        [this, outline_draw_rt, outline_solid_mat](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
+            if (!selected_go_) return;
+            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            if (!mr) return;
+
+            outline_draw_rt->Clear(cmd_buffer);
+            RenderTargetGuard gurad(cmd_buffer, outline_draw_rt.get());
+
+            pass.Render(cmd_buffer, mr, outline_solid_mat.get());
+        });
+
+    render_graph.AddPass("horizontal blur",
+        [=](PassBuilder& b) {
+            b.Read(outline_draw, ResourceAccessBit::kPixelShaderRead);
+            b.Write(outline_blur, ResourceAccessBit::kRenderTarget);
+        },
+        [this, outline_hrt, blur_dir, hblur_mat](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
+            if (!selected_go_) return;
+            auto mr = selected_go_->GetComponent<MeshRenderer>();
+            if (!mr) return;
+
+            outline_hrt->ClearColor(cmd_buffer, AttachmentPoint::kColor0);
+            blur_dir_.isHorizontal = true;
+            blur_dir->Update(&blur_dir_);
+
+            Renderer::PostProcess(cmd_buffer, outline_hrt, hblur_mat.get());
+        });
+
+    render_graph.AddPass("vertical blur",
+        [=](PassBuilder& b) {
+            b.Read(outline_blur, ResourceAccessBit::kPixelShaderRead);
+            b.Write(hdr_color, ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
+        },
+        [this, blur_dir, renderer, vblur_mat](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             if (!selected_go_) return;
             auto mr = selected_go_->GetComponent<MeshRenderer>();
             if (!mr) return;

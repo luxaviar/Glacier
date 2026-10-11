@@ -103,6 +103,21 @@ void Renderer::InitRenderTarget() {
     ldr_render_target_->AttachColor(AttachmentPoint::kColor0, ldr_colorframe);
     ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
 
+    //the targets the graph's passes declare (T1.7): PreRender clears both
+    //before the graph runs, so that is the state the frame starts in; hdr is
+    //read (TAA, luminance, bloom) after the graph, so the graph hands it back
+    //readable
+    hdr_color_ = render_graph_.Import("hdr color",
+        hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
+        ResourceAccessBit::kRenderTarget, ResourceAccessBit::kPixelShaderRead,
+        //the frame is consumed after the graph (TAA, luminance, bloom), so a
+        //cull must keep whatever produces it
+        true);
+    hdr_depth_ = render_graph_.Import("hdr depth", hdr_render_target_->GetDepthStencil().get(),
+        ResourceAccessBit::kDepthWrite, ResourceAccessBit::kDepthWrite);
+
+    render_graph_.SetRenderSize(width, height);
+
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
 }
 
@@ -122,6 +137,9 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
     exposure_.OnResize(width, height);
     tonemapping_.OnResize(width, height);
     bloom_.OnResize(width, height);
+
+    //transients follow the render size; the graph recompiles on the next frame
+    render_graph_.SetRenderSize(width, height);
 
     per_frame_param_.param()._ScreenParam = { (float)width, (float)height, 1.0f / (float)width, 1.0f / (float)height };
     return true;
@@ -392,11 +410,13 @@ void Renderer::CaptureScreen() {
     cmd_queue->ExecuteCommandBuffer(cmd_buffer);
 }
 
-void Renderer::AddShadowPass() {
+void Renderer::AddShadowPass(GraphResourceHandle shadow_map) {
     render_graph_.AddPass("shadow",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Write(shadow_map, ResourceAccessBit::kDepthWrite);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             PerfSample("Shadow pass");
 
             auto light_mgr = LightManager::Instance();
@@ -412,11 +432,15 @@ void Renderer::AddShadowPass() {
         });
 }
 
-void Renderer::AddGtaoPass() {
+void Renderer::AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal, GraphResourceHandle occlusion) {
     render_graph_.AddPass("GTAO",
-        [&](PassNode& pass) {
+        [=](PassBuilder& b) {
+            b.Read(depth, ResourceAccessBit::kPixelShaderRead);
+            b.Read(normal, ResourceAccessBit::kPixelShaderRead);
+            b.Write(occlusion, ResourceAccessBit::kRenderTarget);
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [this](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             //PerfSample("GTAO Pass");
             gtao_.Execute(this, cmd_buffer);
         });
@@ -472,7 +496,7 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     MaterialManager::Instance()->Add(std::move(shadow_mat));
 
     render_graph_.AddPass<std::vector<std::shared_ptr<RenderTarget>>>("shadow",
-        [&](std::vector<std::shared_ptr<RenderTarget>>& shadow_map_rt, PassNode& pass) {
+        [&](std::vector<std::shared_ptr<RenderTarget>>& shadow_map_rt, PassBuilder& b) {
             shadow_map_rt.reserve(6);
 
             for (int i = 0; i < 6; ++i) {
@@ -482,7 +506,8 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
                 rt->AttachDepthStencil(depthstencil_texture1);
             }
         },
-        [&](CommandBuffer* cmd_buffer, std::vector<std::shared_ptr<RenderTarget>>& shadow_map_rt, PassNode& pass) {
+        [&](PassContext& ctx, std::vector<std::shared_ptr<RenderTarget>>& shadow_map_rt, PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             auto light_pos = light.pos();
 
             //auto shadow_cubemap
@@ -508,10 +533,10 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
         });
 
     render_graph_.AddPass("solid",
-        [&](PassNode& pass) {
+        [&](PassBuilder& b) {
         },
-        [this](CommandBuffer* cmd_buffer, const PassNode& pass) {
-            pass.Render(cmd_buffer, visibles_);
+        [this](PassContext& ctx, const PassNode& pass) {
+            pass.Render(ctx.cmd_buffer(), visibles_);
         });
 
     auto shadow_space_tx = gfx->CreateConstantBuffer<Matrix4x4>();
@@ -537,9 +562,10 @@ void Renderer::AddCubeShadowMap(GfxDriver* gfx, OldPointLight& light) {
     MaterialManager::Instance()->Add(std::move(phong_mat));
 
     render_graph_.AddPass("phong",
-        [&](PassNode& pass) {
+        [&](PassBuilder& b) {
         },
-        [&](CommandBuffer* cmd_buffer, const PassNode& pass) {
+        [&](PassContext& ctx, const PassNode& pass) {
+            auto cmd_buffer = ctx.cmd_buffer();
             //TODO: gather light list
             auto main_camera_ = GetMainCamera();
             light.Bind(main_camera_->view());
