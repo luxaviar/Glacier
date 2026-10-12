@@ -389,7 +389,10 @@ D3D12CommandBuffer* D3D12GfxDriver::GetCommandList(D3D12_COMMAND_LIST_TYPE type)
 }
 
 void D3D12GfxDriver::EnqueueReadback(CommandBuffer* cmd_buffer, D3D12Texture::ReadbackTask&& task) {
-    readback_queue_.push({ std::move(task), cmd_buffer });
+    ReadbackEntry entry;
+    entry.task = std::move(task);
+    entry.cmd_buffer = cmd_buffer;
+    readback_queue_.push_back(std::move(entry));
 }
 
 DXGI_SAMPLE_DESC D3D12GfxDriver::GetMultisampleQualityLevels(DXGI_FORMAT format, UINT numSamples,
@@ -523,20 +526,29 @@ void D3D12GfxDriver::CheckMSAA(uint32_t target_sample_count, uint32_t& smaple_co
     }
 }
 
+void D3D12GfxDriver::StampReadbackFence(CommandBuffer* cmd_buffer, D3D12CommandQueue* queue, uint64_t fence) {
+    for (auto& entry : readback_queue_) {
+        if (entry.cmd_buffer == cmd_buffer && entry.fence == 0) {
+            entry.queue = queue;
+            entry.fence = fence;
+        }
+    }
+}
+
 void D3D12GfxDriver::ProcessReadback() {
-    auto complete_value = direct_command_queue_->GetCompletedFenceValue();
     while (!readback_queue_.empty()) {
         auto& entry = readback_queue_.front();
-        // the copy was recorded into a command buffer that gets submitted after
-        // the task was queued, so the fence is asked for here rather than when
-        // the task was queued (0 means it is not submitted yet)
-        const uint64_t fence = entry.cmd_buffer != nullptr ? entry.cmd_buffer->submitted_fence() : 0;
-        if (fence == 0 || fence > complete_value) {
+        // The copy waits for the submission that carries it, which is the fence
+        // stamped on the entry when the list was submitted. Asking the list for
+        // its fence here would report the newest submission of a list that is
+        // recycled and resubmitted, and a readback could then wait for frames
+        // that have nothing to do with its copy (0 means not submitted yet).
+        if (entry.fence == 0 || entry.fence > entry.queue->GetCompletedFenceValue()) {
             break;
         }
 
         entry.task.Process();
-        readback_queue_.pop();
+        readback_queue_.pop_front();
     }
 }
 

@@ -160,6 +160,10 @@ uint64_t D3D12CommandQueue::ExecuteCommandBuffer(std::vector<CommandBuffer*>& cm
     // wrote can ask whether the GPU is done with it
     for (auto command_list : inflight_list) {
         command_list->SetSubmittedFence(fence_value);
+        // the readbacks recorded into this list are done once this submission is
+        // done; the fence is remembered for them here, because the list itself
+        // will not know it later (see D3D12GfxDriver::StampReadbackFence)
+        static_cast<D3D12GfxDriver*>(driver_)->StampReadbackFence(command_list, this, fence_value);
     }
 
     //ResourceStateTracker::Unlock();

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <deque>
 #include <queue>
 #include <memory>
 #include <vector>
@@ -53,9 +54,15 @@ public:
         D3D12_MULTISAMPLE_QUALITY_LEVEL_FLAGS flags = D3D12_MULTISAMPLE_QUALITY_LEVELS_FLAG_NONE) const;
 
     // cmd_buffer is the one the copy was recorded into: it is submitted after the
-    // task is queued (see Renderer::CaptureScreen), so it is the command buffer
-    // that knows the fence the readback is done under
+    // task is queued (see Renderer::CaptureScreen), and the submission stamps the
+    // fence the readback is done under (see StampReadbackFence)
     void EnqueueReadback(CommandBuffer* cmd_buffer, D3D12Texture::ReadbackTask&& task);
+    // Called by a queue that submits a list: every readback recorded into that
+    // list remembers the fence of this submission, which is the one the GPU
+    // passes when the copy is done. The list cannot be asked later on, because
+    // it is recycled and resubmitted and would then report the fence of a
+    // submission the copy is not in (see ProcessReadback).
+    void StampReadbackFence(CommandBuffer* cmd_buffer, D3D12CommandQueue* queue, uint64_t fence);
 
     ID3D12Device2* GetDevice() const { return device_.Get(); }
     SwapChain* GetSwapChain() const { return swap_chain_.get(); }
@@ -158,11 +165,15 @@ private:
     struct ReadbackEntry {
         D3D12Texture::ReadbackTask task;
         CommandBuffer* cmd_buffer = nullptr;
+        // the queue it was submitted to and the fence of that submission; zero
+        // until the submission happens
+        D3D12CommandQueue* queue = nullptr;
+        uint64_t fence = 0;
     };
 
     std::unique_ptr<D3D12SwapChain> swap_chain_;
     std::unique_ptr<MipsGenerator> mips_generator_;
-    std::queue<ReadbackEntry> readback_queue_;
+    std::deque<ReadbackEntry> readback_queue_;
 
     std::unique_ptr<D3D12CommandQueue> direct_command_queue_;
     std::unique_ptr<D3D12CommandQueue> copy_command_queue_;
