@@ -30,6 +30,9 @@ public:
 
     void SetRasterState(const RasterStateDesc& rs);
     void SetInputLayout(const InputLayoutDesc& desc);
+    // the states every draw of this program is made with; a permutation of the
+    // program is created with them as well (see Material::GetVariant)
+    RasterStateDesc raster_state() const { return pso_->state(); }
 
     void SetupMaterial(Material* material);
 

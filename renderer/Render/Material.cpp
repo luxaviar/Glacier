@@ -94,6 +94,13 @@ std::shared_ptr<Material> Material::GetVariant(const std::vector<const char*>& m
 
     program->SetInputLayout(layout);
 
+    // A permutation draws in the same states as the material it derives from.
+    // The outline mask is one of them: it writes the stencil the highlight of
+    // the selected object is cut out with, and through a variant that defaulted
+    // it wrote nothing - the whole mesh carried the highlight instead of its
+    // outline.
+    program->SetRasterState(program_->raster_state());
+
     //a permutation takes part in the same render passes as the material it derives from
     for (const auto& pass : program_->passes()) {
         program->AddPass(pass.c_str());
