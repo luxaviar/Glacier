@@ -70,6 +70,17 @@ void D3D12PipelineState::Create(CommandBuffer* cmd_buffer) {
         }
     }
 
+    // A target without a depth attachment cannot take depth or stencil: the
+    // runtime rejects a state that asks for them (the debug layer reports the
+    // PSO as [680]), and the draws of such a pass make no use of either. What
+    // a material asks for is not the last word, because the target decides -
+    // the outline draw of the editor draws a material whose state has depth
+    // enabled into a color only target.
+    if (desc_.DSVFormat == DXGI_FORMAT_UNKNOWN) {
+        dsDesc.DepthEnable = FALSE;
+        dsDesc.StencilEnable = FALSE;
+    }
+
     //blend
     auto& blendDesc = desc_.BlendState;
     blendDesc.AlphaToCoverageEnable = state_.alphaToCoverage;
