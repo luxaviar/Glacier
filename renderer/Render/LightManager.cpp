@@ -109,15 +109,18 @@ void LightManager::Update(CommandBuffer* cmd_buffer) {
 }
 
 void LightManager::AddSkyboxPass(Renderer* renderer) {
-    auto hdr_color = renderer->hdr_color_handle();
-    auto hdr_depth = renderer->hdr_depth_handle();
+    //the skybox draws over the color of the lighting pass, so it declares the
+    //lighting target of the renderer - the hdr frame of the deferred stack,
+    //the MSAA frame of the forward one (T3.2)
+    auto color = renderer->lighting_color_handle();
+    auto depth = renderer->lighting_depth_handle();
 
     renderer->render_graph().AddPass("skybox",
         [=](PassBuilder& b) {
             //the box is depth tested against the scene (it binds the depth
             //attachment) and drawn over the color of the lighting pass
-            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
-            b.Write(hdr_color, ResourceAccessBit::kRenderTarget);
+            b.Write(depth, ResourceAccessBit::kDepthWrite);
+            b.Write(color, ResourceAccessBit::kRenderTarget);
         },
         [=](PassContext& ctx, const PassNode& pass) {
             auto cmd_buffer = ctx.cmd_buffer();

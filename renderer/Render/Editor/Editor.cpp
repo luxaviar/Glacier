@@ -310,8 +310,11 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     //the selected object into a half res target, and the two blur directions
     //that put it back over the color of the frame. The targets are registered
     //with the graph before the passes declare them (T1.7).
-    auto hdr_color = renderer->hdr_color_handle();
-    auto hdr_depth = renderer->hdr_depth_handle();
+    //The color and the depth the chain writes are the lighting target of the
+    //renderer: the hdr frame of the deferred stack, the MSAA frame of the
+    //forward one (T3.2).
+    auto lighting_color = renderer->lighting_color_handle();
+    auto lighting_depth = renderer->lighting_depth_handle();
 
     auto outline_mat = std::make_shared<Material>("outline", TEXT("Solid"), nullptr);
 
@@ -389,7 +392,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
 
     outline_passes_[0] = &render_graph.AddPass("outline mask",
         [=](PassBuilder& b) {
-            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
+            b.Write(lighting_depth, ResourceAccessBit::kDepthWrite);
         },
         [this, renderer, outline_mat](PassContext& ctx, const PassNode& pass) {
             // the pass is switched off while nothing is selected (T2.2); this
@@ -437,8 +440,8 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     outline_passes_[3] = &render_graph.AddPass("vertical blur",
         [=](PassBuilder& b) {
             b.Read(outline_blur, ResourceAccessBit::kPixelShaderRead);
-            b.Write(hdr_color, ResourceAccessBit::kRenderTarget);
-            b.Write(hdr_depth, ResourceAccessBit::kDepthWrite);
+            b.Write(lighting_color, ResourceAccessBit::kRenderTarget);
+            b.Write(lighting_depth, ResourceAccessBit::kDepthWrite);
         },
         [this, blur_dir, renderer, vblur_mat](PassContext& ctx, const PassNode& pass) {
             auto mr = SelectedMesh();

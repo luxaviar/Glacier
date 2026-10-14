@@ -90,6 +90,20 @@ bool ForwardRenderer::OnResize(uint32_t width, uint32_t height) {
 void ForwardRenderer::PreRender(CommandBuffer* cmd_buffer) {
     msaa_.PreRender(this, cmd_buffer);
 
+    // The MSAA frame follows the option: the resolve that reads it is part of
+    // the frame only while MSAA is on, and a change replaces the attachments,
+    // so the imported handles are re-pointed before the graph runs (T3.2).
+    // With MSAA off the MSAA frame is the hdr frame - the same attachments -
+    // which is what the handles resolve to then.
+    auto& lighting_target = msaa_.GetRenderTarget();
+    render_graph_.UpdateImported(msaa_color_,
+        lighting_target->GetColorAttachment(AttachmentPoint::kColor0).get());
+    render_graph_.UpdateImported(msaa_depth_, lighting_target->GetDepthStencil().get());
+
+    if (msaa_resolve_pass_ != nullptr) {
+        msaa_resolve_pass_->active(msaa_.enabled());
+    }
+
     prepass_render_target_->ClearDepthStencil(cmd_buffer);
 
     Renderer::PreRender(cmd_buffer);
@@ -122,6 +136,10 @@ void ForwardRenderer::AddPreDepthPass(GraphResourceHandle prepass_depth) {
     render_graph_.AddPass("prepass",
         [=](PassBuilder& b) {
             b.Write(prepass_depth, ResourceAccessBit::kDepthWrite);
+            //the pass puts the lighting target back when it is done, which is
+            //where the lighting of this renderer draws (T3.2)
+            b.Write(lighting_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(lighting_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
         [this](PassContext& ctx, const PassNode& pass) {
             auto cmd_buffer = ctx.cmd_buffer();
@@ -159,11 +177,17 @@ void ForwardRenderer::AddDepthNormalPass(GraphResourceHandle prepass_depth, Grap
         });
 }
 
-void ForwardRenderer::AddLightingPass() {
+void ForwardRenderer::AddLightingPass(GraphResourceHandle shadow_map, GraphResourceHandle occlusion) {
     render_graph_.AddPass("ForwardLighting",
-        [this](PassBuilder& b) {
-            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
-            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
+        [=](PassBuilder& b) {
+            //the lighting target of this renderer is the MSAA frame; the
+            //resolve below puts it on the hdr frame the tail works on
+            b.Write(lighting_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(lighting_depth_handle(), ResourceAccessBit::kDepthWrite);
+            //the materials of the scene read the shadow map and the AO the
+            //passes before this one produced (T3.2)
+            b.Read(shadow_map, ResourceAccessBit::kPixelShaderRead);
+            b.Read(occlusion, ResourceAccessBit::kPixelShaderRead);
         },
         [this](PassContext& ctx, const PassNode& pass) {
             auto cmd_buffer = ctx.cmd_buffer();
@@ -178,9 +202,9 @@ void ForwardRenderer::AddLightingPass() {
 
 void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
     //what the passes of the forward stack declare they touch (§3.3). The
-    //lighting target of this renderer is the MSAA target, which the graph does
-    //not manage; the passes of the shared tail (skybox, outline) declare the
-    //hdr pair, which is where the resolve puts the frame (see §8, T1.7).
+    //lighting target of this renderer is the MSAA frame, imported here and
+    //re-pointed at the attachments of the running option every frame (T3.2);
+    //the resolve node puts it on the hdr frame the tail of the graph works on.
     auto prepass_depth = render_graph_.Import("prepass depth",
         prepass_render_target_->GetDepthStencil().get(),
         ResourceAccessBit::kDepthWrite, ResourceAccessBit::kDepthWrite);
@@ -191,16 +215,44 @@ void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
     auto csm_shadow = render_graph_.Import("csm shadow map", csm_manager_->shadow_map().get(),
         ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
 
+    auto& msaa_target = msaa_.GetRenderTarget();
+    msaa_color_ = render_graph_.Import("msaa color",
+        msaa_target->GetColorAttachment(AttachmentPoint::kColor0).get(),
+        ResourceAccessBit::kRenderTarget, ResourceAccessBit::kRenderTarget);
+    msaa_depth_ = render_graph_.Import("msaa depth", msaa_target->GetDepthStencil().get(),
+        ResourceAccessBit::kDepthWrite, ResourceAccessBit::kDepthWrite);
+
     AddPreDepthPass(prepass_depth);
     AddDepthNormalPass(prepass_depth, depth_normal);
     AddGtaoPass(prepass_depth, depth_normal, ao_texture);
     AddShadowPass(csm_shadow);
-    AddLightingPass();
+    AddLightingPass(csm_shadow, ao_texture);
 
     LightManager::Instance()->AddSkyboxPass(this);
     editor_.RegisterHighLightPass(gfx, this);
 
+    AddMsaaResolvePass();
+    AddPostProcessPasses();
+
     render_graph_.Compile();
+}
+
+void ForwardRenderer::AddMsaaResolvePass() {
+    // The resolve of the MSAA frame into the hdr frame (T3.1): the node runs
+    // only while MSAA is on (PreRender switches it), and what it leaves the
+    // hdr frame in is what the tail of the frame expects.
+    auto& pass = render_graph_.AddPass("Resolve MSAA",
+        [=](PassBuilder& b) {
+            b.Read(msaa_color_, ResourceAccessBit::kPixelShaderRead);
+            b.Read(msaa_depth_, ResourceAccessBit::kPixelShaderRead);
+            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            ResolveMSAA(ctx.cmd_buffer());
+        });
+
+    msaa_resolve_pass_ = &pass;
 }
 
 void ForwardRenderer::DrawOptionWindow() {

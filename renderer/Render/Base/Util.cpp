@@ -13,6 +13,14 @@ LUX_CONST("kFXAA", AntiAliasingType::kFXAA)
 LUX_CONST("kTAA", AntiAliasingType::kTAA)
 LUX_CONSTANT_MULTI_END
 
+//the forward renderer takes the MSAA setting, so a scene can ask for it
+LUX_CONSTANT_MULTI(MSAAType, MSAAType)
+LUX_CONST("kNone", MSAAType::kNone)
+LUX_CONST("k2x", MSAAType::k2x)
+LUX_CONST("k4x", MSAAType::k4x)
+LUX_CONST("k8x", MSAAType::k8x)
+LUX_CONSTANT_MULTI_END
+
 LUX_CONSTANT_MULTI(TextureFormat, TextureFormat)
 LUX_CONST("kUnkown", TextureFormat::kUnkown)
 LUX_CONST("kR8G8B8A8_UNORM", TextureFormat::kR8G8B8A8_UNORM)
