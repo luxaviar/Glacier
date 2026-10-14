@@ -1,4 +1,5 @@
 #include "RenderGraph.h"
+#include <algorithm>
 #include "PassContext.h"
 #include "PassNode.h"
 #include "PassObserver.h"
@@ -39,6 +40,15 @@ GraphResourceHandle RenderGraph::Import(const char* name, Texture* texture,
     ResourceAccessBit initial_state, ResourceAccessBit final_state, bool external) {
     dirty_ = true;
     return resources_.AddImported(name, texture, initial_state, final_state, external);
+}
+
+void RenderGraph::UpdateImported(GraphResourceHandle handle, Texture* texture) {
+    assert(resources_.Contains(handle));
+
+    auto& entry = resources_.entry(handle);
+    assert(entry.kind == GraphResourceKind::kImported);
+
+    entry.texture = texture;
 }
 
 PassNode& RenderGraph::GetPass(const char* passName)
@@ -205,6 +215,24 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
             EnsureTransientAllocated(cmd_buffer, usage.resource);
         }
 
+        // What the pass declared resource by resource, as it registered it and
+        // deduplicated. A pass may use one resource in more than one state
+        // while it runs - the ping-pong of a composite chain - and such a
+        // resource is left for the body to drive below: no single entry state
+        // is right for all of its uses, and what the body asks for is checked
+        // against the declared set either way (T3.1).
+        std::vector<GraphUsageDesc> declared;
+        declared.reserve(pass.usages().size());
+        for (const auto& usage : pass.usages()) {
+            auto it = std::find_if(declared.begin(), declared.end(), [&](const GraphUsageDesc& other) {
+                return other.resource == usage.resource.index && other.access == usage.access;
+            });
+
+            if (it == declared.end()) {
+                declared.push_back({ usage.resource.index, usage.access });
+            }
+        }
+
         // The group of transitions the graph takes for one pass is submitted on
         // its own: a resource moved twice inside one barrier call is rebuilt by
         // the driver and a debug layer complains, and what the pass body left
@@ -213,15 +241,29 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
 
         // Move the resources to the states this pass declared, then hold those
         // states as what the pass expects: a transition the pass body sends to
-        // the state it declared is the free one, anything else takes the old
+        // a declared state is the free one, anything else takes the old
         // immediate path and is counted (see .docs/render-graph-plan.md §4.6).
         // The transitions are sent even where the plan expected the resource to
         // be there already - the plan's idea of the state can be older than
         // what a pass body left behind, and the tracker is the one that knows
-        // (it skips a transition to the state a resource is already in).
+        // (it skips a transition to the state a resource is already in). A
+        // resource the pass declared more than one way is not moved here at
+        // all: the body's own transitions carry it between the declared states
+        // and are checked against them below.
         for (const auto& usage : compiled_pass.expected) {
             auto& entry = resources_.entries()[usage.resource];
             if (entry.fixed_state) {
+                continue;
+            }
+
+            uint32_t declared_states = 0;
+            for (const auto& declared_usage : declared) {
+                if (declared_usage.resource == usage.resource) {
+                    ++declared_states;
+                }
+            }
+
+            if (declared_states > 1) {
                 continue;
             }
 
@@ -235,7 +277,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
         cmd_buffer->FlushBarriers();
 
         cmd_buffer->BeginGraphPass(pass.name().c_str());
-        for (const auto& usage : compiled_pass.expected) {
+        for (const auto& usage : declared) {
             auto* texture = ResolveTextureEntry(resources_.entries()[usage.resource]);
             if (texture) {
                 cmd_buffer->SetGraphExpectedState(texture, usage.access);

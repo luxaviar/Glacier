@@ -73,11 +73,14 @@ public:
 
     // —— render graph validation (see .docs/render-graph-plan.md §4.6) ——
     // While a graph scope is open the command buffer knows which resources the
-    // graph manages and which state each of them is planned to be in for the
-    // pass that is running, so a transition to that state is free - the graph
-    // already moved the resource there - and anything else takes the old
-    // immediate path and is counted. The fallback count is the progress bar of
-    // the migration: it is what drops to zero as the passes declare the
+    // graph manages and which states the pass that is running declared for
+    // them, so a transition to one of those states is legal and free - the
+    // pass asked for what it declared - and anything else takes the old
+    // immediate path and is counted. A pass may declare more than one state
+    // for a resource, since a chain that ping-pongs a texture (the AO pair,
+    // the bloom mips) uses it in both ways while it runs; every declared state
+    // is set through SetGraphExpectedState. The fallback count is the progress
+    // bar of the migration: it is what drops to zero as the passes declare the
     // resources they use. Outside a scope every call is the plain transition.
     virtual void BeginGraphScope() {}
     virtual void EndGraphScope() {}

@@ -57,6 +57,13 @@ public:
         ResourceAccessBit initial_state, ResourceAccessBit final_state,
         bool external = false);
 
+    // Re-points an imported resource at another texture of the same role: the
+    // swapchain attaches the buffer it will present to the render target every
+    // Present, and the bloom chain reallocates its mips on a resize, so the
+    // handle keeps naming the resource while the object behind it changes
+    // (T3.1). Not a structural change - the compiled graph is kept.
+    void UpdateImported(GraphResourceHandle handle, Texture* texture);
+
     // —— passes, registered once ——
     // setup is called with the PassBuilder to declare what the pass reads and
     // writes; execute is called every frame with the PassContext. Both may take

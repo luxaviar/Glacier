@@ -1,4 +1,5 @@
 #include "CommandBuffer.h"
+#include <algorithm>
 #include "GfxDriver.h"
 #include "Exception/Exception.h"
 #include "Common/Util.h"
@@ -263,14 +264,16 @@ void D3D12CommandBuffer::TransitionBarrier(Resource* resource, ResourceAccessBit
     }
 
     //Validation of the render graph (see .docs/render-graph-plan.md §4.6): while
-    //a pass of the graph runs, the state it declared for a resource is what the
-    //resource was just moved to, so asking for it again costs nothing. Anything
+    //a pass of the graph runs, the states it declared for a resource are what
+    //it is allowed to ask for, so asking for one of them costs nothing - the
+    //tracker still moves the resource when the declared state is not the one
+    //the pass was entered in (a ping-pong inside one node needs both). Anything
     //else changes the state right here, the old way, and is counted - the count
     //is how much of the renderer still transitions on its own.
     if (in_graph_scope_ && graph_resources_.count(resource) != 0) {
         auto it = graph_expected_states_.find(resource);
-        if (it != graph_expected_states_.end() &&
-            ((uint64_t)after_state & (uint64_t)it->second) == (uint64_t)after_state) {
+        if (it != graph_expected_states_.end() && IsDeclaredState(it->second, after_state)) {
+            resource_state_tracker_.TransitionResource(resource, (D3D12_RESOURCE_STATES)after_state, subresource);
             return;
         }
 
@@ -284,14 +287,27 @@ void D3D12CommandBuffer::TransitionBarrier(Resource* resource, ResourceAccessBit
             else {
                 LOG_WARN("render graph: pass '{}' transitions '{}' to {:#x}, not the declared {:#x}",
                     graph_pass_name_ ? graph_pass_name_ : "?", resource->GetName(),
-                    (uint64_t)after_state, (uint64_t)it->second);
+                    (uint64_t)after_state, it != graph_expected_states_.end() && !it->second.empty()
+                        ? (uint64_t)it->second.front() : 0ull);
             }
         }
 
-        graph_expected_states_[resource] = after_state;
+        // the undeclared transition is the state the resource is in now; a
+        // later request for it is not a second fallback
+        graph_expected_states_[resource] = { after_state };
     }
 
     resource_state_tracker_.TransitionResource(resource, (D3D12_RESOURCE_STATES)after_state, subresource);
+}
+
+bool D3D12CommandBuffer::IsDeclaredState(const std::vector<ResourceAccessBit>& states, ResourceAccessBit after_state) {
+    for (auto state : states) {
+        if (((uint64_t)after_state & (uint64_t)state) == (uint64_t)after_state) {
+            return true;
+        }
+    }
+
+    return false;
 }
 
 void D3D12CommandBuffer::BeginGraphScope() {
@@ -328,7 +344,10 @@ void D3D12CommandBuffer::EndGraphPass() {
 
 void D3D12CommandBuffer::SetGraphExpectedState(Resource* resource, ResourceAccessBit state) {
     if (resource) {
-        graph_expected_states_[resource] = state;
+        auto& states = graph_expected_states_[resource];
+        if (std::find(states.begin(), states.end(), state) == states.end()) {
+            states.push_back(state);
+        }
     }
 }
 

@@ -148,6 +148,9 @@ private:
     //decoded images of the process, keyed by file and the settings they were read with
     static std::unordered_map<std::string, std::shared_ptr<Texture>> texture_cache_;
 
+    // whether the requested state is one the pass declared (or a part of one)
+    static bool IsDeclaredState(const std::vector<ResourceAccessBit>& states, ResourceAccessBit after_state);
+
     D3D12_COMMAND_LIST_TYPE native_type_;
     ID3D12Device* device_;
 
@@ -161,7 +164,9 @@ private:
     const char* graph_pass_name_ = nullptr;
     uint32_t graph_fallback_count_ = 0;
     std::unordered_set<Resource*> graph_resources_;
-    std::unordered_map<Resource*, ResourceAccessBit> graph_expected_states_;
+    // the states the pass declared for a resource; a pass may declare several
+    // when it uses the resource in more than one way while it runs (T3.1)
+    std::unordered_map<Resource*, std::vector<ResourceAccessBit>> graph_expected_states_;
 
     std::unique_ptr<DynamicDescriptorHeap> dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
     ID3D12DescriptorHeap* descriptor_heaps_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];
