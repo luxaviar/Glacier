@@ -56,6 +56,11 @@ void DeferredRenderer::Setup() {
     //InitRenderGraph, so it has to exist first
     gtao_.Setup(this, hdr_render_target_->GetDepthStencil(), gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
 
+    //the tail of the deferred frame (T3.1) has to exist before the graph is
+    //built, since the passes of InitRenderGraph declare what it holds
+    fxaa_.Setup(this);
+    taa_.Setup(this);
+
     InitRenderGraph(gfx_);
 
     lighting_mat_ = std::make_shared<PostProcessMaterial>("DeferredLighting", TEXT("DeferredLighting"));
@@ -69,9 +74,6 @@ void DeferredRenderer::Setup() {
     lighting_mat_->SetProperty("AoMetalroughnessTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor2));
     lighting_mat_->SetProperty("EmissiveTexture", gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor3));
     lighting_mat_->SetProperty("_DepthBuffer", hdr_render_target_->GetDepthStencil());
-
-    fxaa_.Setup(this);
-    taa_.Setup(this);
 }
 
 void DeferredRenderer::JitterProjection(Matrix4x4& projection) {
@@ -90,11 +92,8 @@ void DeferredRenderer::DoTAA(CommandBuffer* cmd_buffer) {
 }
 
 void DeferredRenderer::DoFXAA(CommandBuffer* cmd_buffer) {
-    if (anti_aliasing_ != AntiAliasingType::kFXAA) {
-        Renderer::DoFXAA(cmd_buffer);
-        return;
-    }
-
+    //the node runs only while the option is fxaa; the copy of every other
+    //option is the node after this one (T3.1)
     fxaa_.Execute(this, cmd_buffer);
 }
 
@@ -147,6 +146,12 @@ void DeferredRenderer::SetupBuiltinProperty(Material* mat) {
 void DeferredRenderer::PreRender(CommandBuffer* cmd_buffer) {
     if (option_aa_ != anti_aliasing_) {
         anti_aliasing_ = option_aa_;
+    }
+
+    //the TAA node runs only while the option is on (T3.1); off, the frame is
+    //the one the scene passes left, and the node is not in the frame at all
+    if (taa_pass_ != nullptr) {
+        taa_pass_->active(anti_aliasing_ == AntiAliasingType::kTAA);
     }
 
     gbuffer_render_target_->Clear(cmd_buffer);
@@ -216,6 +221,7 @@ void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
     auto gbuffer_velocity = render_graph_.Import("gbuffer velocity",
         gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor4).get(),
         ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    gbuffer_velocity_ = gbuffer_velocity;
     auto csm_shadow = render_graph_.Import("csm shadow map", csm_manager_->shadow_map().get(),
         ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
     auto ao_texture = render_graph_.Import("ao texture", gtao_.occlusion_texture().get(),
@@ -229,7 +235,41 @@ void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
     LightManager::Instance()->AddSkyboxPass(this);
     editor_.RegisterHighLightPass(gfx, this);
 
+    AddTaaPass();
+    AddPostProcessPasses();
+
     render_graph_.Compile();
+}
+
+void DeferredRenderer::AddTaaPass() {
+    // The two halves of the TAA history are resident (imported), and so is the
+    // velocity the pass reprojects with; the node ping-pongs the frame through
+    // them: the frame is copied into the scratch texture, resolved against the
+    // history, and handed on as the history of the next frame (T3.1). Both
+    // copies and the draw run in one node (D8), which is why the frame and the
+    // pair are declared in both of the states the body uses them in.
+    auto temp = render_graph_.Import("taa temp texture", taa_.temp_texture().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+    auto prev = render_graph_.Import("taa prev texture", taa_.prev_texture().get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+
+    auto& pass = render_graph_.AddPass("TAA",
+        [=](PassBuilder& b) {
+            b.Read(hdr_color_handle(), ResourceAccessBit::kCopySource);
+            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Read(hdr_depth_handle(), ResourceAccessBit::kPixelShaderRead);
+            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
+            b.Read(gbuffer_velocity_, ResourceAccessBit::kPixelShaderRead);
+            b.Read(temp, ResourceAccessBit::kPixelShaderRead);
+            b.Write(temp, ResourceAccessBit::kCopyDest);
+            b.Read(prev, ResourceAccessBit::kPixelShaderRead);
+            b.Write(prev, ResourceAccessBit::kCopyDest);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            DoTAA(ctx.cmd_buffer());
+        });
+
+    taa_pass_ = &pass;
 }
 
 void DeferredRenderer::DrawOptionWindow() {

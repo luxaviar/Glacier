@@ -41,15 +41,19 @@ protected:
     void AddLightingPass(GraphResourceHandle albedo, GraphResourceHandle normal,
         GraphResourceHandle ao_metal_roughness, GraphResourceHandle emissive,
         GraphResourceHandle occlusion, GraphResourceHandle shadow_map);
+    void AddTaaPass();
 
     void InitRenderGraph(GfxDriver* gfx);
 
     AntiAliasingType option_aa_;
     std::shared_ptr<Program> gpass_program_;
     std::shared_ptr<Material> lighting_mat_;
+    GraphResourceHandle gbuffer_velocity_;
 
     TAA taa_;
     FXAA fxaa_;
+    //the TAA node, switched by the AA option before the graph runs (T3.1)
+    PassNode* taa_pass_ = nullptr;
 
     std::shared_ptr<RenderTarget> gbuffer_render_target_;
 };

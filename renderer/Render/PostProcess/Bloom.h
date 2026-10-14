@@ -30,6 +30,9 @@ public:
 
     void DrawOptionWindow();
 
+    //the mip chain, imported by the graph so it owns its state (T3.1)
+    const std::vector<std::shared_ptr<Texture>>& mips() const { return mips_; }
+
 protected:
     static constexpr int kMaxMipCount = 6;
     static constexpr uint32_t kMinMipSize = 4;

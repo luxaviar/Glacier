@@ -30,6 +30,8 @@ public:
     void Setup(Renderer* renderer);
 
     const std::shared_ptr<Buffer>& GetExposureBuffer() const { return exposure_buf_; }
+    //the luminance buffer, imported by the graph so it owns its state (T3.1)
+    const std::shared_ptr<Texture>& lumin_texture() const { return lumin_texture_; }
 
     void OnResize(uint32_t width, uint32_t height);
 

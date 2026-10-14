@@ -1,5 +1,6 @@
 #include "Renderer.h"
 #include <memory>
+#include <format>
 #include <assert.h>
 #include <algorithm>
 #include <imgui_impl_win32.h>
@@ -70,6 +71,21 @@ void Renderer::Setup() {
     tonemapping_.Setup(this, exposure_.GetExposureBuffer());
     bloom_.Setup(this);
 
+    //the resident resources of the tail (T3.1): the luminance buffer, the
+    //bloom chain and (in the derived renderers) the history of TAA are owned
+    //the way they always were; the graph is told about them so it owns their
+    //state as it runs the chain
+    lumin_ = render_graph_.Import("luminance texture", exposure_.lumin_texture().get(),
+        ResourceAccessBit::kNonPixelShaderRead, ResourceAccessBit::kNonPixelShaderRead);
+
+    const auto& bloom_mips = bloom_.mips();
+    bloom_mips_.reserve(bloom_mips.size());
+    for (size_t i = 0; i < bloom_mips.size(); ++i) {
+        bloom_mips_.push_back(render_graph_.Import(std::format("bloom mip {}", i).c_str(),
+            bloom_mips[i].get(),
+            ResourceAccessBit::kRenderTarget, ResourceAccessBit::kRenderTarget));
+    }
+
     auto cmd_buffer = gfx_->GetCommandBuffer(CommandBufferType::kCopy);
 
     InitFloorPbr(cmd_buffer);
@@ -103,17 +119,32 @@ void Renderer::InitRenderTarget() {
     ldr_render_target_->AttachDepthStencil(backbuffer_depth_tex);
 
     //the targets the graph's passes declare (T1.7): PreRender clears both
-    //before the graph runs, so that is the state the frame starts in; hdr is
-    //read (TAA, luminance, bloom) after the graph, so the graph hands it back
-    //readable
+    //before the graph runs, so that is the state the frame starts in, and the
+    //last pass that touches hdr is the bloom composite, which leaves it a
+    //render target as well (T3.1)
     hdr_color_ = render_graph_.Import("hdr color",
         hdr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
-        ResourceAccessBit::kRenderTarget, ResourceAccessBit::kPixelShaderRead,
-        //the frame is consumed after the graph (TAA, luminance, bloom), so a
-        //cull must keep whatever produces it
+        ResourceAccessBit::kRenderTarget, ResourceAccessBit::kRenderTarget,
+        //the frame is what the whole tail of the graph consumes, so a cull
+        //must keep whatever produces it
         true);
     hdr_depth_ = render_graph_.Import("hdr depth", hdr_render_target_->GetDepthStencil().get(),
         ResourceAccessBit::kDepthWrite, ResourceAccessBit::kDepthWrite);
+
+    //the tail of the frame (T3.1): tone mapping writes the ldr frame and the
+    //blit reads it back out of the graph, so the graph finds it readable
+    ldr_color_ = render_graph_.Import("ldr color",
+        ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
+        ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
+
+    //what the last pass of the graph writes and the outside draws into and
+    //presents (the editor, the swapchain); the swapchain re-attaches the
+    //buffer it will present on every Present, so Render re-points the handle
+    //at the attachment of the frame before the graph runs
+    present_color_ = render_graph_.Import("present color",
+        present_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
+        ResourceAccessBit::kRenderTarget, ResourceAccessBit::kRenderTarget,
+        true);
 
     render_graph_.SetRenderSize(width, height);
 
@@ -136,6 +167,10 @@ bool Renderer::OnResize(uint32_t width, uint32_t height) {
     exposure_.OnResize(width, height);
     tonemapping_.OnResize(width, height);
     bloom_.OnResize(width, height);
+
+    //the bloom chain is the one imported resource a resize replaces rather
+    //than resizes, so the graph follows it to the new textures (T3.1)
+    RebindPostProcessResources();
 
     //transients follow the render size; the graph recompiles on the next frame
     render_graph_.SetRenderSize(width, height);
@@ -281,62 +316,30 @@ void Renderer::Render(float delta_time) {
             gtao_upsample_pass_->active(gtao_.half_resolution());
         }
 
+        //which blit into the present runs follows the AA option (T3.1)
+        const bool fxaa = anti_aliasing_ == AntiAliasingType::kFXAA;
+        if (fxaa_pass_ != nullptr) {
+            fxaa_pass_->active(fxaa);
+        }
+
+        if (present_copy_pass_ != nullptr) {
+            present_copy_pass_->active(!fxaa);
+        }
+
         editor_.UpdatePassActivity();
     }
+
+    // The swapchain attaches the buffer it will present to its render target
+    // when the frame before this one was presented, so the imported color of
+    // the graph follows the attachment here, before the graph runs (T3.1).
+    render_graph_.UpdateImported(present_color_,
+        present_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get());
 
     {
         PerfSample("Exexute render graph");
         //the graph names its own passes, so the timer is handed to it rather
         //than bracketing each one here
         render_graph_.Execute(cmd_buffer, &stats_->pass_timer());
-    }
-
-    {
-        GpuPassScope pass(stats_->pass_timer(), "Resolve MSAA", cmd_buffer);
-        ResolveMSAA(cmd_buffer);
-    }
-
-    {
-        GpuPassScope pass(stats_->pass_timer(), "TAA", cmd_buffer);
-        DoTAA(cmd_buffer);
-    }
-
-    {
-        GpuPassScope pass(stats_->pass_timer(), "Hdr Post Process", cmd_buffer);
-        HdrPostProcess(cmd_buffer);
-    }
-
-    {
-        // The meter of this frame has to run before the tone mapping reads the
-        // exposure, or a frame is exposed with what the frame before it metered:
-        // that leaves the first frame of a run - which has no frame before it -
-        // exposed with whatever the exposure buffer was seeded with, and it is
-        // the frame a cold start leaves on the screen the longest.
-        GpuPassScope pass(stats_->pass_timer(), "Exposure", cmd_buffer);
-        exposure_.UpdateExposure(cmd_buffer);
-    }
-
-    {
-        PerfSample("Bloom");
-        GpuPassScope pass(stats_->pass_timer(), "Bloom", cmd_buffer);
-        bloom_.Execute(this, cmd_buffer);
-    }
-
-    {
-        GpuPassScope pass(stats_->pass_timer(), "Tone Mapping", cmd_buffer);
-        tonemapping_.Execute(this, cmd_buffer);
-    }
-
-    {
-        PerfSample("Post Process");
-        GpuPassScope pass(stats_->pass_timer(), "Post Process", cmd_buffer);
-        LdrPostProcess(cmd_buffer);
-        post_process_manager_.Render(cmd_buffer);
-    }
-
-    {
-        GpuPassScope pass(stats_->pass_timer(), "FXAA", cmd_buffer);
-        DoFXAA(cmd_buffer);
     }
 
     present_render_target_->Bind(cmd_buffer);
@@ -368,7 +371,7 @@ void Renderer::PostRender(CommandBuffer* cmd_buffer) {
     ++frame_count_;
 }
 
-void Renderer::DoFXAA(CommandBuffer* cmd_buffer) {
+void Renderer::DoPresentCopy(CommandBuffer* cmd_buffer) {
     cmd_buffer->CopyResource(ldr_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
         present_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get());
 }
@@ -430,8 +433,11 @@ void Renderer::AddShadowPass(GraphResourceHandle shadow_map) {
             // a resource state; the target it leaves bound is, so it is part
             // of what the pass declared (T2.1). Both are the state the frame
             // starts in and the pass that follows the shadow expects anyway.
-            b.Write(hdr_color_handle(), ResourceAccessBit::kRenderTarget);
-            b.Write(hdr_depth_handle(), ResourceAccessBit::kDepthWrite);
+            // The target is the lighting target of the renderer: the hdr frame
+            // for the deferred stack, the MSAA frame for the forward one, and
+            // the handle says which (T3.2).
+            b.Write(lighting_color_handle(), ResourceAccessBit::kRenderTarget);
+            b.Write(lighting_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
         [this](PassContext& ctx, const PassNode& pass) {
             auto cmd_buffer = ctx.cmd_buffer();
@@ -514,6 +520,117 @@ void Renderer::AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal
         },
         [=](PassContext& ctx, const PassNode& pass) {
             gtao_.ExecuteFilterY(ctx.cmd_buffer());
+        });
+}
+
+void Renderer::RebindPostProcessResources() {
+    //the bloom chain was reallocated by the resize, so the imported handles
+    //name the mips of the new chain (T3.1); a very small render size drops the
+    //tail of the chain, and the handles of the dropped mips resolve to null
+    const auto& mips = bloom_.mips();
+
+    for (size_t i = 0; i < bloom_mips_.size(); ++i) {
+        render_graph_.UpdateImported(bloom_mips_[i], i < mips.size() ? mips[i].get() : nullptr);
+    }
+
+    if (mips.size() != bloom_mips_.size()) {
+        LOG_DEBUG("render graph: the bloom chain has {} mips, the graph holds handles for {}",
+            mips.size(), bloom_mips_.size());
+    }
+}
+
+void Renderer::AddPostProcessPasses() {
+    // The tail of the frame (T3.1): the meter, the bloom, the tone map and the
+    // blit into the present. It is registered after the passes of the scene so
+    // the registration order is the order the renderer recorded them in when
+    // it ran the chain itself. The resources are imported - the graph manages
+    // their state as it runs the chain, not their lifetime.
+
+    render_graph_.AddPass("Hdr Post Process",
+        [=](PassBuilder& b) {
+            //the meter of the frame reads the frame as a compute shader and
+            //writes the luminance buffer
+            b.Read(hdr_color_, ResourceAccessBit::kNonPixelShaderRead);
+            b.Write(lumin_, ResourceAccessBit::kShaderWrite);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            HdrPostProcess(ctx.cmd_buffer());
+        });
+
+    render_graph_.AddPass("Exposure",
+        [=](PassBuilder& b) {
+            //the meter of this frame has to run before the tone mapping reads
+            //the exposure, or a frame is exposed with what the frame before it
+            //metered: the two are neighbouring nodes for that reason, and the
+            //histogram and exposure buffers are the pass's own
+            b.Read(lumin_, ResourceAccessBit::kNonPixelShaderRead);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            exposure_.UpdateExposure(ctx.cmd_buffer());
+        });
+
+    render_graph_.AddPass("Bloom",
+        [=](PassBuilder& b) {
+            //one node for the whole chain (D8): the prefilter samples the
+            //frame, the mips are written and read back in turn, and the
+            //composite adds into the frame over its depth attachment
+            b.Read(hdr_color_, ResourceAccessBit::kPixelShaderRead);
+            b.Write(hdr_color_, ResourceAccessBit::kRenderTarget);
+            b.Write(hdr_depth_, ResourceAccessBit::kDepthWrite);
+
+            for (auto mip : bloom_mips_) {
+                b.Read(mip, ResourceAccessBit::kPixelShaderRead);
+                b.Write(mip, ResourceAccessBit::kRenderTarget);
+            }
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            PerfSample("Bloom");
+            bloom_.Execute(this, ctx.cmd_buffer());
+        });
+
+    render_graph_.AddPass("Tone Mapping",
+        [=](PassBuilder& b) {
+            b.Read(hdr_color_, ResourceAccessBit::kNonPixelShaderRead);
+            b.Write(ldr_color_, ResourceAccessBit::kShaderWrite);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            tonemapping_.Execute(this, ctx.cmd_buffer());
+        });
+
+    render_graph_.AddPass("Post Process",
+        [](PassBuilder& b) {
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            //what the manager's jobs write is up to whoever pushed one; none
+            //is alive in the demo scenes, so the node declares nothing
+            PerfSample("Post Process");
+            LdrPostProcess(ctx.cmd_buffer());
+            post_process_manager_.Render(ctx.cmd_buffer());
+        });
+
+    // The blit into the present is one of two nodes, since the AA option picks
+    // which one runs: the fxaa draw of the renderer, or the plain copy of the
+    // ldr frame. Only one of them is active in a frame, and Render switches
+    // them with the option (T3.1).
+    fxaa_pass_ = &render_graph_.AddPass("FXAA",
+        [=](PassBuilder& b) {
+            b.Read(ldr_color_, ResourceAccessBit::kPixelShaderRead);
+            b.Write(present_color_, ResourceAccessBit::kRenderTarget);
+            //the fxaa draw binds the present target, whose depth attachment
+            //is the depth of the frame: the swapchain created them together
+            b.Write(hdr_depth_, ResourceAccessBit::kDepthWrite);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            DoFXAA(ctx.cmd_buffer());
+        });
+
+    present_copy_pass_ = &render_graph_.AddPass("Present copy",
+        [=](PassBuilder& b) {
+            b.Read(ldr_color_, ResourceAccessBit::kCopySource);
+            b.Write(present_color_, ResourceAccessBit::kCopyDest);
+        },
+        [this](PassContext& ctx, const PassNode& pass) {
+            DoPresentCopy(ctx.cmd_buffer());
         });
 }
 
