@@ -263,7 +263,7 @@ void D3D12CommandBuffer::TransitionBarrier(Resource* resource, ResourceAccessBit
         return;
     }
 
-    //Validation of the render graph (see .docs/render-graph-plan.md §4.6): while
+    //Validation of the render graph: while
     //a pass of the graph runs, the states it declared for a resource are what
     //it is allowed to ask for, so asking for one of them costs nothing - the
     //tracker still moves the resource when the declared state is not the one
@@ -314,11 +314,18 @@ void D3D12CommandBuffer::BeginGraphScope() {
     in_graph_scope_ = true;
     graph_pass_name_ = nullptr;
     graph_fallback_count_ = 0;
+    graph_request_base_ = resource_state_tracker_.transition_requests();
+    graph_change_base_ = resource_state_tracker_.changed_transitions();
+    graph_skip_base_ = resource_state_tracker_.skipped_transitions();
     graph_resources_.clear();
     graph_expected_states_.clear();
 }
 
 void D3D12CommandBuffer::EndGraphScope() {
+    graph_request_count_ = (uint32_t)(resource_state_tracker_.transition_requests() - graph_request_base_);
+    graph_change_count_ = (uint32_t)(resource_state_tracker_.changed_transitions() - graph_change_base_);
+    graph_skip_count_ = (uint32_t)(resource_state_tracker_.skipped_transitions() - graph_skip_base_);
+
     in_graph_scope_ = false;
     graph_pass_name_ = nullptr;
     graph_resources_.clear();

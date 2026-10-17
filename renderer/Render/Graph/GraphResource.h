@@ -10,11 +10,10 @@
 namespace glacier {
 namespace render {
 
-// A handle into the resource table of the render graph (see
-// .docs/render-graph-plan.md §4.2). The table is append-only, so a handle stays
-// valid for the life of the graph, and it carries the version of the slot it
-// names, so a handle that outlives its slot can be told apart instead of
-// resolving into whatever took its place.
+// A handle into the resource table of the render graph. The table is
+// append-only, so a handle stays valid for the life of the graph, and it
+// carries the version of the slot it names, so a handle that outlives its
+// slot can be told apart instead of resolving into whatever took its place.
 struct GraphResourceHandle {
     static constexpr uint32_t kInvalidIndex = 0xFFFFFFFF;
 
@@ -84,7 +83,7 @@ struct GraphResourceEntry {
 // their lifetime, and it is told which state they start and end the frame in.
 // Transients are the ones the graph creates for whoever asks for one and takes
 // back at the end of the frame. The table holds both; it resolves pointers and
-// nothing else, so it runs without a GPU (see .docs/render-graph-plan.md §4.2).
+// nothing else, so it runs without a GPU.
 class GraphResourceTable {
 public:
     GraphResourceHandle AddImported(const char* name, Texture* texture,
@@ -108,7 +107,7 @@ public:
     // The frame's transient behind a handle; an imported resource is owned
     // outside the graph, so this is null for it. A material that samples a
     // transient holds the texture as a shared pointer, so this is what
-    // re-points such a material at the texture of the frame (T2.4).
+    // re-points such a material at the texture of the frame.
     std::shared_ptr<Texture> ResolveShared(GraphResourceHandle handle) const;
 
 private:

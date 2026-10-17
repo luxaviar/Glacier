@@ -309,10 +309,10 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
     //the outline chain: a mask into the depth stencil of the scene, a draw of
     //the selected object into a half res target, and the two blur directions
     //that put it back over the color of the frame. The targets are registered
-    //with the graph before the passes declare them (T1.7).
+    //with the graph before the passes declare them.
     //The color and the depth the chain writes are the lighting target of the
     //renderer: the hdr frame of the deferred stack, the MSAA frame of the
-    //forward one (T3.2).
+    //forward one.
     auto lighting_color = renderer->lighting_color_handle();
     auto lighting_depth = renderer->lighting_depth_handle();
 
@@ -395,7 +395,7 @@ void Editor::RegisterHighLightPass(GfxDriver* gfx, Renderer* renderer) {
             b.Write(lighting_depth, ResourceAccessBit::kDepthWrite);
         },
         [this, renderer, outline_mat](PassContext& ctx, const PassNode& pass) {
-            // the pass is switched off while nothing is selected (T2.2); this
+            // the pass is switched off while nothing is selected; this
             // only covers a frame whose selection changed under the node
             auto mr = SelectedMesh();
             if (!mr) return;

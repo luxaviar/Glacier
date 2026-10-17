@@ -81,6 +81,9 @@ public:
     void EndGraphPass() override;
     void SetGraphExpectedState(Resource* resource, ResourceAccessBit state) override;
     void GraphTransitionBarrier(Resource* resource, ResourceAccessBit state) override;
+    uint32_t graph_transition_request_count() const override { return graph_request_count_; }
+    uint32_t graph_transition_change_count() const override { return graph_change_count_; }
+    uint32_t graph_transition_skip_count() const override { return graph_skip_count_; }
     uint32_t graph_fallback_count() const override { return graph_fallback_count_; }
 
     void ResourceBarrier(UINT NumBarriers, const D3D12_RESOURCE_BARRIER* pBarriers);
@@ -159,13 +162,19 @@ private:
 
     ResourceStateTracker resource_state_tracker_;
 
-    // render graph validation (see CommandBuffer.h / §4.6)
+    // render graph validation (see CommandBuffer.h)
     bool in_graph_scope_ = false;
     const char* graph_pass_name_ = nullptr;
     uint32_t graph_fallback_count_ = 0;
+    uint64_t graph_request_base_ = 0;
+    uint64_t graph_change_base_ = 0;
+    uint64_t graph_skip_base_ = 0;
+    uint32_t graph_request_count_ = 0;
+    uint32_t graph_change_count_ = 0;
+    uint32_t graph_skip_count_ = 0;
     std::unordered_set<Resource*> graph_resources_;
     // the states the pass declared for a resource; a pass may declare several
-    // when it uses the resource in more than one way while it runs (T3.1)
+    // when it uses the resource in more than one way while it runs
     std::unordered_map<Resource*, std::vector<ResourceAccessBit>> graph_expected_states_;
 
     std::unique_ptr<DynamicDescriptorHeap> dynamic_descriptor_heap_[D3D12_DESCRIPTOR_HEAP_TYPE_NUM_TYPES];

@@ -36,7 +36,7 @@ public:
     // The outline chain runs only while the editor has a mesh selected: the
     // four passes are switched here, before the graph of the frame runs, so
     // that an inactive chain reaches neither the timing table nor the barrier
-    // plan (T2.2 - the bodies used to return early while still running).
+    // plan; the bodies used to return early while still running.
     void UpdatePassActivity();
 
     bool ShowStats() const { return show_windows_ && show_stats_; }

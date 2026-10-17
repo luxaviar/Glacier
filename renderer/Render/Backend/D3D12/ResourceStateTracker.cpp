@@ -10,6 +10,8 @@ namespace render {
 
 void ResourceStateTracker::TransitionResource(Resource* resource, D3D12_RESOURCE_STATES state_after, UINT subresource)
 {
+    ++transition_requests_;
+
     auto native_res = static_cast<ID3D12Resource*>(resource->GetNativeResource());
     // Create pending_barrier descriptor
     D3D12_RESOURCE_BARRIER barrier;
@@ -24,6 +26,7 @@ void ResourceStateTracker::TransitionResource(Resource* resource, D3D12_RESOURCE
     barrier.Transition.StateAfter = state_after;
 
     auto it = final_states_.find(resource);
+    bool changed = false;
     if (it != final_states_.end()) {
         auto& cur_state = it->second;
         if (subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && !cur_state.subresource_states.empty()) {
@@ -36,6 +39,7 @@ void ResourceStateTracker::TransitionResource(Resource* resource, D3D12_RESOURCE
                     newBarrier.Transition.Subresource = i;
                     newBarrier.Transition.StateBefore = (D3D12_RESOURCE_STATES)subresource_state;
                     resource_barriers_.push_back(newBarrier);
+                    changed = true;
                 }
             }
         }
@@ -45,16 +49,42 @@ void ResourceStateTracker::TransitionResource(Resource* resource, D3D12_RESOURCE
                 D3D12_RESOURCE_BARRIER newBarrier = barrier;
                 newBarrier.Transition.StateBefore = (D3D12_RESOURCE_STATES)subresourc_state;
                 resource_barriers_.push_back(newBarrier);
+                changed = true;
             }
         }
 
         cur_state.SetState((ResourceAccessBit)state_after, subresource);
 
     } else {
+        // Nothing has been recorded for this resource in this command buffer,
+        // so the first transition is against the state it was committed in.
+        if (subresource == D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES && !resource->IsUniformState()) {
+            for (UINT i = 0; i < resource->GetSubresourceNum(); ++i) {
+                if (resource->GetResourceState(i) != (ResourceAccessBit)state_after) {
+                    changed = true;
+                    break;
+                }
+            }
+        }
+        else {
+            changed = resource->GetResourceState(subresource) != (ResourceAccessBit)state_after;
+        }
+
+        // Queue it even when the resource is already in the target state: the
+        // flush is what compares against the committed subresource states, and
+        // it also carries the transition into the next command buffer. Dropping
+        // it here would move the state bookkeeping ahead of the GPU.
         pending_barriers_.emplace_back(resource, barrier);
 
         it = final_states_.emplace_hint(it, resource, resource->GetSubresourceNum());
         it->second.SetState((ResourceAccessBit)state_after, subresource);
+    }
+
+    if (changed) {
+        ++changed_transitions_;
+    }
+    else {
+        ++skipped_transitions_;
     }
 }
 

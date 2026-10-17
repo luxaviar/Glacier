@@ -71,7 +71,7 @@ public:
     virtual void AliasResource(Resource* before, Resource* after) = 0;
     virtual void UavResource(Resource* res) = 0;
 
-    // —— render graph validation (see .docs/render-graph-plan.md §4.6) ——
+    // —— render graph validation ——
     // While a graph scope is open the command buffer knows which resources the
     // graph manages and which states the pass that is running declared for
     // them, so a transition to one of those states is legal and free - the
@@ -93,6 +93,12 @@ public:
     virtual void GraphTransitionBarrier(Resource* resource, ResourceAccessBit state) {
         TransitionBarrier(resource, state);
     }
+    // What the tracker did inside the graph scope: every transition it was
+    // asked for, the requests that change a resource state, and the requests
+    // the resource state already satisfied.
+    virtual uint32_t graph_transition_request_count() const { return 0; }
+    virtual uint32_t graph_transition_change_count() const { return 0; }
+    virtual uint32_t graph_transition_skip_count() const { return 0; }
     virtual uint32_t graph_fallback_count() const { return 0; }
 
     virtual void CopyResource(Resource* src, Resource* dst) = 0;

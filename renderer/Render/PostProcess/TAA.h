@@ -32,7 +32,7 @@ public:
 
     void DrawOptionWindow();
 
-    //the ping-pong pair of the pass, imported by the graph (T3.1)
+    //the ping-pong pair of the pass, imported by the graph
     const std::shared_ptr<Texture>& temp_texture() const { return temp_hdr_texture_; }
     const std::shared_ptr<Texture>& prev_texture() const { return prev_hdr_texture_; }
 

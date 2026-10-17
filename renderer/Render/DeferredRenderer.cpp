@@ -56,7 +56,7 @@ void DeferredRenderer::Setup() {
     //InitRenderGraph, so it has to exist first
     gtao_.Setup(this, hdr_render_target_->GetDepthStencil(), gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor1));
 
-    //the tail of the deferred frame (T3.1) has to exist before the graph is
+    //the tail of the deferred frame has to exist before the graph is
     //built, since the passes of InitRenderGraph declare what it holds
     fxaa_.Setup(this);
     taa_.Setup(this);
@@ -93,7 +93,7 @@ void DeferredRenderer::DoTAA(CommandBuffer* cmd_buffer) {
 
 void DeferredRenderer::DoFXAA(CommandBuffer* cmd_buffer) {
     //the node runs only while the option is fxaa; the copy of every other
-    //option is the node after this one (T3.1)
+    //option is the node after this one
     fxaa_.Execute(this, cmd_buffer);
 }
 
@@ -148,7 +148,7 @@ void DeferredRenderer::PreRender(CommandBuffer* cmd_buffer) {
         anti_aliasing_ = option_aa_;
     }
 
-    //the TAA node runs only while the option is on (T3.1); off, the frame is
+    //the TAA node runs only while the option is on; off, the frame is
     //the one the scene passes left, and the node is not in the frame at all
     if (taa_pass_ != nullptr) {
         taa_pass_->active(anti_aliasing_ == AntiAliasingType::kTAA);
@@ -205,7 +205,7 @@ void DeferredRenderer::AddLightingPass(GraphResourceHandle albedo, GraphResource
 }
 
 void DeferredRenderer::InitRenderGraph(GfxDriver* gfx) {
-    //what the passes of the deferred stack declare they touch (§3.3)
+    //what the passes of the deferred stack declare they touch
     auto gbuffer_albedo = render_graph_.Import("gbuffer albedo",
         gbuffer_render_target_->GetColorAttachment(AttachmentPoint::kColor0).get(),
         ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);
@@ -245,8 +245,8 @@ void DeferredRenderer::AddTaaPass() {
     // The two halves of the TAA history are resident (imported), and so is the
     // velocity the pass reprojects with; the node ping-pongs the frame through
     // them: the frame is copied into the scratch texture, resolved against the
-    // history, and handed on as the history of the next frame (T3.1). Both
-    // copies and the draw run in one node (D8), which is why the frame and the
+    // history, and handed on as the history of the next frame. Both
+    // copies and the draw run in one node, which is why the frame and the
     // pair are declared in both of the states the body uses them in.
     auto temp = render_graph_.Import("taa temp texture", taa_.temp_texture().get(),
         ResourceAccessBit::kPixelShaderRead, ResourceAccessBit::kPixelShaderRead);

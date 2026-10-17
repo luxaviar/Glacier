@@ -92,7 +92,7 @@ void ForwardRenderer::PreRender(CommandBuffer* cmd_buffer) {
 
     // The MSAA frame follows the option: the resolve that reads it is part of
     // the frame only while MSAA is on, and a change replaces the attachments,
-    // so the imported handles are re-pointed before the graph runs (T3.2).
+    // so the imported handles are re-pointed before the graph runs.
     // With MSAA off the MSAA frame is the hdr frame - the same attachments -
     // which is what the handles resolve to then.
     auto& lighting_target = msaa_.GetRenderTarget();
@@ -137,7 +137,7 @@ void ForwardRenderer::AddPreDepthPass(GraphResourceHandle prepass_depth) {
         [=](PassBuilder& b) {
             b.Write(prepass_depth, ResourceAccessBit::kDepthWrite);
             //the pass puts the lighting target back when it is done, which is
-            //where the lighting of this renderer draws (T3.2)
+            //where the lighting of this renderer draws
             b.Write(lighting_color_handle(), ResourceAccessBit::kRenderTarget);
             b.Write(lighting_depth_handle(), ResourceAccessBit::kDepthWrite);
         },
@@ -185,7 +185,7 @@ void ForwardRenderer::AddLightingPass(GraphResourceHandle shadow_map, GraphResou
             b.Write(lighting_color_handle(), ResourceAccessBit::kRenderTarget);
             b.Write(lighting_depth_handle(), ResourceAccessBit::kDepthWrite);
             //the materials of the scene read the shadow map and the AO the
-            //passes before this one produced (T3.2)
+            //passes before this one produced
             b.Read(shadow_map, ResourceAccessBit::kPixelShaderRead);
             b.Read(occlusion, ResourceAccessBit::kPixelShaderRead);
         },
@@ -201,9 +201,9 @@ void ForwardRenderer::AddLightingPass(GraphResourceHandle shadow_map, GraphResou
 }
 
 void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
-    //what the passes of the forward stack declare they touch (§3.3). The
+    //what the passes of the forward stack declare they touch. The
     //lighting target of this renderer is the MSAA frame, imported here and
-    //re-pointed at the attachments of the running option every frame (T3.2);
+    //re-pointed at the attachments of the running option every frame;
     //the resolve node puts it on the hdr frame the tail of the graph works on.
     auto prepass_depth = render_graph_.Import("prepass depth",
         prepass_render_target_->GetDepthStencil().get(),
@@ -238,7 +238,7 @@ void ForwardRenderer::InitRenderGraph(GfxDriver* gfx) {
 }
 
 void ForwardRenderer::AddMsaaResolvePass() {
-    // The resolve of the MSAA frame into the hdr frame (T3.1): the node runs
+    // The resolve of the MSAA frame into the hdr frame: the node runs
     // only while MSAA is on (PreRender switches it), and what it leaves the
     // hdr frame in is what the tail of the frame expects.
     auto& pass = render_graph_.AddPass("Resolve MSAA",

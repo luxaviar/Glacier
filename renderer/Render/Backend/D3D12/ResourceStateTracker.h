@@ -1,6 +1,7 @@
 #pragma once
 
 #include <d3d12.h>
+#include <cstdint>
 #include <string>
 #include "Resource.h"
 
@@ -37,11 +38,25 @@ public:
     void CommitFinalStates();
     void Reset();
 
+    // Counts since the tracker was created; the graph snapshots them around a
+    // frame. A request is one TransitionResource call; it either changes the
+    // state of at least one subresource or is a skip because the state already
+    // matches. Counting at the request is what keeps a frame's report complete:
+    // the first transitions of a command buffer are queued and flushed into the
+    // next one, so their barriers are recorded after the frame is over.
+    uint64_t transition_requests() const { return transition_requests_; }
+    uint64_t changed_transitions() const { return changed_transitions_; }
+    uint64_t skipped_transitions() const { return skipped_transitions_; }
+
 private:
     std::vector<PendingState> pending_barriers_;
     BarrierList resource_barriers_;
 
     ResourceStateDictionary final_states_;
+
+    uint64_t transition_requests_ = 0;
+    uint64_t changed_transitions_ = 0;
+    uint64_t skipped_transitions_ = 0;
 };
 
 }

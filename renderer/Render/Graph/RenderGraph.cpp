@@ -5,6 +5,7 @@
 #include "PassObserver.h"
 #include "Common/Log.h"
 #include <format>
+#include <fstream>
 
 namespace glacier {
 namespace render {
@@ -122,6 +123,9 @@ void RenderGraph::Compile() {
 
 #if IS_DEBUG
     LOG_DEBUG("render graph compiled:\n{}", Dump());
+    // Keep a graphviz copy next to the log; the text dump above is for the
+    // terminal, this one opens in any dot viewer.
+    DumpDot("render-graph.dot");
 #endif
 }
 
@@ -166,7 +170,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
     allocator_.BeginFrame();
 
 #if IS_DEBUG
-    // Probe of the render graph refactor (see .docs/render-graph-plan.md, T0.3):
+    // Probe of the render graph refactor:
     // the order the passes run in is what the dependency-ordered version is
     // compared against, and this line is that record. Only the first frames are
     // logged - the order is compiled once, so it is the same for every frame of
@@ -220,7 +224,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
         // while it runs - the ping-pong of a composite chain - and such a
         // resource is left for the body to drive below: no single entry state
         // is right for all of its uses, and what the body asks for is checked
-        // against the declared set either way (T3.1).
+        // against the declared set either way.
         std::vector<GraphUsageDesc> declared;
         declared.reserve(pass.usages().size());
         for (const auto& usage : pass.usages()) {
@@ -242,7 +246,7 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
         // Move the resources to the states this pass declared, then hold those
         // states as what the pass expects: a transition the pass body sends to
         // a declared state is the free one, anything else takes the old
-        // immediate path and is counted (see .docs/render-graph-plan.md §4.6).
+        // immediate path and is counted.
         // The transitions are sent even where the plan expected the resource to
         // be there already - the plan's idea of the state can be older than
         // what a pass body left behind, and the tracker is the one that knows
@@ -318,6 +322,9 @@ void RenderGraph::Execute(CommandBuffer* cmd_buffer, PassObserver* observer) {
     cmd_buffer->EndGraphScope();
 
     stats.fallback_transitions = cmd_buffer->graph_fallback_count();
+    stats.transition_requests = cmd_buffer->graph_transition_request_count();
+    stats.changed_transitions = cmd_buffer->graph_transition_change_count();
+    stats.skipped_transitions = cmd_buffer->graph_transition_skip_count();
     stats_ = stats;
 }
 
@@ -433,9 +440,27 @@ std::string RenderGraph::Dump() const {
     return out;
 }
 
+std::string RenderGraph::DumpDot() const {
+    assert(baked_);
+    return BuildGraphDot(compile_desc_, compiled_);
+}
+
+bool RenderGraph::DumpDot(const char* path) const {
+    std::ofstream file(path, std::ios::binary);
+    if (!file) {
+        LOG_WARN("render graph: could not open '{}' for the dot dump", path);
+        return false;
+    }
+
+    file << DumpDot();
+    return true;
+}
+
 void RenderGraph::PrintStats() const {
-    LOG_LOG("--- render graph: {} passes ran, {} culled, {} barriers requested, {} fallback transitions ---",
-        stats_.passes, stats_.culled, stats_.barriers, stats_.fallback_transitions);
+    LOG_LOG("--- render graph: {} passes ran, {} culled, {} graph transitions requested, "
+        "{} tracker transitions ({} changed state, {} already current), {} fallback transitions ---",
+        stats_.passes, stats_.culled, stats_.barriers, stats_.transition_requests,
+        stats_.changed_transitions, stats_.skipped_transitions, stats_.fallback_transitions);
 }
 
 } // namespace render

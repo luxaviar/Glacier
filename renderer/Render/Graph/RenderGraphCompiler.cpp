@@ -1,5 +1,6 @@
 #include "RenderGraphCompiler.h"
 #include <algorithm>
+#include <format>
 #include <functional>
 #include <queue>
 
@@ -21,6 +22,68 @@ constexpr uint64_t kWriteMask =
 
 bool IsWriteAccess(ResourceAccessBit access) {
     return ((uint64_t)access & kWriteMask) != 0;
+}
+
+std::string AccessNames(ResourceAccessBit access) {
+    struct AccessName {
+        ResourceAccessBit bit;
+        const char* name;
+    };
+
+    constexpr AccessName kAccessNames[] = {
+        { ResourceAccessBit::kVertexAndConstantBuffer, "cbuffer" },
+        { ResourceAccessBit::kIndexBuffer, "index" },
+        { ResourceAccessBit::kRenderTarget, "rt" },
+        { ResourceAccessBit::kShaderWrite, "uav" },
+        { ResourceAccessBit::kDepthWrite, "depth" },
+        { ResourceAccessBit::kDepthRead, "depth_read" },
+        { ResourceAccessBit::kNonPixelShaderRead, "cs_read" },
+        { ResourceAccessBit::kPixelShaderRead, "ps_read" },
+        { ResourceAccessBit::kCopyDest, "copy_dst" },
+        { ResourceAccessBit::kCopySource, "copy_src" },
+    };
+
+    const uint64_t bits = (uint64_t)access;
+    std::string name;
+    for (const auto& entry : kAccessNames) {
+        if ((bits & (uint64_t)entry.bit) != 0) {
+            if (!name.empty()) {
+                name += "|";
+            }
+            name += entry.name;
+        }
+    }
+
+    if (name.empty()) {
+        name = std::format("0x{:x}", bits);
+    }
+
+    return name;
+}
+
+std::string DotEscape(const std::string& text) {
+    std::string out;
+    out.reserve(text.size() + 8);
+    for (char c : text) {
+        switch (c) {
+        case '\\':
+            out += "\\\\";
+            break;
+        case '"':
+            out += "\\\"";
+            break;
+        case '\n':
+            out += "\\n";
+            break;
+        case '\r':
+            break;
+        default:
+            out += c;
+            break;
+        }
+    }
+
+    return out;
 }
 
 void AddEdge(std::vector<std::vector<uint32_t>>& deps, uint32_t pass, uint32_t dep) {
@@ -214,7 +277,7 @@ CompiledGraph CompileRenderGraph(const GraphCompileDesc& desc) {
     // 4. execution order: a stable topological sort - among the passes that are
     //    ready the one registered first runs first, so an unchanged project
     //    keeps running what it ran, and a difference can only come from a real
-    //    dependency (§4.4 item 3)
+    //    dependency
     std::vector<uint32_t> order;
     {
         std::vector<uint32_t> indegree(pass_count, 0);
@@ -305,8 +368,8 @@ CompiledGraph CompileRenderGraph(const GraphCompileDesc& desc) {
         graph.final_barriers.push_back({ (uint32_t)r, state[r], desc.resources[r].final_state });
     }
 
-    // 6. transient plan: Phase 1 hands a transient out for the whole frame (see
-    //    §4.4 item 5), so all that is needed is where it is used at all
+    // 6. transient plan: a transient is handed out for the whole frame for now,
+    //    so all that is needed is where it is used at all
     for (size_t r = 0; r < desc.resources.size(); ++r) {
         if (desc.resources[r].imported) {
             continue;
@@ -337,6 +400,89 @@ CompiledGraph CompileRenderGraph(const GraphCompileDesc& desc) {
 
     graph.ok = true;
     return graph;
+}
+
+std::string BuildGraphDot(const GraphCompileDesc& desc, const CompiledGraph& graph) {
+    std::string out;
+    out += "digraph render_graph {\n";
+    out += "  rankdir=LR;\n";
+    out += "  graph [fontname=\"Consolas\", fontsize=11];\n";
+    out += "  node [fontname=\"Consolas\", fontsize=9];\n";
+    out += "  edge [fontname=\"Consolas\", fontsize=7];\n";
+    out += std::format("  label=\"{} passes, {} culled, {} resources\";\n\n",
+        graph.passes.size(), graph.culled.size(), desc.resources.size());
+
+    for (size_t r = 0; r < desc.resources.size(); ++r) {
+        const auto& resource = desc.resources[r];
+        std::string label = std::format("#{} {}\n{}", r, resource.name,
+            resource.imported ? "imported" : "transient");
+        label += std::format("\n{} -> {}", AccessNames(resource.initial_state),
+            AccessNames(resource.final_state));
+        if (resource.external) {
+            label += "\nexternal";
+        }
+        if (resource.fixed_state) {
+            label += "\nfixed";
+        }
+
+        out += std::format("  r{} [shape=ellipse, style={}, label=\"{}\"];\n", r,
+            resource.imported ? "solid" : "dashed", DotEscape(label));
+    }
+
+    out += "\n";
+    for (size_t order = 0; order < graph.passes.size(); ++order) {
+        const auto& compiled = graph.passes[order];
+        const auto& pass = desc.passes[compiled.pass];
+        std::string label = std::format("#{} {} ({} barriers)", order, pass.name,
+            compiled.barriers.size());
+        if (pass.side_effect) {
+            label += "\nside effect";
+        }
+
+        out += std::format("  p{} [shape=box, {}label=\"{}\"];\n", compiled.pass,
+            pass.side_effect ? "peripheries=2, " : "", DotEscape(label));
+    }
+
+    for (uint32_t pass_index : graph.culled) {
+        out += std::format("  p{} [shape=box, style=dashed, color=gray, fontcolor=gray, "
+            "label=\"{}\"];\n", pass_index,
+            DotEscape(desc.passes[pass_index].name + " (culled)"));
+    }
+
+    out += "\n";
+    auto culled = [&](uint32_t pass_index) {
+        return std::find(graph.culled.begin(), graph.culled.end(), pass_index) != graph.culled.end();
+    };
+
+    for (uint32_t pass_index = 0; pass_index < desc.passes.size(); ++pass_index) {
+        const bool is_culled = culled(pass_index);
+        for (const auto& usage : desc.passes[pass_index].usages) {
+            const std::string label = AccessNames(usage.access);
+            const char* style = is_culled ? ", style=dashed" : "";
+            const char* font = is_culled ? ", fontcolor=gray" : "";
+            if (IsWriteAccess(usage.access)) {
+                out += std::format("  r{} -> p{} [color=\"{}\", label=\"{}\"{}{}];\n",
+                    usage.resource, pass_index, is_culled ? "gray" : "#d9534f", label, style, font);
+            }
+            else {
+                out += std::format("  p{} -> r{} [color=\"{}\", label=\"{}\"{}{}];\n",
+                    pass_index, usage.resource, is_culled ? "gray" : "#428bca", label, style, font);
+            }
+        }
+    }
+
+    if (!graph.final_barriers.empty()) {
+        out += "\n  frame_end [shape=note, label=\"frame end\"];\n";
+        for (const auto& barrier : graph.final_barriers) {
+            out += std::format("  r{} -> frame_end [style=dotted, color=gray, label=\"{} -> {}\"];\n",
+                barrier.resource, AccessNames(barrier.before), AccessNames(barrier.after));
+        }
+    }
+
+    out += "\n  legend [shape=plaintext, fontsize=8, "
+        "label=\"blue: read, red: write, dashed: culled\"];\n";
+    out += "}\n";
+    return out;
 }
 
 } // namespace render

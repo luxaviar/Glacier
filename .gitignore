@@ -43,6 +43,7 @@ vcpkg_installed/
 .tmp/
 build/
 game.log
+render-graph.dot
 renderer/imgui.ini
 ScreenCaptured.png
 ShadowMapCaptured.png

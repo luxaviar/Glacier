@@ -9,10 +9,10 @@ class CommandBuffer;
 class PassNode;
 class RenderGraph;
 
-// What the body of a pass runs with (see .docs/render-graph-plan.md §4.3). It
-// names the command buffer the pass records into and resolves the handles the
-// pass declared back to what they hold; binding itself stays with the pass for
-// now (D2), which keeps the diff of a migrated pass inside its registration.
+// What the body of a pass runs with. It names the command buffer the pass
+// records into and resolves the handles the pass declared back to what they
+// hold; binding itself stays with the pass for now, which keeps the diff of a
+// migrated pass inside its registration.
 class PassContext {
 public:
     PassContext(CommandBuffer* cmd_buffer, const RenderGraph& graph, const PassNode& pass) :

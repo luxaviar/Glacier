@@ -30,7 +30,7 @@ public:
 
     void DrawOptionWindow();
 
-    //the mip chain, imported by the graph so it owns its state (T3.1)
+    //the mip chain, imported by the graph so it owns its state
     const std::vector<std::shared_ptr<Texture>>& mips() const { return mips_; }
 
 protected:

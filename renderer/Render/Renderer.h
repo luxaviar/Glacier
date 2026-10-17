@@ -59,13 +59,12 @@ public:
     std::shared_ptr<RenderTarget>& GetLdrRenderTarget() { return ldr_render_target_; }
     std::shared_ptr<RenderTarget>& GetPresentRenderTarget() { return present_render_target_; }
 
-    // The imported targets the passes of the graph declare (see
-    // .docs/render-graph-plan.md T1.7)
+    // The imported targets the passes of the graph declare
     GraphResourceHandle hdr_color_handle() const { return hdr_color_; }
     GraphResourceHandle hdr_depth_handle() const { return hdr_depth_; }
 
     // What the lighting of a frame ends up in: the hdr frame here, the MSAA
-    // target the forward renderer resolves from there (T3.2). The passes a
+    // target the forward renderer resolves from there. The passes a
     // renderer shares (shadow, skybox, outline) declare their writes on it
     // rather than on the hdr pair, since that is what their bodies bind.
     virtual GraphResourceHandle lighting_color_handle() const { return hdr_color_; }
@@ -119,12 +118,12 @@ protected:
 
     void AddShadowPass(GraphResourceHandle shadow_map);
     void AddGtaoPass(GraphResourceHandle depth, GraphResourceHandle normal, GraphResourceHandle occlusion);
-    // The tail of the frame (T3.1): the meter, the bloom, the tone map and the
+    // The tail of the frame: the meter, the bloom, the tone map and the
     // blit to the present, registered by the renderers after the passes of
     // their scene so the registration order keeps the order they ran in.
     void AddPostProcessPasses();
     // The bloom chain reallocates its mips on a resize, so the imported
-    // handles are re-pointed at the textures of the new chain (T3.1)
+    // handles are re-pointed at the textures of the new chain
     void RebindPostProcessResources();
 
     void InitFloorPbr(CommandBuffer* cmd_buffer);
@@ -149,19 +148,19 @@ protected:
     GraphResourceHandle hdr_color_;
     GraphResourceHandle hdr_depth_;
 
-    //the resident tail of the frame the graph manages the state of (T3.1)
+    //the resident tail of the frame the graph manages the state of
     GraphResourceHandle ldr_color_;
     GraphResourceHandle present_color_;
     GraphResourceHandle lumin_;
     std::vector<GraphResourceHandle> bloom_mips_;
 
-    //the transients of the AO chain (T2.4), registered by AddGtaoPass
+    //the transients of the AO chain, registered by AddGtaoPass
     GraphResourceHandle ao_half_;
     GraphResourceHandle ao_spatial_;
     //the upsample node of the chain, switched by the half resolution option
-    //before the graph of a frame runs (T2.2)
+    //before the graph of a frame runs
     PassNode* gtao_upsample_pass_ = nullptr;
-    //the two ways of the blit into the present; the AA option picks one (T3.1)
+    //the two ways of the blit into the present; the AA option picks one
     PassNode* fxaa_pass_ = nullptr;
     PassNode* present_copy_pass_ = nullptr;
 

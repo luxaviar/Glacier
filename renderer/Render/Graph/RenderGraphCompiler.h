@@ -8,11 +8,11 @@
 namespace glacier {
 namespace render {
 
-// The CPU half of the render graph (see .docs/render-graph-plan.md §4.4): it
-// takes what the passes declared and works out the execution order, the passes
-// nothing needs, the barrier plan and the transient plan. It knows handles,
-// access bits and names - no driver, no texture, no command buffer - so it can
-// be built and exercised on its own (build/probe/graph_test.cpp).
+// The CPU half of the render graph: it takes what the passes declared and
+// works out the execution order, the passes nothing needs, the barrier plan
+// and the transient plan. It knows handles, access bits and names - no
+// driver, no texture, no command buffer - so it can be built and exercised
+// on its own (build/probe/graph_test.cpp).
 
 // One declared use of a resource inside a pass. The access bit is the state
 // the pass wants the resource in while it runs.
@@ -24,7 +24,7 @@ struct GraphUsageDesc {
 struct GraphPassDesc {
     std::string name;
     // A pass whose output the outside world consumes - a present blit, a
-    // readback - is a root of the cull (see §4.4 item 2).
+    // readback - is a root of the cull.
     bool side_effect = false;
     std::vector<GraphUsageDesc> usages;  // as declared, duplicates and all
 };
@@ -40,8 +40,8 @@ struct GraphResourceDesc {
 
 struct GraphCompileOptions {
     // Cull the passes no root reaches. Off by default while the migration is in
-    // progress (see §4.4 item 2, open question 4): the order it produces is the
-    // thing being compared against the registration order until then.
+    // progress: the order it produces is the thing being compared against the
+    // registration order until then.
     bool cull = false;
 };
 
@@ -60,7 +60,7 @@ struct CompiledPass {
     // What the pass may touch while it runs: one entry per resource, the reads
     // of a resource merged into one state. This is the set the executor makes
     // the pass's resources hold before it starts, and what a transition taken
-    // by the pass body itself is checked against (§4.6).
+    // by the pass body itself is checked against.
     std::vector<GraphUsageDesc> expected;
     // The transitions the plan needs, in resource order.
     std::vector<GraphBarrier> barriers;
@@ -94,6 +94,12 @@ struct GraphCompileDesc {
 // back as !ok with the reason in error, not as an exception (RenderGraph raises
 // the exception the engine catches, this layer stays a plain function).
 CompiledGraph CompileRenderGraph(const GraphCompileDesc& desc);
+
+// The compiled graph as a graphviz document: one node per resource and per
+// pass, reads and writes as edges, culled passes dashed, and a frame-end node
+// for the transitions back to the declared final states. Purely a view of the
+// descriptions, so it runs without a GPU like the compiler itself.
+std::string BuildGraphDot(const GraphCompileDesc& desc, const CompiledGraph& graph);
 
 } // namespace render
 } // namespace glacier

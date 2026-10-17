@@ -8,13 +8,12 @@
 namespace glacier {
 namespace render {
 
-// The transient side of the resource table (see .docs/render-graph-plan.md
-// §3.5, D4): textures the graph creates for a frame and takes back at the end
-// of it, built on RenderTexturePool so the storage is reused instead of grown.
-// A texture the frame released can only go back to the pool once the GPU is
-// done with the frames still in flight, so the release is queued and the pool
-// gets it kRetireDelay frames later (D10) - no new synchronization is needed,
-// the existing frame fence is that far ahead.
+// The transient side of the resource table: textures the graph creates for a
+// frame and takes back at the end of it, built on RenderTexturePool so the
+// storage is reused instead of grown. A texture the frame released can only go
+// back to the pool once the GPU is done with the frames still in flight, so the
+// release is queued and the pool gets it kRetireDelay frames later - no new
+// synchronization is needed, the existing frame fence is that far ahead.
 class GraphResourceAllocator {
 public:
     // GfxDriver::kBufferCount: a resource released by frame F is taken back at

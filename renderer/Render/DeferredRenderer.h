@@ -52,7 +52,7 @@ protected:
 
     TAA taa_;
     FXAA fxaa_;
-    //the TAA node, switched by the AA option before the graph runs (T3.1)
+    //the TAA node, switched by the AA option before the graph runs
     PassNode* taa_pass_ = nullptr;
 
     std::shared_ptr<RenderTarget> gbuffer_render_target_;

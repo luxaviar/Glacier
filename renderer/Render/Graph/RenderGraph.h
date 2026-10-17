@@ -26,21 +26,28 @@ public:
 
 #define RGC_EXCEPTION(message) RenderGraphCompileException(__LINE__, TEXT(__FILE__), (message))
 
-// What the newest Execute did (see .docs/render-graph-plan.md §4.5); F4 prints
-// it next to the pass timings.
+// What the newest Execute did; F4 prints it next to the pass timings.
 struct GraphStats {
     uint32_t passes = 0;
     uint32_t culled = 0;
     uint32_t barriers = 0;
     uint32_t fallback_transitions = 0;
+    // What the backend tracker did while the graph ran: every transition it was
+    // asked for, the requests that change a resource state, and the requests
+    // the resource state already satisfied. The plan's number differs from the
+    // tracker's because pass bodies may transition too; the latter two sum to
+    // the request count.
+    uint32_t transition_requests = 0;
+    uint32_t changed_transitions = 0;
+    uint32_t skipped_transitions = 0;
 };
 
-// The frame graph (see .docs/render-graph-plan.md §4): the renderer registers
-// its passes and the resources they use once, the graph compiles what was
-// declared - execution order, culled passes, barrier plan, transient plan - and
-// every frame it runs the result. Pass names stay what they always were, since
-// they are the material pass keys (D7), and what a pass body sees changes only
-// in that it runs with a PassContext instead of the raw command buffer.
+// The frame graph: the renderer registers its passes and the resources they
+// use once, the graph compiles what was declared - execution order, culled
+// passes, barrier plan, transient plan - and every frame it runs the result.
+// Pass names stay what they always were, since they are the material pass
+// keys, and what a pass body sees changes only in that it runs with a
+// PassContext instead of the raw command buffer.
 class RenderGraph {
 public:
     RenderGraph();
@@ -60,8 +67,8 @@ public:
     // Re-points an imported resource at another texture of the same role: the
     // swapchain attaches the buffer it will present to the render target every
     // Present, and the bloom chain reallocates its mips on a resize, so the
-    // handle keeps naming the resource while the object behind it changes
-    // (T3.1). Not a structural change - the compiled graph is kept.
+    // handle keeps naming the resource while the object behind it changes.
+    // Not a structural change - the compiled graph is kept.
     void UpdateImported(GraphResourceHandle handle, Texture* texture);
 
     // —— passes, registered once ——
@@ -88,21 +95,21 @@ public:
     PassNode& GetPass(const char* pass_name);
 
     // —— compile and run ——
-    // Compiles what is registered (§4.4). Runs by itself before Execute when the
-    // render size or the options changed since the last one (D6).
+    // Compiles what is registered. Runs by itself before Execute when the
+    // render size or the options changed since the last one.
     void Compile();
     // Runs the compiled frame: observer, when there is one, is told where every
     // pass starts and ends; it is how the GPU pass timer of PerfStats brackets
     // the passes of the graph.
     void Execute(CommandBuffer* cmd_buffer, PassObserver* observer = nullptr);
     // Releases what the frame took - the transients - and ends the allocator
-    // frame; called after the frame was presented (§4.5).
+    // frame; called after the frame was presented.
     void Reset() noexcept;
 
     // The size transient textures are resolved against; a change recompiles
     void SetRenderSize(uint32_t width, uint32_t height);
 
-    // Drops the passes no live root reaches (§4.4 item 2). Off until the
+    // Drops the passes no live root reaches. Off until the
     // migration is done, so the order matches the registration order.
     void cull(bool enable);
     bool cull() const { return options_.cull; }
@@ -117,9 +124,15 @@ public:
     const GraphStats& stats() const { return stats_; }
 
     // What the graph will run and why: order, per pass reads/writes and the
-    // barrier plan, culled passes, transients (§4.4 item 6). Debug logs it once
+    // barrier plan, culled passes, transients. Debug logs it once
     // per compile.
     std::string Dump() const;
+    // The same graph as a graphviz document: resources and passes, reads and
+    // writes as edges, culled passes dashed, and a frame-end node for the
+    // transitions back to the declared final states.
+    std::string DumpDot() const;
+    // Writes DumpDot() to path; false when the file cannot be opened.
+    bool DumpDot(const char* path) const;
     // The one line F4 writes next to the pass timings of PerfStats
     void PrintStats() const;
 
@@ -138,7 +151,7 @@ protected:
 
     // The passes live behind stable addresses: what AddPass hands back (a
     // PassNode&) has to stay valid across the registrations that come after it
-    // - the runtime toggles of a frame hold on to the pass they switch (T2.2).
+    // - the runtime toggles of a frame hold on to the pass they switch.
     std::vector<std::unique_ptr<PassNode>> passes_;
     GraphResourceTable resources_;
     GraphResourceAllocator allocator_;

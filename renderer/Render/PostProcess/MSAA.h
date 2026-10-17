@@ -26,7 +26,7 @@ public:
     std::shared_ptr<RenderTarget>& GetRenderTarget() { return msaa_render_target_; }
 
     //whether the resolve has anything to do; follows the option the editor
-    //window switches (T3.2)
+    //window switches
     bool enabled() const { return msaa_ != MSAAType::kNone; }
 
     void DrawOptionWindow();

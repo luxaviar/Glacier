@@ -19,7 +19,7 @@ public:
 
     virtual std::shared_ptr<RenderTarget>& GetLightingRenderTarget() { return msaa_.GetRenderTarget(); }
     //the lighting of this renderer draws into the MSAA frame, and the passes
-    //it shares with the deferred one declare their writes on that (T3.2)
+    //it shares with the deferred one declare their writes on that
     GraphResourceHandle lighting_color_handle() const override { return msaa_color_; }
     GraphResourceHandle lighting_depth_handle() const override { return msaa_depth_; }
     bool OnResize(uint32_t width, uint32_t height) override;
@@ -40,7 +40,7 @@ protected:
     void InitRenderGraph(GfxDriver* gfx);
 
     //the lighting of this renderer goes to the MSAA frame, and the resolve
-    //that puts it on the hdr frame is a node of the graph (T3.2)
+    //that puts it on the hdr frame is a node of the graph
     GraphResourceHandle msaa_color_;
     GraphResourceHandle msaa_depth_;
     PassNode* msaa_resolve_pass_ = nullptr;

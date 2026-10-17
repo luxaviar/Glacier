@@ -38,7 +38,7 @@ void GTAO::Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffe
     ao_texture->SetName("ao texture");
 
     // the half resolution trace target and the stage between the two filter
-    // directions are transients the graph hands the chain every frame (T2.4),
+    // directions are transients the graph hands the chain every frame,
     // so they are not attached here; BindHalfTarget / BindSpatialTarget attach
     // what the frame resolved before the node that uses it runs
     ao_half_render_target_ = gfx_->CreateRenderTarget(width / 2, height / 2);
@@ -73,7 +73,7 @@ void GTAO::OnResize(uint32_t width, uint32_t height) {
     ao_full_render_target_->Resize(width, height);
 
     // the half and the spatial target carry the transient textures of the
-    // frame that just ran (T2.4); a pooled texture is not resized here - it is
+    // frame that just ran; a pooled texture is not resized here - it is
     // detached, the target is sized, and the node that runs next attaches the
     // texture of its own frame
     ao_half_render_target_->DetachColor(AttachmentPoint::kColor0);

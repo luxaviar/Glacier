@@ -111,7 +111,7 @@ void LightManager::Update(CommandBuffer* cmd_buffer) {
 void LightManager::AddSkyboxPass(Renderer* renderer) {
     //the skybox draws over the color of the lighting pass, so it declares the
     //lighting target of the renderer - the hdr frame of the deferred stack,
-    //the MSAA frame of the forward one (T3.2)
+    //the MSAA frame of the forward one
     auto color = renderer->lighting_color_handle();
     auto depth = renderer->lighting_depth_handle();
 

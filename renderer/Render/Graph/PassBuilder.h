@@ -8,8 +8,7 @@ namespace render {
 class GraphResourceTable;
 class PassNode;
 
-// The declaration surface a pass is set up with (see
-// .docs/render-graph-plan.md §4.3):
+// The declaration surface a pass is set up with:
 //
 //     graph.AddPass("skybox",
 //         [=](PassBuilder& b) {
@@ -20,7 +19,7 @@ class PassNode;
 //
 // What is declared here is what the graph orders the pass by and what it makes
 // the resources hold while the pass runs; a use the body makes without
-// declaring it is not an error yet - the validation of §4.6 counts it, which is
+// declaring it is not an error yet - the graph validation counts it, which is
 // how a pass that is still to be migrated shows up.
 class PassBuilder {
 public:
@@ -33,7 +32,7 @@ public:
     void Write(GraphResourceHandle resource, ResourceAccessBit access);
 
     // The resource is written as the given attachment of the pass. The state
-    // is implied by the attachment; the binding itself stays in the body (D2).
+    // is implied by the attachment; the binding itself stays in the body.
     void SetRenderTarget(GraphResourceHandle resource, AttachmentPoint point = AttachmentPoint::kColor0);
     void SetDepthStencil(GraphResourceHandle resource);
 

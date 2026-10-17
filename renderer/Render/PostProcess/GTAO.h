@@ -34,11 +34,11 @@ public:
     void Setup(Renderer* renderer, const std::shared_ptr<Texture>& depth_buffer, const std::shared_ptr<Texture>& normal_buffer);
     void OnResize(uint32_t width, uint32_t height);
 
-    // The chain runs as four nodes of the graph (T2.2, D8): the trace, the
+    // The chain runs as four nodes of the graph: the trace, the
     // upsample that puts a half resolution trace back on the full target, and
     // the two directions of the bilateral filter. The trace target of the half
     // resolution mode and the stage between the two directions are transients
-    // the graph owns (T2.4): the node that renders into one binds what the
+    // the graph owns: the node that renders into one binds what the
     // frame resolved, the node that samples one points its material at it -
     // the texture of a transient belongs to the frame, not to the material.
     void BindHalfTarget(const std::shared_ptr<Texture>& texture);
@@ -50,14 +50,14 @@ public:
     void ExecuteFilterY(CommandBuffer* cmd_buffer);
 
     //what the "Half Resolution" checkbox of the AO panel says; the upsample
-    //node of the graph follows it (T2.2)
+    //node of the graph follows it
     bool half_resolution() const { return half_ao_res_; }
 
     void SetupBuiltinProperty(Material* mat);
     void DrawOptionWindow();
 
     //the occlusion the lighting pass reads; imported by the renderer's graph
-    //registration (see .docs/render-graph-plan.md T1.7)
+    //registration
     std::shared_ptr<Texture>& occlusion_texture() {
         return ao_full_render_target_->GetColorAttachment(AttachmentPoint::kColor0);
     }
@@ -84,7 +84,7 @@ protected:
 
     // the full target is the one the lighting pass reads and the renderer
     // imports; the half and the spatial target carry the transients of the
-    // frame and are attached to them while the frame runs (T2.4)
+    // frame and are attached to them while the frame runs
     std::shared_ptr<RenderTarget> ao_half_render_target_;
     std::shared_ptr<RenderTarget> ao_full_render_target_;
     std::shared_ptr<RenderTarget> ao_spatial_render_target_;
